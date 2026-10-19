@@ -511,7 +511,7 @@ public partial class CustomerDisplayItem : ObservableObject
     /// <summary>
     /// Gets the initials from the customer name for avatar display.
     /// </summary>
-    public string Initials => Helpers.InitialsHelper.From(Name);
+    public string Initials => InitialsHelper.From(Name);
 
     [ObservableProperty]
     private bool _isHighlighted;
@@ -528,7 +528,7 @@ public class CustomerHistoryItem
     public decimal Amount { get; set; }
     public string Status { get; set; } = string.Empty;
 
-    public string DateFormatted => Date.ToString("MMM d, yyyy");
+    public string DateFormatted => Date.ToString(Core.Data.DateFormats.Short);
     public string AmountFormatted => Amount < 0 ? $"-{CurrencyService.Format(Math.Abs(Amount))}" : CurrencyService.Format(Amount);
 }
 

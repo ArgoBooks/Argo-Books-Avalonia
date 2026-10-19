@@ -124,10 +124,9 @@ public sealed class PdfThumbnailService
                 pageCount = 1;
 
             var dataUrl = result[(firstColon + 1)..];
-            const string dataPrefix = "data:image/jpeg;base64,";
-            if (dataUrl.StartsWith(dataPrefix))
+            if (dataUrl.StartsWith(PdfRenderMessageParser.DataPrefix))
             {
-                return (Convert.FromBase64String(dataUrl[dataPrefix.Length..]), pageCount);
+                return (Convert.FromBase64String(dataUrl[PdfRenderMessageParser.DataPrefix.Length..]), pageCount);
             }
 
             return null;
@@ -197,6 +196,10 @@ public sealed class PdfThumbnailService
         // Dispose any previous failed init to avoid leaking windows
         CleanupWebView();
 
+        // A web view that failed to start fails again the same way, so each later thumbnail would wait out the navigation timeout for nothing (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
+        if (WebViewEnvironment.HasFailed)
+            return;
+
         // macOS suspends the web view of a fully offscreen window, and a suspended WKWebView never finishes a canvas render, so page.render() hangs.
         var hideBySize = OperatingSystem.IsMacOS();
 
@@ -254,9 +257,14 @@ public sealed class PdfThumbnailService
         _webView.WebMessageReceived += OnReadyMessage;
         _webView.NavigationCompleted += OnNavCompleted;
 
+        // A web view that fails to start never navigates, so its failure ends the wait instead of the timeout (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
+        void OnWebViewFailed(object? sender, EventArgs e) => navTcs.TrySetResult(false);
+        WebViewEnvironment.Failed += OnWebViewFailed;
+
         _webView.NavigateToString(RendererHtml, new Uri("https://localhost/pdfrender"));
 
         var navCompleted = await Task.WhenAny(navTcs.Task, Task.Delay(15000));
+        WebViewEnvironment.Failed -= OnWebViewFailed;
         if (navCompleted != navTcs.Task || !navTcs.Task.Result)
         {
             System.Diagnostics.Debug.WriteLine($"PdfThumbnail INIT: navigation failed or timed out");
@@ -352,7 +360,7 @@ public sealed class PdfThumbnailService
 
     /// <summary>Takes whatever the page has queued since the last call.</summary>
     private async Task<IReadOnlyList<string>> DrainOutboxAsync() =>
-        ParseOutbox(await InvokeSafeAsync("window.__drainOutbox()"));
+        WebViewOutbox.Parse(await InvokeSafeAsync("window.__drainOutbox()"));
 
     /// <summary>
     /// Runs a script, treating a dead or missing web view as "no answer" rather than as an
@@ -373,12 +381,6 @@ public sealed class PdfThumbnailService
             return null;
         }
     }
-
-    /// <summary>
-    /// Reads the messages out of a drain. Shared with the invoice preview, which answers over
-    /// the same channel for the same reason.
-    /// </summary>
-    internal static IReadOnlyList<string> ParseOutbox(string? raw) => WebViewOutbox.Parse(raw);
 
     private void OnWebMessageReceived(object? sender, WebMessageReceivedEventArgs e) =>
         DispatchMessage(e.Body);
@@ -600,7 +602,7 @@ public sealed class PdfThumbnailService
     {
         public const string PagePrefix = "render-page:";
         public const string DonePrefix = "render-done:";
-        private const string DataPrefix = "data:image/jpeg;base64,";
+        public const string DataPrefix = "data:image/jpeg;base64,";
 
         /// <summary>True if the body is the done terminator; outputs the declared count.</summary>
         public static bool TryParseDone(string body, out int count)

@@ -389,7 +389,7 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(ReceiptId)) return;
 
-        if (await Services.ReceiptTypeSwitchService.SwitchAsync(ReceiptId))
+        if (await ReceiptTypeSwitchService.SwitchAsync(ReceiptId))
         {
             TransactionType = SwitchTargetType;
         }
@@ -419,9 +419,7 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
 
         try
         {
-            var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
+            var topLevel = App.DesktopMainWindow;
 
             if (topLevel?.StorageProvider == null) return;
 
@@ -430,7 +428,7 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
                 Title = "Save".Translate(),
                 SuggestedFileName = _documentFileName,
                 DefaultExtension = "pdf",
-                FileTypeChoices = [new FilePickerFileType("PDF") { Patterns = ["*.pdf"] }]
+                FileTypeChoices = [Utilities.FilePickerTypes.PdfFileType]
             });
 
             if (result == null) return;
@@ -502,9 +500,7 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
                 .FirstOrDefault(r => r.Id == ReceiptId);
             if (receipt?.FileData == null) return;
 
-            var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
+            var topLevel = App.DesktopMainWindow;
 
             if (topLevel?.StorageProvider == null) return;
 

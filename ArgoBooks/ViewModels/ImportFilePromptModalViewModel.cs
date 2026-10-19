@@ -16,6 +16,9 @@ public sealed class ImportFilePromptOptions
     public List<string> Points { get; init; } = [];
 
     public string ChooseButtonText { get; init; } = "";
+
+    /// <summary>Names the prompt, so "Don't show again" can be remembered for it.</summary>
+    public string Key { get; init; } = "";
 }
 
 /// <summary>
@@ -38,7 +41,13 @@ public partial class ImportFilePromptModalViewModel : ViewModelBase
 
     public ObservableCollection<string> Points { get; } = [];
 
+    [ObservableProperty]
+    private bool _dontShowAgain = true;
+
+    public string DontShowAgainLabel => "Don't show again".Translate();
+
     private TaskCompletionSource<bool>? _completion;
+    private string _key = "";
 
     /// <summary>Returns true when the person wants to carry on to the file picker.</summary>
     public Task<bool> ShowAsync(ImportFilePromptOptions options)
@@ -50,6 +59,13 @@ public partial class ImportFilePromptModalViewModel : ViewModelBase
             return Task.FromResult(false);
         }
 
+        if (options.Key.Length > 0 && App.SettingsService?.GlobalSettings.HiddenImportPrompts.Contains(options.Key) == true)
+        {
+            return Task.FromResult(true);
+        }
+
+        _key = options.Key;
+        DontShowAgain = true;
         Title = options.Title;
         Description = options.Description;
         ChooseButtonText = options.ChooseButtonText.Length > 0
@@ -75,6 +91,14 @@ public partial class ImportFilePromptModalViewModel : ViewModelBase
 
     private void Complete(bool proceed)
     {
+        // Only going on to the file remembers the choice, so a prompt cancelled before it was read comes back.
+        if (proceed && DontShowAgain && _key.Length > 0 && App.SettingsService is { } settings
+            && !settings.GlobalSettings.HiddenImportPrompts.Contains(_key))
+        {
+            settings.GlobalSettings.HiddenImportPrompts.Add(_key);
+            _ = settings.SaveGlobalSettingsAsync();
+        }
+
         IsOpen = false;
         var completion = _completion;
         _completion = null;

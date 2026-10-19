@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Xml.Linq;
 using ArgoBooks.Core.Models.Payroll;
+using static ArgoBooks.Core.Services.Payroll.PayrollXml;
 
 namespace ArgoBooks.Core.Services.Payroll;
 
@@ -244,16 +245,6 @@ public static class T4XmlWriter
 
         return summary;
     }
-
-    /// <summary>Adds the element only if there is something to put in it.</summary>
-    private static void Add(XElement parent, string element, string? value)
-    {
-        if (!string.IsNullOrEmpty(value))
-        {
-            parent.Add(new XElement(element, value));
-        }
-    }
-
     private static XElement Required(string element, string? value) =>
         new(element, value ?? string.Empty);
 
@@ -280,12 +271,6 @@ public static class T4XmlWriter
     /// </summary>
     private static string? Money(decimal value) =>
         value <= 0 ? null : value.ToString("0.00", CultureInfo.InvariantCulture);
-
-    private static string? Text(string? value, int max)
-    {
-        string trimmed = (value ?? string.Empty).Trim();
-        return trimmed.Length == 0 ? null : trimmed[..Math.Min(trimmed.Length, max)];
-    }
 
     /// <summary>
     /// A name in the characters CRA lists, truncated to the field width.
@@ -338,10 +323,4 @@ public static class T4XmlWriter
         Upper(CraFormat.NormalizePostalCode(value, country), 10);
 
     private static string? Upper(string? value, int max) => Text(value, max)?.ToUpperInvariant();
-
-    private static string? Digits(string? value, int max)
-    {
-        string digits = new((value ?? string.Empty).Where(char.IsAsciiDigit).ToArray());
-        return digits.Length == 0 ? null : digits[..Math.Min(digits.Length, max)];
-    }
 }

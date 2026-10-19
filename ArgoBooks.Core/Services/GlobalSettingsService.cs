@@ -207,11 +207,6 @@ public class GlobalSettingsService : IGlobalSettingsService
         }
     }
 
-    public string GetAppDataPath()
-    {
-        return _platformService.GetAppDataPath();
-    }
-
     /// <summary>
     /// Gets all recent company paths that still exist.
     /// </summary>

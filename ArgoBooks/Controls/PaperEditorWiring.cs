@@ -53,13 +53,7 @@ internal static class PaperEditorWiring
         {
             Title = "Choose a logo",
             AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType("Images")
-                {
-                    Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp", "*.heic", "*.heif" }
-                }
-            }
+            FileTypeFilter = [Utilities.FilePickerTypes.PictureFileType]
         });
 
         if (files.Count == 0) return;

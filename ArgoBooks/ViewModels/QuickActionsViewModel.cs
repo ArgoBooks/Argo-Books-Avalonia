@@ -152,7 +152,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             new QuickActionItem("New Customer", "Add a new customer", Icons.NewCustomer, QuickActionType.QuickAction, "Customers", "OpenAddModal"),
             new QuickActionItem("New Product", "Add a new product or service", Icons.NewProduct, QuickActionType.QuickAction, "Products", "OpenAddModal"),
             new QuickActionItem("New Supplier", "Add a new supplier", Icons.Suppliers, QuickActionType.QuickAction, "Suppliers", "OpenAddModal"),
-            new QuickActionItem("New Rental Item", "Add a new rental item", Icons.NewRentalItem, QuickActionType.QuickAction, "RentalInventory", "OpenAddModal"),
+            new QuickActionItem("New Rental Item", "Add a new rental item", Icons.RentalInventory, QuickActionType.QuickAction, "RentalInventory", "OpenAddModal"),
             new QuickActionItem("New Rental Record", "Create a new rental transaction", Icons.RentalRecords, QuickActionType.QuickAction, "RentalRecords", "OpenAddModal"),
             new QuickActionItem("New Category", "Add a new category", Icons.Categories, QuickActionType.QuickAction, "Categories", "OpenAddModal"),
             new QuickActionItem("New Location", "Add a new location", Icons.Locations, QuickActionType.QuickAction, "Locations", "OpenAddModal"),
@@ -214,11 +214,6 @@ public partial class QuickActionsViewModel : ViewModelBase
         FilterActions(value);
     }
 
-    /// <summary>
-    /// Minimum score threshold for a "strong" match (prefix, word-start, or substring).
-    /// Items with title scores at or above this threshold appear in Top Results.
-    /// </summary>
-    private const double StrongMatchThreshold = 0.8;
 
     /// <summary>
     /// Filters all action lists based on query using fuzzy matching.
@@ -248,12 +243,12 @@ public partial class QuickActionsViewModel : ViewModelBase
 
                     // A strong title match wins, a weak one with a strong description match gets a small boost, and otherwise the best of the two is used.
                     double finalScore;
-                    if (titleScore >= StrongMatchThreshold)
+                    if (titleScore >= LevenshteinDistance.StrongMatchScore)
                     {
                         // Strong title match - prioritize heavily
                         finalScore = titleScore + (descScore > 0 ? descScore * 0.05 : 0);
                     }
-                    else if (descScore >= StrongMatchThreshold && titleScore < StrongMatchThreshold)
+                    else if (descScore >= LevenshteinDistance.StrongMatchScore && titleScore < LevenshteinDistance.StrongMatchScore)
                     {
                         // Strong description match but weak/no title match - reduce score
                         // This prevents "Scan Receipt" (desc contains "import") from ranking high for "export"
@@ -277,7 +272,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(query))
         {
             var topResultItems = new HashSet<QuickActionItem>();
-            foreach (var (item, _, _) in filteredList.Where(x => x.TitleScore >= StrongMatchThreshold).Take(4))
+            foreach (var (item, _, _) in filteredList.Where(x => x.TitleScore >= LevenshteinDistance.StrongMatchScore).Take(4))
             {
                 TopResults.Add(item);
                 topResultItems.Add(item);
@@ -391,6 +386,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             return;
 
         Close();
+        ActionExecuted?.Invoke(this, EventArgs.Empty);
 
         if (!string.IsNullOrEmpty(action.NavigationTarget))
         {
@@ -416,6 +412,11 @@ public partial class QuickActionsViewModel : ViewModelBase
     /// Event raised when an action needs to be executed after navigation.
     /// </summary>
     public event EventHandler<QuickActionEventArgs>? ActionRequested;
+
+    /// <summary>
+    /// Event raised when the user picks an item, before it runs.
+    /// </summary>
+    public event EventHandler? ActionExecuted;
 
     /// <summary>
     /// Moves selection up.

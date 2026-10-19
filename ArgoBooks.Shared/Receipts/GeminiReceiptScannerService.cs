@@ -36,8 +36,6 @@ public class GeminiReceiptScannerService(
     private readonly HttpClient _httpClient = httpClient ?? new HttpClient { Timeout = ScanTimeout };
     private readonly bool _ownsHttpClient = httpClient is null;
 
-    private const string DefaultModel = "gemini-2.5-flash";
-
     private const string SystemPrompt = @"You are a receipt data extraction system. You must extract EVERY item and ALL data from the receipt image into structured JSON. Be thorough, missing items is unacceptable.
 
 Return JSON only (no markdown code blocks), with this exact format:
@@ -360,7 +358,7 @@ If nothing was missed, return: {{""missingItems"": []}}";
             Operation = operation,
             SystemPrompt = systemPrompt,
             UserPrompt = userPrompt,
-            Model = DefaultModel,
+            Model = AiProxyClient.DefaultModel,
             // No maxTokens: the server sets the receipt-scan output budget authoritatively
             // from RECEIPT_SCAN_MAX_OUTPUT_TOKENS (.env) and ignores any client value here.
             Temperature = 0.0,

@@ -494,7 +494,7 @@ public ExpensesPageViewModel()
             var category = categoryId != null ? companyData?.GetCategory(categoryId) : null;
             var accountant = companyData?.GetAccountant(purchase.AccountantId ?? "");
             var statusDisplay = purchase.IsPendingConversion ? "Pending" : GetStatusDisplay(purchase, lostDamagedIds, returnedIds);
-            var (productName, productMoreText) = FormatProductDescription(purchase);
+            var (productName, productMoreText) = Utilities.TransactionDisplay.ProductSummary(purchase);
             var hasReceipt = !string.IsNullOrEmpty(purchase.ReceiptId);
             var receipt = hasReceipt ? companyData?.GetReceipt(purchase.ReceiptId!) : null;
             var receiptFilePath = receipt?.OriginalFilePath ?? string.Empty;
@@ -565,19 +565,6 @@ public ExpensesPageViewModel()
         var pagedExpenses = Paginate(displayItems, "expense");
 
         Expenses.ReplaceAll(pagedExpenses);
-    }
-
-    private static (string name, string moreText) FormatProductDescription(Expense purchase)
-    {
-        if (purchase.LineItems.Count <= 1)
-            return (purchase.Description, string.Empty);
-
-        var firstName = purchase.LineItems[0].Description;
-        if (string.IsNullOrEmpty(firstName))
-            firstName = purchase.Description.Split(',')[0].Trim();
-
-        var remaining = purchase.LineItems.Count - 1;
-        return (firstName, $" +{remaining} more");
     }
 
     private static string GetStatusDisplay(Expense purchase, HashSet<string> lostDamagedIds, HashSet<string> returnedIds)

@@ -16,7 +16,7 @@ public class SettingsBankRulesDirtyTests : IDisposable
     {
         var company = new CompanyData();
         company.Categories.Add(new Category { Id = "CAT-PUR-001", Name = "Office", Type = CategoryType.Expense });
-        company.BankCategoryRules.Add(new BankCategoryRule { Id = "R1", Pattern = "staples", CategoryId = "CAT-PUR-001" });
+        company.Settings.BankCategoryRules.Add(new BankCategoryRule { Id = "R1", Pattern = "staples", CategoryId = "CAT-PUR-001" });
         App.SetCompanyManagerForTesting(CompanyManager.CreateForTesting(company));
     }
 

@@ -37,7 +37,7 @@
         <PackageReference Include="Avalonia.Fonts.Inter" />
 
         <!-- Auto-Update -->
-        <PackageReference Include="NetSparkleUpdater.UI.Avalonia" />
+        <PackageReference Include="Velopack" />
 
         <!-- Pin transitive dep to patched version (GHSA-xrw6-gwf8-vvr9) -->
         <PackageReference Include="Tmds.DBus.Protocol" />

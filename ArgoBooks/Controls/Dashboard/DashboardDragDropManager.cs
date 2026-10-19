@@ -35,7 +35,6 @@ public class DashboardDragDropManager
     private const double AutoScrollMargin = 50;
     private const double AutoScrollSpeed = 8;
 
-    private static IBrush AccentBrush => ConverterUtils.AccentBrush;
     private static IBrush RefusedBrush => ConverterUtils.ThemeBrush("ErrorBrush", "#DC2626");
 
     public DashboardDragDropManager(
@@ -129,7 +128,7 @@ public class DashboardDragDropManager
             Width = sourceWidth,
             Height = sourceHeight,
             Background = ConverterUtils.AccentTint(30),
-            BorderBrush = AccentBrush,
+            BorderBrush = ConverterUtils.AccentBrush,
             BorderThickness = new Thickness(2),
             CornerRadius = new CornerRadius(12),
             IsHitTestVisible = false,
@@ -164,7 +163,7 @@ public class DashboardDragDropManager
 
         if (targetRowPanel == _sourceRowPanel)
         {
-            _dragGhost.BorderBrush = AccentBrush;
+            _dragGhost.BorderBrush = ConverterUtils.AccentBrush;
             _dragGhost.Height = _originalGhostHeight;
             _crossRowTargetPanel = null;
             UpdateSameRowPreview(ghostRect);
@@ -181,7 +180,7 @@ public class DashboardDragDropManager
         }
         else
         {
-            _dragGhost.BorderBrush = AccentBrush;
+            _dragGhost.BorderBrush = ConverterUtils.AccentBrush;
             _dragGhost.Height = _originalGhostHeight;
             _crossRowTargetPanel = null;
             ResetPreviewTransforms();
@@ -294,7 +293,7 @@ public class DashboardDragDropManager
             return;
         }
 
-        _dragGhost.BorderBrush = AccentBrush;
+        _dragGhost.BorderBrush = ConverterUtils.AccentBrush;
         _crossRowTargetPanel = targetRowPanel;
     }
 

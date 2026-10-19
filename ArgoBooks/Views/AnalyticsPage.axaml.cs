@@ -2,12 +2,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ArgoBooks.Services;
 using ArgoBooks.ViewModels;
-using LiveChartsCore.Kernel;
 using LiveChartsCore.SkiaSharpView.Avalonia;
 
 namespace ArgoBooks.Views;
@@ -52,47 +49,9 @@ public partial class AnalyticsPage : UserControl
         }
     }
 
-    protected override void OnLoaded(RoutedEventArgs e)
-    {
-        base.OnLoaded(e);
-
-        // A pie handed its series while its tab is collapsed draws nothing, and the size arriving
-        // later does not make LiveCharts look again, so each one is redrawn once it has a size.
-        foreach (var pie in this.GetVisualDescendants().OfType<PieChart>())
-        {
-            pie.PropertyChanged -= OnPieChartPropertyChanged;
-            pie.PropertyChanged += OnPieChartPropertyChanged;
-        }
-    }
-
-    /// <summary>Pies already redrawn since they last had a size, so each gets one redraw.</summary>
-    private readonly HashSet<PieChart> _renderedPieCharts = new();
-
-    /// <summary>Redraws a pie once it has a size. Losing the size arms it for the next visit.</summary>
-    private void OnPieChartPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (sender is not PieChart pie || e.Property != Visual.BoundsProperty)
-            return;
-
-        if (pie.Bounds.Width <= 0 || pie.Bounds.Height <= 0)
-        {
-            _renderedPieCharts.Remove(pie);
-            return;
-        }
-
-        // Posted, so the redraw reads the size it has now rather than the one it is about to get.
-        if (_renderedPieCharts.Add(pie))
-            Dispatcher.UIThread.Post(() => pie.CoreChart.Update(new ChartUpdateParams()),
-                DispatcherPriority.Background);
-    }
-
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
-
-        foreach (var pie in this.GetVisualDescendants().OfType<PieChart>())
-            pie.PropertyChanged -= OnPieChartPropertyChanged;
-        _renderedPieCharts.Clear();
 
         if (_previousViewModel != null)
         {
@@ -101,8 +60,6 @@ public partial class AnalyticsPage : UserControl
             _previousViewModel = null;
         }
     }
-
-    private AnalyticsPageViewModel? ViewModel => DataContext as AnalyticsPageViewModel;
 
     /// <summary>
     /// Handles right-click on charts to show the context menu.

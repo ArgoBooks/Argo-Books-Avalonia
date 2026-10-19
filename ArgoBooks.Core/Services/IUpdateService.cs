@@ -55,7 +55,7 @@ public enum UpdateState
 
 /// <summary>
 /// Service for checking, downloading, and applying application updates.
-/// Implementations are platform-specific (e.g., NetSparkle for desktop).
+/// The desktop implementation is built on Velopack.
 /// </summary>
 public interface IUpdateService
 {
@@ -101,6 +101,16 @@ public interface IUpdateService
     /// Must be called after download completes (<see cref="State"/> is <see cref="UpdateState.ReadyToInstall"/>).
     /// </summary>
     void ApplyUpdateAndRestart();
+
+    /// <summary>
+    /// True on Windows when this copy was installed by Velopack and the copy the old installer put in Program Files is still there.
+    /// </summary>
+    bool HasOldInstallToRemove => false;
+
+    /// <summary>
+    /// Uninstalls the old copy, after Windows asks the user for permission. Returns false when they said no or it failed.
+    /// </summary>
+    Task<bool> RemoveOldInstallAsync() => Task.FromResult(false);
 
     /// <summary>
     /// Raised when the update state changes.

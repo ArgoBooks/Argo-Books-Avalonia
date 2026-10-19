@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Services;
 using ApiConfig = ArgoBooks.Core.Services.ApiConfig;
+using WebsiteUrls = ArgoBooks.Core.Services.WebsiteUrls;
 using AppInfo = ArgoBooks.Core.Services.AppInfo;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -145,7 +146,7 @@ public partial class WelcomeScreenViewModel : ViewModelBase
     [RelayCommand]
     private void OpenHelp()
     {
-        UrlHelper.SafeOpenUrl($"{ApiConfig.BaseUrl}/contact-us/");
+        UrlHelper.SafeOpenUrl(WebsiteUrls.ContactUs);
     }
 
     /// <summary>
@@ -154,7 +155,7 @@ public partial class WelcomeScreenViewModel : ViewModelBase
     [RelayCommand]
     private void OpenWhatsNew()
     {
-        UrlHelper.SafeOpenUrl($"{ApiConfig.BaseUrl}/whats-new/");
+        UrlHelper.SafeOpenUrl(WebsiteUrls.WhatsNew);
     }
 
     #endregion

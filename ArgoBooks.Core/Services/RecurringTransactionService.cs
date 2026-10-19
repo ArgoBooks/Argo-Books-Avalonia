@@ -73,9 +73,9 @@ internal sealed class OccurrenceSnapshot
 
         // Serialized rather than copied field by field, so a field added to either type later is
         // still carried back.
-        _lineItems = JsonSerializer.Serialize(target.LineItems, RecurringTransactionService.CloneOptions);
+        _lineItems = JsonSerializer.Serialize(target.LineItems, FileService.JsonOptions);
         var queued = UsdConversion.Queued(data, UsdConversion.KeyOf(target));
-        _queued = queued == null ? null : JsonSerializer.Serialize(queued, RecurringTransactionService.CloneOptions);
+        _queued = queued == null ? null : JsonSerializer.Serialize(queued, FileService.JsonOptions);
     }
 
     public void Restore(CompanyData data)
@@ -95,11 +95,11 @@ internal sealed class OccurrenceSnapshot
         _target.FeeUSD = _feeUsd;
         _target.IsPendingConversion = _isPendingConversion;
         _target.UpdatedAt = _updatedAt;
-        _target.LineItems = JsonSerializer.Deserialize<List<LineItem>>(_lineItems, RecurringTransactionService.CloneOptions)!;
+        _target.LineItems = JsonSerializer.Deserialize<List<LineItem>>(_lineItems, FileService.JsonOptions)!;
 
         UsdConversion.Set(data, UsdConversion.KeyOf(_target), _queued == null
             ? null
-            : JsonSerializer.Deserialize<PendingConversion>(_queued, RecurringTransactionService.CloneOptions)!);
+            : JsonSerializer.Deserialize<PendingConversion>(_queued, FileService.JsonOptions)!);
     }
 }
 
@@ -107,11 +107,6 @@ public static class RecurringTransactionService
 {
     /// <summary>Stops a corrupt far-past date with a short cadence from spinning.</summary>
     public const int MaxOccurrencesPerSchedulePerRun = 500;
-
-    internal static readonly JsonSerializerOptions CloneOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
 
     public static event Action<int>? ExpensesGenerated;
     public static event Action<int>? RevenuesGenerated;
@@ -340,14 +335,14 @@ public static class RecurringTransactionService
 
         if (schedule.Type == CategoryType.Revenue)
         {
-            var revenue = Clone(schedule.RevenueTemplate!);
+            var revenue = JsonClone.Of(schedule.RevenueTemplate!);
             revenue.Id = new IdGenerator(data).NextRevenueId(occurrence, taken.Revenues);
             data.Revenues.Add(revenue);
             entry = revenue;
         }
         else
         {
-            var expense = Clone(schedule.ExpenseTemplate!);
+            var expense = JsonClone.Of(schedule.ExpenseTemplate!);
             expense.Id = new IdGenerator(data).NextExpenseId(occurrence, taken.Expenses);
             data.Expenses.Add(expense);
             entry = expense;
@@ -373,7 +368,4 @@ public static class RecurringTransactionService
         UsdConversion.Apply(data, entry, UsdConversion.CachedRate(entry.OriginalCurrency, occurrence, rates));
         return entry;
     }
-
-    private static T Clone<T>(T source) =>
-        JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(source, CloneOptions), CloneOptions)!;
 }

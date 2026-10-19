@@ -5,8 +5,6 @@
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:vm="using:ArgoBooks.ViewModels"
              x:Class="ArgoBooks.Controls.ChartExpandOverlay"
-             Focusable="True"
-             IsVisible="False"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch">
 
@@ -72,23 +70,18 @@
         </Style>
     </UserControl.Styles>
 
-    <Panel>
-        <!-- Semi-transparent backdrop -->
-        <Border Background="{DynamicResource OverlayBrush}"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                PointerPressed="OnBackdropClick" />
-
-        <!-- Modal Content -->
+    <controls:ModalOverlay x:Name="Overlay"
+                           Closing="OnOverlayClosing">
+        <controls:ModalOverlay.ModalContent>
+        <!-- 40 plus the overlay's own 8 keeps the chart 48 from the window edges. -->
         <Border Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="12"
-                Margin="48"
+                Margin="40"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
-                BoxShadow="0 8 32 0 #40000000"
-                PointerPressed="OnModalContentClick">
+                BoxShadow="0 8 32 0 #40000000">
             <Grid RowDefinitions="Auto,*">
                 <!-- Header (granularity toggle + close button) -->
                 <Border Grid.Row="0"
@@ -191,5 +184,6 @@
                 </Panel>
             </Grid>
         </Border>
-    </Panel>
+        </controls:ModalOverlay.ModalContent>
+    </controls:ModalOverlay>
 </UserControl>

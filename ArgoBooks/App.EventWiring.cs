@@ -290,7 +290,7 @@ public partial class App
 
             // Clear cached page ViewModels to ensure fresh state when opening a new company
             ClearPageCaches();
-            ViewModels.InsightsPageViewModel.ClearSampleSnapshot();
+            InsightsPageViewModel.ClearSampleSnapshot();
 
             NavigationService?.NavigateTo("Welcome");
             _welcomeScreenViewModel?.InitializeTutorialMode();
@@ -446,38 +446,18 @@ public partial class App
         // Invoice template designer: BrowseLogoRequested needs desktop file picker access
         // Note: TemplateSaved is already wired to RaiseUnsavedChanges in the lazy getter
         _appShellViewModel.InvoiceTemplateDesignerViewModel.BrowseLogoRequested += async (_, _) =>
-        {
-            if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
-                return;
-
-            var files = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                Title = "Select Logo".Translate(),
-                AllowMultiple = false,
-                FileTypeFilter = [Utilities.FilePickerTypes.ImageFileType]
-            });
-
-            if (files.Count > 0)
-            {
-                var picked = files[0].Path.LocalPath;
-                var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(picked));
-                if (prepared == null)
-                {
-                    await ShowErrorDialogAsync(
-                        "Logo Not Supported".Translate(),
-                        "That image could not be read. Try a PNG or JPEG.".Translate());
-                    return;
-                }
-
-                _appShellViewModel.InvoiceTemplateDesignerViewModel.SetLogoFromFile(prepared.Path);
-            }
-        };
+            await PickPictureAsync(
+                "Select Logo".Translate(),
+                "Logo Not Supported".Translate(),
+                (path, _) => _appShellViewModel.InvoiceTemplateDesignerViewModel.SetLogoFromFile(path),
+                "TemplateLogo");
 
         // Customer modals: let the user pick an avatar image.
         _appShellViewModel.CustomerModalsViewModel.BrowseAvatarRequested += async (_, _) =>
         {
-            await PickAvatarAsync(
+            await PickPictureAsync(
                 "Select Customer Avatar".Translate(),
+                "Image Not Supported".Translate(),
                 (path, bmp) => _appShellViewModel.CustomerModalsViewModel.SetPendingAvatar(path, bmp),
                 "CustomerAvatar");
         };
@@ -485,8 +465,9 @@ public partial class App
         // Supplier modals: same pattern as customer.
         _appShellViewModel.SupplierModalsViewModel.BrowseAvatarRequested += async (_, _) =>
         {
-            await PickAvatarAsync(
+            await PickPictureAsync(
                 "Select Supplier Avatar".Translate(),
+                "Image Not Supported".Translate(),
                 (path, bmp) => _appShellViewModel.SupplierModalsViewModel.SetPendingAvatar(path, bmp),
                 "SupplierAvatar");
         };
@@ -610,7 +591,8 @@ public partial class App
                         args.CompanyName,
                         args.Password,
                         companyInfo,
-                        args.DefaultCurrency);
+                        args.DefaultCurrency,
+                        args.OpeningBalance);
 
                     // Apply logo if one was selected
                     if (!string.IsNullOrEmpty(args.LogoPath))
@@ -666,29 +648,11 @@ public partial class App
         };
 
         createCompany.BrowseLogoRequested += async (_, _) =>
-        {
-            var files = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                Title = "Select Company Logo".Translate(),
-                AllowMultiple = false,
-                FileTypeFilter = [Utilities.FilePickerTypes.ImageFileType]
-            });
-
-            if (files.Count > 0)
-            {
-                var path = files[0].Path.LocalPath;
-                var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(path));
-                if (prepared == null)
-                {
-                    await ShowErrorDialogAsync(
-                        "Logo Not Supported".Translate(),
-                        "That image could not be read. Try a PNG or JPEG.".Translate());
-                    return;
-                }
-
-                createCompany.SetLogo(prepared.Path, prepared.Bitmap);
-            }
-        };
+            await PickPictureAsync(
+                "Select Company Logo".Translate(),
+                "Logo Not Supported".Translate(),
+                createCompany.SetLogo,
+                "CompanyLogo");
     }
 
     /// <summary>
@@ -857,6 +821,7 @@ public partial class App
                     var oldAddress = settings.Company.Address;
                     var oldProvinceState = settings.Company.ProvinceState;
                     var oldLogoFileName = settings.Company.LogoFileName;
+                    var oldOpeningBalance = settings.OpeningBalance;
 
                     // Save old logo bytes for potential undo restore
                     byte[]? oldLogoBytes = null;
@@ -878,6 +843,7 @@ public partial class App
                     settings.Company.City = args.City;
                     settings.Company.Address = args.Address;
                     settings.Company.ProvinceState = args.ProvinceState;
+                    settings.OpeningBalance = args.OpeningBalance;
 
                     // Handle logo update if a new one was uploaded
                     if (!string.IsNullOrEmpty(args.LogoPath))
@@ -908,7 +874,7 @@ public partial class App
                     {
                         var currentPath = CompanyManager.CurrentFilePath;
                         var directory = Path.GetDirectoryName(currentPath);
-                        var newFileName = CompanyManager.ToCompanyFileName(args.CompanyName) + ".argo";
+                        var newFileName = CompanyManager.ToCompanyFileName(args.CompanyName) + FileFormatConstants.CompanyFileExtension;
                         var newPath = Path.Combine(directory!, newFileName);
 
                         if (CompanyManager.CanRenameTo(newPath))
@@ -942,6 +908,7 @@ public partial class App
                     var newCity = args.City;
                     var newAddress = args.Address;
                     var newProvinceState = args.ProvinceState;
+                    var newOpeningBalance = args.OpeningBalance;
 
                     var hasNonCurrencyChanges = oldName != newName
                         || oldBusinessType != newBusinessType
@@ -952,9 +919,30 @@ public partial class App
                         || oldCity != newCity
                         || oldAddress != newAddress
                         || oldProvinceState != newProvinceState
+                        || oldOpeningBalance != newOpeningBalance
                         || oldLogoFileName != newLogoFileName;
 
                     if (!hasNonCurrencyChanges) return;
+
+                    // The history lists each changed field, as it does for a customer or supplier edit.
+                    var changes = new Dictionary<string, FieldChange>();
+                    void Track(string field, string? oldValue, string? newValue)
+                    {
+                        if (!string.Equals(oldValue ?? "", newValue ?? "", StringComparison.Ordinal))
+                            changes[field] = new FieldChange { OldValue = oldValue ?? "", NewValue = newValue ?? "" };
+                    }
+                    Track("Name", oldName, newName);
+                    Track("Business type", oldBusinessType, newBusinessType);
+                    Track("Industry", oldIndustry, newIndustry);
+                    Track("Phone", oldPhone, newPhone);
+                    Track("Email", oldEmail, newEmail);
+                    Track("Country", oldCountry, newCountry);
+                    Track("Province / State", oldProvinceState, newProvinceState);
+                    Track("City", oldCity, newCity);
+                    Track("Address", oldAddress, newAddress);
+                    if (oldOpeningBalance != newOpeningBalance)
+                        Track("Opening bank balance", OpeningBalanceInput.Describe(oldOpeningBalance), OpeningBalanceInput.Describe(newOpeningBalance));
+                    if (changes.Count > 0) EventLogService?.SetPendingChanges(changes);
 
                     UndoRedoManager.RecordAction(new DelegateAction(
                         $"Edit company '{newName}'",
@@ -970,6 +958,7 @@ public partial class App
                             settings.Company.City = oldCity;
                             settings.Company.Address = oldAddress;
                             settings.Company.ProvinceState = oldProvinceState;
+                            settings.OpeningBalance = oldOpeningBalance;
 
                             // Clear pending rename (revert to original file name)
                             if (oldFilePath != newFilePath)
@@ -992,6 +981,7 @@ public partial class App
                             settings.Company.City = newCity;
                             settings.Company.Address = newAddress;
                             settings.Company.ProvinceState = newProvinceState;
+                            settings.OpeningBalance = newOpeningBalance;
 
                             // Re-schedule the file rename
                             if (oldFilePath != newFilePath && newFilePath != null)
@@ -1012,29 +1002,11 @@ public partial class App
         };
 
         editCompany.BrowseLogoRequested += async (_, _) =>
-        {
-            var files = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                Title = "Select Company Logo".Translate(),
-                AllowMultiple = false,
-                FileTypeFilter = [Utilities.FilePickerTypes.ImageFileType]
-            });
-
-            if (files.Count > 0)
-            {
-                var path = files[0].Path.LocalPath;
-                var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(path));
-                if (prepared == null)
-                {
-                    await ShowErrorDialogAsync(
-                        "Logo Not Supported".Translate(),
-                        "That image could not be read. Try a PNG or JPEG.".Translate());
-                    return;
-                }
-
-                editCompany.SetLogo(prepared.Path, prepared.Bitmap);
-            }
-        };
+            await PickPictureAsync(
+                "Select Company Logo".Translate(),
+                "Logo Not Supported".Translate(),
+                editCompany.SetLogo,
+                "CompanyLogo");
     }
 
     /// <summary>
@@ -1410,14 +1382,11 @@ public partial class App
                 var backupFile = await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
                 {
                     Title = "Export Backup".Translate(),
-                    SuggestedFileName = $"{CompanyManager.ToCompanyFileName(CompanyManager.CurrentCompanyName ?? "Backup")}-{DateTime.Now:yyyy-MM-dd}.argobk",
-                    DefaultExtension = "argobk",
+                    SuggestedFileName = $"{CompanyManager.ToCompanyFileName(CompanyManager.CurrentCompanyName ?? "Backup")}-{DateTime.Now:yyyy-MM-dd}{FileFormatConstants.BackupFileExtension}",
+                    DefaultExtension = FileFormatConstants.BackupFileExtension.TrimStart('.'),
                     FileTypeChoices =
                     [
-                        new FilePickerFileType("Argo Books Backup")
-                        {
-                            Patterns = ["*.argobk"]
-                        }
+                        Utilities.FilePickerTypes.BackupFileType
                     ]
                 });
 
@@ -1445,16 +1414,7 @@ public partial class App
                     // Open the containing folder
                     try
                     {
-                        var directory = Path.GetDirectoryName(backupPath);
-                        if (!string.IsNullOrEmpty(directory))
-                        {
-                            if (OperatingSystem.IsWindows())
-                                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{backupPath}\"");
-                            else if (OperatingSystem.IsMacOS())
-                                System.Diagnostics.Process.Start("open", $"-R \"{backupPath}\"");
-                            else if (OperatingSystem.IsLinux())
-                                System.Diagnostics.Process.Start("xdg-open", directory);
-                        }
+                        Core.Platform.FileManager.ShowFile(backupPath);
                     }
                     catch (Exception ex)
                     {
@@ -1572,22 +1532,7 @@ public partial class App
                 // Open the containing folder
                 try
                 {
-                    var directory = Path.GetDirectoryName(filePath);
-                    if (!string.IsNullOrEmpty(directory))
-                    {
-                        if (OperatingSystem.IsWindows())
-                        {
-                            System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{filePath}\"");
-                        }
-                        else if (OperatingSystem.IsMacOS())
-                        {
-                            System.Diagnostics.Process.Start("open", $"-R \"{filePath}\"");
-                        }
-                        else if (OperatingSystem.IsLinux())
-                        {
-                            System.Diagnostics.Process.Start("xdg-open", directory);
-                        }
-                    }
+                    Core.Platform.FileManager.ShowFile(filePath);
                 }
                 catch (Exception ex)
                 {
@@ -1651,6 +1596,7 @@ public partial class App
 
             if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
             {
+                Key = "spreadsheet",
                 Title = "Import a spreadsheet".Translate(),
                 Description = "Argo Books reads the file and works out what each column means, so it does not need tidying up first.".Translate(),
                 Points =
@@ -1666,25 +1612,16 @@ public partial class App
                 return;
             }
 
-            // Show open file dialog: support both .xlsx and .csv
+            // Show open file dialog: every workbook and delimited text format the importer reads
             var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "Import Spreadsheet".Translate(),
                 AllowMultiple = false,
                 FileTypeFilter =
                 [
-                    new FilePickerFileType("Spreadsheets")
-                    {
-                        Patterns = ["*.xlsx", "*.xls", "*.csv"]
-                    },
-                    new FilePickerFileType("Excel Workbook")
-                    {
-                        Patterns = ["*.xlsx", "*.xls"]
-                    },
-                    new FilePickerFileType("CSV File")
-                    {
-                        Patterns = ["*.csv"]
-                    }
+                    Utilities.FilePickerTypes.SpreadsheetFileType,
+                    Utilities.FilePickerTypes.ExcelFileType,
+                    Utilities.FilePickerTypes.CsvFileType
                 ]
             });
 
@@ -1696,7 +1633,7 @@ public partial class App
 
             var filePath = file[0].Path.LocalPath;
             var companyData = CompanyManager.CompanyData;
-            var isCsv = filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+            var isCsv = SpreadsheetFiles.IsDelimitedText(filePath);
 
             // Use AI import flow
             await PerformAiImportAsync(filePath, companyData, isCsv);
@@ -1728,14 +1665,6 @@ public partial class App
                     new FilePickerFileType("QuickBooks exports")
                     {
                         Patterns = ["*.xlsx", "*.xls", "*.csv", "*.zip"]
-                    },
-                    new FilePickerFileType("Excel Workbook")
-                    {
-                        Patterns = ["*.xlsx", "*.xls"]
-                    },
-                    new FilePickerFileType("CSV File")
-                    {
-                        Patterns = ["*.csv"]
                     }
                 ]
             });
@@ -1770,7 +1699,7 @@ public partial class App
             {
                 foreach (var path in paths)
                 {
-                    var isCsv = path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+                    var isCsv = SpreadsheetFiles.IsDelimitedText(path);
                     await PerformAiImportAsync(path, CompanyManager.CompanyData, isCsv);
                 }
             }
@@ -1818,7 +1747,7 @@ public partial class App
                             "Auto-lock postponed",
                             "Could not auto-save before locking, so your session stays open to protect unsaved changes. Please save manually.",
                             NotificationType.Warning);
-                        _idleDetectionService.ResetIdleTimer();
+                        _idleDetectionService.RecordActivity();
                         return;
                     }
                 }
@@ -1835,7 +1764,7 @@ public partial class App
                 }
 
                 // Re-enable idle detection for next session
-                _idleDetectionService.ResetIdleTimer();
+                _idleDetectionService.RecordActivity();
             });
         };
 

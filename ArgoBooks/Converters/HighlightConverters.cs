@@ -14,7 +14,7 @@ public class HighlightBrushMultiConverter : IMultiValueConverter
 {
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values.Count < 2 || !ConverterUtils.AreEqual(values[0], values[1]))
+        if (values.Count < 2 || !Equals(values[0], values[1]))
             return Brushes.Transparent;
 
         return ConverterUtils.ThemeBrush("SurfaceHoverBrush", AppColors.GrayLightest);
@@ -29,7 +29,7 @@ public class HighlightBorderBrushMultiConverter : IMultiValueConverter
 {
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values.Count < 2 || !ConverterUtils.AreEqual(values[0], values[1]))
+        if (values.Count < 2 || !Equals(values[0], values[1]))
             return Brushes.Transparent;
 
         return ConverterUtils.ThemeBrush("PrimaryBrush", AppColors.Primary);
@@ -43,7 +43,7 @@ public class HighlightBorderBrushMultiConverter : IMultiValueConverter
 public class HighlightBorderThicknessMultiConverter : IMultiValueConverter
 {
     public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
-        => values.Count >= 2 && ConverterUtils.AreEqual(values[0], values[1])
+        => values.Count >= 2 && Equals(values[0], values[1])
             ? new Thickness(2, 0, 0, 0)
             : new Thickness(0);
 }

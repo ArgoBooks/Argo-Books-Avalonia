@@ -473,11 +473,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             Title = t.BalanceSheetTitle,
             Subtitle = GetCurrencySubtitle(),
             ColumnHeaders = [],
-            ColumnWidthRatios = [0.65, 0.35],
-            Footnote = "Cash balance estimated from recorded transactions. "
-                + "Inventory valued at each item's current unit cost (cost "
-                + "history is not tracked) applied to stock levels "
-                + "reconstructed as of the report date."
+            ColumnWidthRatios = [0.65, 0.35]
         };
 
         if (companyData == null)
@@ -486,21 +482,40 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return data;
         }
 
+        // An opening balance dated after the report has not happened yet as far as the report is concerned.
+        var opening = companyData.Settings.OpeningBalance is { } ob && IsOnOrBeforeEndDate(ob.Date) ? ob : null;
+        decimal? openingConverted = opening == null
+            ? 0m
+            : DisplayCurrency.FromNative(opening.Amount, opening.Currency, DisplayCode, opening.Date.Date);
+        var cashPending = openingConverted == null;
+        var openingCash = openingConverted ?? 0m;
+
+        // The opening balance already includes everything before its date, so only what moved on or after it is added.
+        var cashFrom = opening?.Date.Date ?? DateTime.MinValue;
+
+        data.Footnote = (opening == null
+                ? "Cash is estimated from recorded transactions, starting from zero. Enter your opening bank balance in Edit Company to start from it instead. "
+                : $"Cash is the opening bank balance on {DateFormats.Format(opening.Date, companyData.Settings.Localization.DateFormat)} plus the money recorded in and out since. ")
+            + "Inventory valued at each item's current unit cost (cost "
+            + "history is not tracked) applied to stock levels "
+            + "reconstructed as of the report date.";
+
         // Cash = Revenue (Paid, no invoice) + Payments - Expenses, all filtered by date. Uses post-tax (total) amounts because cash includes tax collected/paid.
         var cashFromRevenue = companyData.Revenues
             .Where(r => RevenueAggregator.IsCollected(r)
                         && string.IsNullOrEmpty(r.InvoiceId)
+                        && r.Date >= cashFrom
                         && IsOnOrBeforeEndDate(r.Date))
             .Sum(r => ToDisplay(r.EffectiveTotalUSD, r.Date));
 
         // Everything except revenue-linked, which is already counted by its own Revenue row.
         var cashFromPayments = companyData.Payments
-            .Where(p => string.IsNullOrEmpty(p.RevenueId) && IsOnOrBeforeEndDate(p.Date))
+            .Where(p => string.IsNullOrEmpty(p.RevenueId) && p.Date >= cashFrom && IsOnOrBeforeEndDate(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
-        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, DateTime.MinValue, RangeEnd, ToDisplay);
+        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, cashFrom, RangeEnd, ToDisplay);
 
-        var cash = cashFromRevenue + cashFromPayments - cashPaidForExpenses;
+        var cash = openingCash + cashFromRevenue + cashFromPayments - cashPaidForExpenses;
 
         // Accounts Receivable = what was still owed at the end date, each balance converted at the
         // invoice's issue date.
@@ -551,8 +566,11 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         // Retained Earnings derived as balancing figure so Assets = Liabilities + Equity.
         // This is standard for simplified bookkeeping systems without full double-entry.
-        var retainedEarnings = totalAssets - totalLiabilities;
-        var totalEquity = retainedEarnings;
+        var retainedEarnings = totalAssets - totalLiabilities - openingCash;
+        var totalEquity = openingCash + retainedEarnings;
+
+        // Without the opening balance's rate the cash, and every total built on it, is unknown rather than zero.
+        string CashBased(decimal amount) => cashPending ? PendingText : FormatCurrencyWithSign(amount);
 
         // ASSETS
         data.Rows.Add(new AccountingRow
@@ -573,7 +591,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "Cash (Estimated)",
-            Values = [FormatCurrencyWithSign(cash)],
+            Values = [CashBased(cash)],
             IndentLevel = 1,
             RowType = AccountingRowType.DataRow
         });
@@ -600,7 +618,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "Total Current Assets",
-            Values = [FormatCurrencyWithSign(totalCurrentAssets)],
+            Values = [CashBased(totalCurrentAssets)],
             IndentLevel = 0,
             RowType = AccountingRowType.SubtotalRow
         });
@@ -610,7 +628,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "TOTAL ASSETS",
-            Values = [FormatCurrencyWithSign(totalAssets)],
+            Values = [CashBased(totalAssets)],
             RowType = AccountingRowType.TotalRow
         });
 
@@ -671,10 +689,21 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             Values = [""]
         });
 
+        if (opening != null)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Opening Balance",
+                Values = [CashBased(openingCash)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
         data.Rows.Add(new AccountingRow
         {
             Label = "Retained Earnings",
-            Values = [FormatCurrencyWithSign(retainedEarnings)],
+            Values = [CashBased(retainedEarnings)],
             IndentLevel = 1,
             RowType = AccountingRowType.DataRow
         });
@@ -682,7 +711,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "TOTAL EQUITY",
-            Values = [FormatCurrencyWithSign(totalEquity)],
+            Values = [CashBased(totalEquity)],
             RowType = AccountingRowType.TotalRow
         });
 
@@ -694,7 +723,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "TOTAL LIABILITIES & EQUITY",
-            Values = [FormatCurrencyWithSign(totalLiabilities + totalEquity)],
+            Values = [CashBased(totalLiabilities + totalEquity)],
             RowType = AccountingRowType.GrandTotalRow
         });
 
@@ -966,7 +995,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
                 data.Rows.Add(new AccountingRow
                 {
-                    Label = entry.Date.ToString("MMM dd, yyyy"),
+                    Label = entry.Date.ToString(Data.DateFormats.Short),
                     Values =
                     [
                         entry.Description,
@@ -1281,31 +1310,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             _ => AccountingTradition.US
         };
 
-        // Determine tax system (orthogonal to accounting tradition)
-        var taxSystem = normalized switch
-        {
-            "UNITED KINGDOM" or "FRANCE" or "GERMANY" or "ITALY" or "SPAIN" or "NETHERLANDS"
-            or "BELGIUM" or "AUSTRIA" or "SWEDEN" or "NORWAY" or "DENMARK" or "FINLAND"
-            or "IRELAND" or "PORTUGAL" or "GREECE" or "SWITZERLAND" or "POLAND"
-            or "CZECH REPUBLIC" or "CZECHIA" or "HUNGARY" or "ROMANIA" or "BULGARIA" or "CROATIA"
-            or "SLOVAKIA" or "SLOVENIA" or "LITHUANIA" or "LATVIA" or "ESTONIA"
-            or "LUXEMBOURG" or "MALTA" or "CYPRUS" or "SOUTH AFRICA" or "KENYA"
-            or "NIGERIA" or "GHANA" or "ZIMBABWE" or "BOTSWANA"
-            or "BANGLADESH" or "SRI LANKA" or "JAMAICA" or "TRINIDAD AND TOBAGO"
-            or "TURKEY" or "RUSSIA" or "UKRAINE" or "BRAZIL"
-            or "ARGENTINA" or "CHILE" or "COLOMBIA" or "MEXICO" or "PERU"
-            or "ISRAEL" or "UNITED ARAB EMIRATES" or "SAUDI ARABIA" or "THAILAND"
-            or "VIETNAM" or "INDONESIA" or "PHILIPPINES" or "SOUTH KOREA"
-            or "CHINA" or "TAIWAN" or "ICELAND" => TaxSystem.VAT,
-
-            "CANADA" => TaxSystem.GstHst,
-            "INDIA" or "SINGAPORE" or "MALAYSIA" or "AUSTRALIA" or "NEW ZEALAND"
-            or "PAKISTAN" => TaxSystem.GST,
-            "JAPAN" => TaxSystem.JCT,
-            "UNITED STATES" or "PUERTO RICO" => TaxSystem.SalesTax,
-
-            _ => TaxSystem.Tax
-        };
+        var taxSystem = TaxSystems.For(country);
 
         var terms = new AccountingTerms();
 
@@ -1690,7 +1695,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         return data;
 
         static bool IsQuebecLine(Models.Payroll.PayRunLine line) =>
-            string.Equals(line.Province, "QC", StringComparison.OrdinalIgnoreCase);
+            Payroll.CraFormat.IsQuebec(line.Province);
 
         AccountingRow Row(string label, decimal value) => new()
         {

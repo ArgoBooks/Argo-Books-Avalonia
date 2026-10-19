@@ -388,7 +388,7 @@ public partial class LostDamagedDisplayItem : ObservableObject
     private bool _insuranceClaim;
 
     // Computed properties for display
-    public string DateFormatted => DateDiscovered.ToString("MMM d, yyyy");
+    public string DateFormatted => DateDiscovered.ToString(Core.Data.DateFormats.Short);
     public string ValueLostFormatted { get; init; } = string.Empty;
     public string QuantityFormatted => $"{Quantity} unit(s)";
 

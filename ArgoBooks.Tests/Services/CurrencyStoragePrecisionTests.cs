@@ -109,7 +109,6 @@ public class CurrencyStoragePrecisionTests
     {
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.GetTempPath();
-        public string GetTempPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) { }
         public bool SupportsFileSystem => false;

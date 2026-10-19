@@ -12,8 +12,6 @@ public class SpreadsheetExportServiceTests
     private static readonly MethodInfo EscapeCsvMethod =
         typeof(SpreadsheetExportService).GetMethod("EscapeCsv", BindingFlags.NonPublic | BindingFlags.Static)!;
 
-    private static readonly MethodInfo TruncateSheetNameMethod =
-        typeof(SpreadsheetExportService).GetMethod("TruncateSheetName", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     private static readonly MethodInfo GetColumnLetterMethod =
         typeof(ChartExcelExportService).GetMethod("GetColumnLetter", BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -21,8 +19,7 @@ public class SpreadsheetExportServiceTests
     private static string InvokeEscapeCsv(string value) =>
         (string)EscapeCsvMethod.Invoke(null, [value])!;
 
-    private static string InvokeTruncateSheetName(string name) =>
-        (string)TruncateSheetNameMethod.Invoke(null, [name])!;
+    private static string InvokeTruncateSheetName(string name) => ExcelSheetNames.Clean(name, "Sheet1");
 
     private static string InvokeGetColumnLetter(int columnNumber) =>
         (string)GetColumnLetterMethod.Invoke(null, [columnNumber])!;
@@ -84,6 +81,12 @@ public class SpreadsheetExportServiceTests
     #endregion
 
     #region TruncateSheetName Tests
+
+    [Fact]
+    public void TruncateSheetName_CharactersExcelForbids_BecomeUnderscores()
+    {
+        Assert.Equal("Sales_Returns _Q1_", InvokeTruncateSheetName("Sales/Returns [Q1]"));
+    }
 
     [Fact]
     public void TruncateSheetName_LongName_EnforcesThirtyOneCharLimit()

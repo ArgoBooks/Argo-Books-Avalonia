@@ -352,7 +352,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
             return;
         }
 
-        Core.Data.CompanyData? data = App.CompanyManager?.CompanyData;
+        CompanyData? data = App.CompanyManager?.CompanyData;
         if (data == null)
         {
             return;
@@ -413,11 +413,11 @@ public partial class PayrollModalsViewModel : ViewModelBase
     private static string Describe(string characters) =>
         string.Join(" or ", characters.Select(c => c == ' ' ? "a space" : $"\"{c}\""));
 
-    private void AddEmployee(Core.Data.CompanyData data, decimal rate)
+    private void AddEmployee(CompanyData data, decimal rate)
     {
         var employee = new Employee
         {
-            Id = new Core.Data.IdGenerator(data).NextEmployeeId(),
+            Id = new IdGenerator(data).NextEmployeeId(),
             CreatedAt = DateTime.UtcNow,
         };
 
@@ -445,7 +445,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
     /// Pay run lines hold the employee id, not a reference, but the archive command and the
     /// employees list both work off the same object, so replacing it would strand them.
     /// </summary>
-    private void UpdateEmployee(Core.Data.CompanyData data, Employee employee, decimal rate)
+    private void UpdateEmployee(CompanyData data, Employee employee, decimal rate)
     {
         Employee before = Snapshot(employee);
         ApplyFormTo(employee, rate);

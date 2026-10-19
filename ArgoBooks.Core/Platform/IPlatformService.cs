@@ -18,12 +18,6 @@ public interface IPlatformService
     /// Browser: Virtual file system path
     /// </summary>
     string GetAppDataPath();
-
-    /// <summary>
-    /// Gets the path for temporary files during file operations.
-    /// </summary>
-    string GetTempPath();
-
     /// <summary>
     /// Gets the path for cached data (can be cleared without data loss).
     /// </summary>

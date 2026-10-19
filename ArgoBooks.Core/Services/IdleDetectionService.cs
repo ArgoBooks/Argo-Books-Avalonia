@@ -30,7 +30,7 @@ public class IdleDetectionService : IDisposable
             _isEnabled = value;
             if (value)
             {
-                ResetIdleTimer();
+                RecordActivity();
                 _idleTimer.Start();
             }
             else
@@ -51,7 +51,7 @@ public class IdleDetectionService : IDisposable
             _timeoutMinutes = value;
             if (_isEnabled)
             {
-                ResetIdleTimer();
+                RecordActivity();
             }
         }
     }
@@ -78,15 +78,6 @@ public class IdleDetectionService : IDisposable
     {
         _lastActivityTime = DateTime.UtcNow;
     }
-
-    /// <summary>
-    /// Resets the idle timer (called when activity is detected or settings change).
-    /// </summary>
-    public void ResetIdleTimer()
-    {
-        RecordActivity();
-    }
-
     /// <summary>
     /// Configures the idle detection from settings.
     /// </summary>

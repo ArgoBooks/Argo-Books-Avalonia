@@ -262,7 +262,7 @@ public partial class LocationsModalsViewModel : ViewModelBase
             return;
 
         var newId = string.IsNullOrWhiteSpace(ModalCode)
-            ? new Core.Data.IdGenerator(companyData).NextLocationId()
+            ? new IdGenerator(companyData).NextLocationId()
             : ModalCode.Trim().ToUpperInvariant();
 
         // Check for duplicate ID

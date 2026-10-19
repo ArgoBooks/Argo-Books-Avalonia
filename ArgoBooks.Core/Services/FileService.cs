@@ -53,43 +53,11 @@ public class FileService(
             var companyDir = Path.Combine(tempDirectory, CompanyManager.ToCompanyFileName(companyName));
             Directory.CreateDirectory(companyDir);
 
-            // Create default company data
             var companyData = new CompanyData();
             companyData.Settings.Company.Name = companyName;
-            companyData.Settings.AppVersion = "1.0.0";
 
-            // Write initial settings file
-            await WriteJsonAsync(companyDir, "appSettings.json", companyData.Settings, cancellationToken);
-
-            // Write empty data files
-            await WriteJsonAsync(companyDir, "customers.json", companyData.Customers, cancellationToken);
-            await WriteJsonAsync(companyDir, "products.json", companyData.Products, cancellationToken);
-            await WriteJsonAsync(companyDir, "suppliers.json", companyData.Suppliers, cancellationToken);
-            await WriteJsonAsync(companyDir, "categories.json", companyData.Categories, cancellationToken);
-            await WriteJsonAsync(companyDir, "accountants.json", companyData.Accountants, cancellationToken);
-            await WriteJsonAsync(companyDir, "locations.json", companyData.Locations, cancellationToken);
-            await WriteJsonAsync(companyDir, "revenues.json", companyData.Revenues, cancellationToken);
-            await WriteJsonAsync(companyDir, "expenses.json", companyData.Expenses, cancellationToken);
-            await WriteJsonAsync(companyDir, "invoices.json", companyData.Invoices, cancellationToken);
-            await WriteJsonAsync(companyDir, "quotes.json", companyData.Quotes, cancellationToken);
-            await WriteJsonAsync(companyDir, "payments.json", companyData.Payments, cancellationToken);
-            await WriteJsonAsync(companyDir, "recurringInvoices.json", companyData.RecurringInvoices, cancellationToken);
-            await WriteJsonAsync(companyDir, "recurringTransactions.json", companyData.RecurringTransactions, cancellationToken);
-            await WriteJsonAsync(companyDir, "inventory.json", companyData.Inventory, cancellationToken);
-            await WriteJsonAsync(companyDir, "stockAdjustments.json", companyData.StockAdjustments, cancellationToken);
-            await WriteJsonAsync(companyDir, "stockTransfers.json", companyData.StockTransfers, cancellationToken);
-            await WriteJsonAsync(companyDir, "purchaseOrders.json", companyData.PurchaseOrders, cancellationToken);
-            await WriteJsonAsync(companyDir, "rentalInventory.json", companyData.RentalInventory, cancellationToken);
-            await WriteJsonAsync(companyDir, "rentals.json", companyData.Rentals, cancellationToken);
-            await WriteJsonAsync(companyDir, "returns.json", companyData.Returns, cancellationToken);
-            await WriteJsonAsync(companyDir, "lostDamaged.json", companyData.LostDamaged, cancellationToken);
-            await WriteJsonAsync(companyDir, "receipts.json", companyData.Receipts, cancellationToken);
-            await WriteJsonAsync(companyDir, "idCounters.json", companyData.IdCounters, cancellationToken);
-            await WriteJsonAsync(companyDir, "eventLog.json", companyData.EventLog, cancellationToken);
-            await WriteJsonAsync(companyDir, "pendingConversions.json", companyData.PendingConversions, cancellationToken);
-            await WriteJsonAsync(companyDir, "bankImportSessions.json", companyData.BankImportSessions, cancellationToken);
-            await WriteJsonAsync(companyDir, "employees.json", companyData.Employees, cancellationToken);
-            await WriteJsonAsync(companyDir, "payRuns.json", companyData.PayRuns, cancellationToken);
+            // Written by the save path, so a new company holds the same files as a saved one.
+            await SaveCompanyDataAsync(companyDir, companyData, cancellationToken);
 
             Directory.CreateDirectory(Path.Combine(companyDir, "receipts"));
 
@@ -116,6 +84,9 @@ public class FileService(
         // Guard: a file written by a newer build may use an envelope layout this build doesn't understand.
         if (footer.FormatVersion > FileFormatConstants.FormatVersion)
             throw new CompanyFileTooNewException(footer.Version, AppInfo.VersionNumber);
+
+        if (footer.FormatVersion < FileFormatConstants.MinimumSupportedFormatVersion)
+            throw new InvalidDataException("This company file uses a format that this version of Argo Books can no longer open.");
 
         // Guard: encrypted files need a password and the encryption service.
         // This is a cheap check, no key derivation yet.
@@ -639,25 +610,6 @@ public class FileService(
         }, cancellationToken);
 
         // Deliberately does not mark the data saved, because this only stages JSON into the temp directory and nothing is durable until the caller commits.
-    }
-
-    /// <inheritdoc />
-    public async Task<byte[]?> ExtractLogoFromFileAsync(
-        string filePath,
-        CancellationToken cancellationToken = default)
-    {
-        var footer = await footerService.ReadFooterAsync(filePath, cancellationToken);
-        if (footer?.LogoThumbnail == null)
-            return null;
-
-        try
-        {
-            return Convert.FromBase64String(footer.LogoThumbnail);
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     #region Helper Methods

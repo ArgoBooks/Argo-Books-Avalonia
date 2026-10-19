@@ -12,9 +12,11 @@
 
     <Panel>
         <!-- Standard completion guidance (modal with backdrop) -->
+        <!-- Leaves focus alone, since the message tells the user to go on to the sidebar beside it. -->
         <controls:ModalOverlay x:Name="Overlay"
                                CloseOnBackdropClick="False"
-                               CloseOnEscape="False">
+                               CloseOnEscape="False"
+                               TakesFocus="False">
             <controls:ModalOverlay.ModalContent>
                 <Border Background="{DynamicResource SurfaceBrush}"
                         BorderBrush="{DynamicResource PrimaryBrush}"

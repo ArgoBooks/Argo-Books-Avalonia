@@ -3,6 +3,10 @@
 *.pdf  binary
 *.xlsx binary
 *.xls  binary
+*.xlsm binary
+*.ods  binary
+*.tif  binary
+*.tiff binary
 
 # Shell scripts must keep LF endings. Checked out with CRLF on Windows and then
 # copied to a Mac or Linux box, the shebang line becomes "/bin/bash\r" and the

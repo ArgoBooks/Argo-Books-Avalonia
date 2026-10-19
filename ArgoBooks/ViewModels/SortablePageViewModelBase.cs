@@ -20,7 +20,7 @@ public abstract partial class SortablePageViewModelBase : ViewModelBase, ICleanu
     {
         // Field initializers (including loaded column visibility) have already run by the time
         // this base constructor executes, so push that visibility into the column-width manager.
-        Helpers.ColumnVisibilityHelper.SyncToManager(this);
+        ColumnVisibilityHelper.SyncToManager(this);
 
         // Subscribe to language changes to refresh translated content
         LanguageService.Instance.LanguageChanged += OnLanguageChanged;

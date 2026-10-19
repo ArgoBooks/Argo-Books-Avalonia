@@ -104,7 +104,7 @@
                         <Button Classes="edit-toolbar-btn"
                                 Command="{Binding LayoutViewModel.EnterEditModeCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <PathIcon Data="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                                <PathIcon Data="{x:Static icons:Icons.Edit}"
                                           Width="14" Height="14"
                                           Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <TextBlock Text="{loc:Loc 'Edit Dashboard'}" FontSize="13" />
@@ -130,11 +130,11 @@
                 </Grid>
 
                 <!-- Source Survey Banner (shown once the setup checklist is off screen). No dismiss button: the user must answer. -->
-                <!-- BannerMargin=0 removes the banner's built-in 10px top gap; the negative outer Margin then pulls the whole control up to tighten the ~24px StackPanel spacing to ~8px. -->
+                <!-- BannerMargin=0 removes the banner's built-in 10px top gap. The negative outer Margin then takes the StackPanel's 16px spacing down to 8px, so stacked messages sit close without touching. -->
                 <controls:InfoBanner ShowBanner="{Binding ShowSourceSurveyBanner}"
                                      IsVisible="{Binding ShowSourceSurveyBanner}"
                                      BannerMargin="0"
-                                     Margin="0,-16,0,0"
+                                     Margin="0,-8,0,0"
                                      Message="{Binding SourceSurveyBannerMessage}"
                                      ActionText="{loc:Loc 'Answer'}"
                                      ActionCommand="{Binding OpenSourceSurveyCommand}"
@@ -144,7 +144,7 @@
                 <controls:InfoBanner ShowBanner="{Binding ShowUpdateEmailBanner}"
                                      IsVisible="{Binding ShowUpdateEmailBanner}"
                                      BannerMargin="0"
-                                     Margin="0,-16,0,0"
+                                     Margin="0,-8,0,0"
                                      Message="{loc:Loc 'Want an email when something new ships? Optional, and no account needed.'}"
                                      ActionText="{loc:Loc 'Sign up'}"
                                      ActionCommand="{Binding OpenUpdateEmailSettingsCommand}"
@@ -155,7 +155,7 @@
                 <controls:InfoBanner ShowBanner="{Binding ShowReviewBanner}"
                                      IsVisible="{Binding ShowReviewBanner}"
                                      BannerMargin="0"
-                                     Margin="0,-16,0,0"
+                                     Margin="0,-8,0,0"
                                      Message="{loc:Loc 'Finding Argo Books useful? A short review helps other small businesses find it.'}"
                                      ActionText="{loc:Loc 'Leave a review'}"
                                      ActionCommand="{Binding OpenReviewPageCommand}"
@@ -214,14 +214,13 @@
                     </Grid>
                 </Border>
 
-                <!-- Date Range Message. Negative top margin tightens the 24px StackPanel spacing so the
-                     banner sits closer under the header controls instead of floating in a large gap. -->
+                <!-- Date Range Message. The negative top margin takes the StackPanel's 16px spacing down to 8px, the same gap the banners above keep. -->
                 <Border Background="{DynamicResource InfoLightBrush}"
                         BorderBrush="{DynamicResource InfoBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Padding="14,10"
-                        Margin="0,-16,0,0"
+                        Margin="0,-8,0,0"
                         HorizontalAlignment="Center"
                         IsVisible="{Binding ShowDateRangeBanner}">
                     <StackPanel Orientation="Horizontal" Spacing="10">
@@ -340,6 +339,8 @@
                 ZIndex="201"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
+                KeyboardNavigation.TabNavigation="Cycle"
+                KeyDown="OnSettingsPopupKeyDown"
                 BoxShadow="0 4 16 0 #30000000">
             <StackPanel Spacing="8">
                 <TextBlock Text="{loc:Loc 'Settings'}"

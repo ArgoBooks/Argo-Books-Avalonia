@@ -120,13 +120,6 @@ public partial class RecentTransactionsWidgetViewModel : WidgetViewModelBase
         return DateFormatService.Format(date);
     }
 
-    private static string GetCustomerName(CompanyData data, string? customerId)
-    {
-        if (string.IsNullOrEmpty(customerId)) return "Unknown";
-        var customer = data.GetCustomer(customerId);
-        return customer?.Name ?? "Unknown";
-    }
-
     private static string GetSupplierName(CompanyData data, string? supplierId)
     {
         if (string.IsNullOrEmpty(supplierId)) return "Unknown";

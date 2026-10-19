@@ -12,6 +12,14 @@ namespace ArgoBooks.ViewModels;
 /// </summary>
 public partial class HeaderViewModel : ViewModelBase
 {
+    // A little longer than the toast's 0.3 second slide-out in AppShell.axaml, so it is cleared once off screen.
+    private const int ToastSlideOutMs = 350;
+
+    private const int SaveIndicatorShownMs = 3000;
+
+    // The indicators' opacity transition in Header.axaml.
+    private const int SaveIndicatorFadeMs = 300;
+
     #region Page Title
 
     [ObservableProperty]
@@ -487,7 +495,7 @@ public partial class HeaderViewModel : ViewModelBase
                 // Auto-dismiss: leave notification as unread
                 ShowNotificationToast = false;
                 // Delay clearing so the slide-out animation finishes
-                await Task.Delay(350, CancellationToken.None);
+                await Task.Delay(ToastSlideOutMs, CancellationToken.None);
                 ToastNotification = null;
             }
             catch (TaskCanceledException)
@@ -526,7 +534,7 @@ public partial class HeaderViewModel : ViewModelBase
 
         ShowNotificationToast = false;
         // Delay clearing so the slide-out animation finishes
-        await Task.Delay(350);
+        await Task.Delay(ToastSlideOutMs);
         ToastNotification = null;
     }
 
@@ -545,7 +553,7 @@ public partial class HeaderViewModel : ViewModelBase
 
         ShowNotificationToast = false;
         // Delay clearing so the slide-out animation finishes
-        await Task.Delay(350, CancellationToken.None);
+        await Task.Delay(ToastSlideOutMs, CancellationToken.None);
         // Leave the current toast alone if a new one arrived during the animation.
         if (!ShowNotificationToast)
             ToastNotification = null;
@@ -599,9 +607,9 @@ public partial class HeaderViewModel : ViewModelBase
                 ShowSavedIndicator = true;
                 SavedIndicatorOpacity = 1.0;
 
-                await Task.Delay(3000, cts.Token);
+                await Task.Delay(SaveIndicatorShownMs, cts.Token);
                 SavedIndicatorOpacity = 0;
-                await Task.Delay(300, cts.Token);
+                await Task.Delay(SaveIndicatorFadeMs, cts.Token);
                 ShowSavedIndicator = false;
             }
             else
@@ -611,9 +619,9 @@ public partial class HeaderViewModel : ViewModelBase
                 ShowNoChangesIndicator = true;
                 NoChangesIndicatorOpacity = 1.0;
 
-                await Task.Delay(3000, cts.Token);
+                await Task.Delay(SaveIndicatorShownMs, cts.Token);
                 NoChangesIndicatorOpacity = 0;
-                await Task.Delay(300, cts.Token);
+                await Task.Delay(SaveIndicatorFadeMs, cts.Token);
                 ShowNoChangesIndicator = false;
             }
         }

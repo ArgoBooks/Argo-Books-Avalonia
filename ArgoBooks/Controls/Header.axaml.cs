@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Controls;
@@ -345,6 +346,9 @@ public partial class Header : UserControl
             vm.OpenQuickActionsCommand.Execute(null);
         }
     }
+
+    /// <summary>True for the search box, which the quick actions list drops down from.</summary>
+    public bool IsSearchBox(Visual visual) => visual == SearchInput || SearchInput.IsVisualAncestorOf(visual);
 
     /// <summary>
     /// Focuses the search input when clicking anywhere on the search box.

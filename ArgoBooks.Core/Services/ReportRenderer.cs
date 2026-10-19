@@ -1185,7 +1185,7 @@ public class ReportRenderer : IDisposable
             return null;
 
         if (ConvertsPerTransaction(chartType)
-            && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+            && !UsdConversion.IsUsd(_currencyCode))
         {
             return _chartDataService.GetChartData(
                 chartType, (usd, date) => (decimal)ConvertFromUSD((double)usd, date),
@@ -1227,7 +1227,7 @@ public class ReportRenderer : IDisposable
 
         // Each day's value converts at its own rate before bucketing, so a wide range does not convert a month total at the month-start date.
         if (chartType == ChartDataType.RevenueVsExpenses
-            && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+            && !UsdConversion.IsUsd(_currencyCode))
         {
             return _chartDataService.GetRevenueVsExpensesConverted(
                 (usd, date) => (decimal)ConvertFromUSD((double)usd, date));
@@ -1236,7 +1236,7 @@ public class ReportRenderer : IDisposable
         // Other monthly monetary multi-series charts convert each transaction at its own date inside
         // the data service (same reason as above), so pass the converter and don't re-convert here.
         if (ConvertsPerTransaction(chartType)
-            && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+            && !UsdConversion.IsUsd(_currencyCode))
         {
             return _chartDataService.GetChartData(
                 chartType, (usd, date) => (decimal)ConvertFromUSD((double)usd, date)) as List<ChartSeriesData>;
@@ -1268,7 +1268,7 @@ public class ReportRenderer : IDisposable
             return null;
 
         // Convert each country's revenue at each transaction's OWN date during aggregation (docs/Calculations.md Rule 4) instead of converting the country total at today's rate.
-        var converter = string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase)
+        var converter = UsdConversion.IsUsd(_currencyCode)
             ? (Func<decimal, DateTime, decimal>?)null
             : (usd, date) => (decimal)ConvertFromUSD((double)usd, date);
 
@@ -2761,6 +2761,9 @@ public class ReportRenderer : IDisposable
         return columnWidths;
     }
 
+    /// <summary>A date in the format the company picked in Settings.</summary>
+    private string FormatDate(DateTime date) => DateFormats.Format(date, _companyData?.Settings.Localization.DateFormat);
+
     private List<List<string>> GetTableData(TableReportElement table, List<string> columns)
     {
         var result = new List<List<string>>();
@@ -2784,10 +2787,10 @@ public class ReportRenderer : IDisposable
                 foreach (var r in tableDataService.GetInvoicesTableData(table))
                     result.Add(columns.Select(col => col switch
                     {
-                        "Date" => r.IssueDate.ToString("MM/dd/yyyy"),
+                        "Date" => FormatDate(r.IssueDate),
                         "ID" => r.InvoiceNumber,
                         "Company" => r.CustomerName,
-                        "Due Date" => r.DueDate.ToString("MM/dd/yyyy"),
+                        "Due Date" => FormatDate(r.DueDate),
                         // Amounts are USD-normalized; convert to the display currency at the invoice's date.
                         "Total" => FormatCurrency(ToDisplayCurrency(r.Total, r.IssueDate)),
                         "Paid" => FormatCurrency(ToDisplayCurrency(r.AmountPaid, r.IssueDate)),
@@ -2800,7 +2803,7 @@ public class ReportRenderer : IDisposable
                 foreach (var r in tableDataService.GetPaymentsTableData(table))
                     result.Add(columns.Select(col => col switch
                     {
-                        "Date" => r.Date.ToString("MM/dd/yyyy"),
+                        "Date" => FormatDate(r.Date),
                         "Company" => r.CustomerName,
                         // USD-normalized; convert to the display currency at the payment's date.
                         "Total" => FormatCurrency(ToDisplayCurrency(r.Amount, r.Date)),
@@ -2816,9 +2819,9 @@ public class ReportRenderer : IDisposable
                     {
                         "Item" => r.ItemName,
                         "Company" => r.CustomerName,
-                        "Date" => r.StartDate.ToString("MM/dd/yyyy"),
-                        "Due Date" => r.DueDate.ToString("MM/dd/yyyy"),
-                        "Return Date" => r.ReturnDate?.ToString("MM/dd/yyyy") ?? "",
+                        "Date" => FormatDate(r.StartDate),
+                        "Due Date" => FormatDate(r.DueDate),
+                        "Return Date" => r.ReturnDate is { } returned ? FormatDate(returned) : "",
                         "Rate" => r.RateAmount is { } rate ? FormatCurrency(rate) : "",
                         "Total" => FormatCurrency(r.TotalCost),
                         "Status" => r.Status,
@@ -2860,8 +2863,8 @@ public class ReportRenderer : IDisposable
                     {
                         "ID" => r.PoNumber,
                         "Company" => r.SupplierName,
-                        "Date" => r.OrderDate.ToString("MM/dd/yyyy"),
-                        "Due Date" => r.ExpectedDeliveryDate.ToString("MM/dd/yyyy"),
+                        "Date" => FormatDate(r.OrderDate),
+                        "Due Date" => FormatDate(r.ExpectedDeliveryDate),
                         // USD-normalized; convert to the display currency at the order's date.
                         "Total" => FormatCurrency(ToDisplayCurrency(r.Total, r.OrderDate)),
                         "Status" => r.Status,
@@ -2872,7 +2875,7 @@ public class ReportRenderer : IDisposable
                 foreach (var r in tableDataService.GetStockAdjustmentsTableData(table))
                     result.Add(columns.Select(col => col switch
                     {
-                        "Date" => r.Timestamp.ToString("MM/dd/yyyy"),
+                        "Date" => FormatDate(r.Timestamp),
                         "Product" => r.ProductName,
                         "Type" => r.AdjustmentType,
                         "Qty" => StockUnits.Format(r.Quantity),
@@ -2886,7 +2889,7 @@ public class ReportRenderer : IDisposable
                 foreach (var r in tableDataService.GetStockTransfersTableData(table))
                     result.Add(columns.Select(col => col switch
                     {
-                        "Date" => r.TransferDate.ToString("MM/dd/yyyy"),
+                        "Date" => FormatDate(r.TransferDate),
                         "Product" => r.ProductName,
                         "From" => r.SourceLocation,
                         "To" => r.DestinationLocation,
@@ -2899,7 +2902,7 @@ public class ReportRenderer : IDisposable
                 foreach (var r in tableDataService.GetReturnsTableData(table))
                     result.Add(columns.Select(col => col switch
                     {
-                        "Date" => r.ReturnDate.ToString("MM/dd/yyyy"),
+                        "Date" => FormatDate(r.ReturnDate),
                         "ID" => r.OriginalTransactionId,
                         "Product" => r.ProductName,
                         "Category" => r.CategoryName,
@@ -2914,7 +2917,7 @@ public class ReportRenderer : IDisposable
                 foreach (var r in tableDataService.GetLossesTableData(table))
                     result.Add(columns.Select(col => col switch
                     {
-                        "Date" => r.ReportedDate.ToString("MM/dd/yyyy"),
+                        "Date" => FormatDate(r.ReportedDate),
                         "Product" => r.ProductName,
                         "Category" => r.CategoryName,
                         "Qty" => StockUnits.Format(r.Quantity),
@@ -2927,7 +2930,7 @@ public class ReportRenderer : IDisposable
                 foreach (var r in tableDataService.GetReceiptsTableData(table))
                     result.Add(columns.Select(col => col switch
                     {
-                        "Date" => r.Date.ToString("MM/dd/yyyy"),
+                        "Date" => FormatDate(r.Date),
                         "File" => r.FileName,
                         "Company" => r.Supplier,
                         "Total" => FormatCurrency(r.Amount),
@@ -3012,7 +3015,7 @@ public class ReportRenderer : IDisposable
     {
         return columns.Select(col => col switch
         {
-            "Date" => r.Date.ToString("MM/dd/yyyy"),
+            "Date" => FormatDate(r.Date),
             "ID" => r.TransactionId,
             "Company" => r.CompanyName,
             "Product" => r.ProductName,

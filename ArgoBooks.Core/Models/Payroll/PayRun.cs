@@ -203,7 +203,7 @@ public class PayRunLine
     /// </summary>
     [JsonIgnore]
     public decimal QuebecRemittance =>
-        (string.Equals(Province, "QC", StringComparison.OrdinalIgnoreCase)
+        (Services.Payroll.CraFormat.IsQuebec(Province)
             ? ProvincialTax + CppEmployee + CppEmployer + Cpp2Employee + Cpp2Employer
             : 0m)
         + QpipEmployee + QpipEmployer;

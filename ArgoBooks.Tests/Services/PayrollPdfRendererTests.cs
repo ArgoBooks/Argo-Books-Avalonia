@@ -384,4 +384,22 @@ public class PayrollPdfRendererTests
     }
 
     #endregion
+
+    /// <summary>A French or German machine must not print a hybrid such as "$1 234,56" on a slip.</summary>
+    [Theory]
+    [InlineData("fr-CA")]
+    [InlineData("de-DE")]
+    public void SlipAmountsAreWrittenTheSameWayOnEveryMachine(string culture)
+    {
+        string money = null!;
+        var thread = new Thread(() =>
+        {
+            Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo(culture);
+            money = PayrollPdf.Money(1234.56m);
+        });
+        thread.Start();
+        thread.Join();
+
+        Assert.Equal("$1,234.56", money);
+    }
 }

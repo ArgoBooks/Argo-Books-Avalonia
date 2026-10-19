@@ -2,19 +2,19 @@ namespace ArgoBooks.Services;
 
 /// <summary>
 /// Removes receipt and invoice preview files from the temp directory. Rendered PDF pages, receipt
-/// previews, bulk-scan thumbnails and invoice previews accumulate under %TEMP%/ArgoBooks and are
-/// regenerated on demand. Recent ones are kept so reopening a receipt is quick, unless they came
+/// previews, bulk-scan thumbnails, invoice previews and the JPEGs and PDFs TIFF receipts are
+/// converted to accumulate under %TEMP%/ArgoBooks and are regenerated on demand. Recent ones are kept so reopening a receipt is quick, unless they came
 /// from a password-protected company: those are readable copies of what the password is meant to
 /// guard, so they go when the company closes.
 /// </summary>
 public static class ReceiptTempCleanup
 {
-    private static readonly string[] Subdirectories = ["Receipts", "ScanPreview", "BulkScanPreview", "InvoicePreviews"];
+    private static readonly string[] Subdirectories = ["Receipts", "ScanPreview", "BulkScanPreview", "InvoicePreviews", "ConvertedReceipts"];
 
     /// <summary>Files not modified within this window are considered stale and deleted.</summary>
     private static readonly TimeSpan MaxAge = TimeSpan.FromDays(7);
 
-    private static string Root => Path.Combine(Path.GetTempPath(), "ArgoBooks");
+    private static string Root => Core.Services.AppPaths.Temp;
 
     // Present while the previews may hold a protected company's files. It outlives a crash, so
     // the next launch knows to clear them.
@@ -70,7 +70,8 @@ public static class ReceiptTempCleanup
 
             try
             {
-                foreach (var file in Directory.EnumerateFiles(dir))
+                // A converted TIFF sits in a folder of its own so it keeps the name the user gave it.
+                foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
                 {
                     try
                     {
@@ -80,6 +81,19 @@ public static class ReceiptTempCleanup
                     catch
                     {
                         // File in use or already gone, skip it.
+                    }
+                }
+
+                foreach (var folder in Directory.EnumerateDirectories(dir, "*", SearchOption.AllDirectories).OrderByDescending(f => f.Length))
+                {
+                    try
+                    {
+                        if (!Directory.EnumerateFileSystemEntries(folder).Any())
+                            Directory.Delete(folder);
+                    }
+                    catch
+                    {
+                        // Folder in use or already gone, skip it.
                     }
                 }
             }

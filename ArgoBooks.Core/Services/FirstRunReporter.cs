@@ -9,8 +9,8 @@ namespace ArgoBooks.Core.Services;
 /// funnel can attribute installs back to the originating ad click.
 ///
 /// Token sources, by platform:
-///   Windows: Advanced Installer writes the token to
-///            %LOCALAPPDATA%\ArgoBooks\install_token.txt during install.
+///   Windows: WindowsInstallHooks reads it from the name of the Setup file installing
+///            the app and writes it to %LOCALAPPDATA%\ArgoBooks\install_token.txt.
 ///   Mac:     no token is available. The download is a .zip the browser expands,
 ///            so "Argo Books.app" carries neither the archive's name nor any
 ///            record of where it came from: macOS no longer stores the source URL
@@ -23,9 +23,6 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public sealed class FirstRunReporter
 {
-    private const string EndpointPath = "/api/track-app-event.php";
-    private const string TokenFileName = "install_token.txt";
-    private const string MarkerFileName = "first_run_reported.marker";
     private const int MaxRetryAttempts = 3;
 
     private readonly HttpClient _httpClient;
@@ -41,9 +38,7 @@ public sealed class FirstRunReporter
         _httpClient = httpClient;
         _errorLogger = errorLogger;
         _appVersion = appVersion;
-        _appDataDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "ArgoBooks");
+        _appDataDir = AppPaths.LocalData;
     }
 
     /// <summary>
@@ -59,7 +54,7 @@ public sealed class FirstRunReporter
         try
         {
             Directory.CreateDirectory(_appDataDir);
-            var markerPath = Path.Combine(_appDataDir, MarkerFileName);
+            var markerPath = Path.Combine(_appDataDir, AppPaths.FirstRunMarkerFileName);
 
             // Idempotency guard: if we already reported, do nothing.
             if (File.Exists(markerPath))
@@ -80,7 +75,7 @@ public sealed class FirstRunReporter
 
             var token = ResolveInstallToken();
             var machineUuid = GetOrCreateMachineUuid();
-            var platform = GetPlatformKey();
+            var platform = TelemetryPlatform.Key;
 
             var payload = new FirstRunPayload
             {
@@ -91,18 +86,14 @@ public sealed class FirstRunReporter
                 MachineUuid = machineUuid,
             };
 
-            var url = $"{ApiConfig.BaseUrl}{EndpointPath}";
+            var url = $"{ApiConfig.BaseUrl}{TelemetryPlatform.AppEventEndpoint}";
             using var request = new HttpRequestMessage(HttpMethod.Post, url)
             {
                 Content = JsonContent.Create(payload),
             };
             // Telemetry is filed under this id, so the website can show which
             // referral source brought in the user behind that activity.
-            var deviceId = LicenseAuthHelper.GetDeviceId();
-            if (!string.IsNullOrEmpty(deviceId))
-            {
-                request.Headers.Add("X-Device-Id", deviceId);
-            }
+            LicenseAuthHelper.AddAuthHeaders(request, licenseKey: null, LicenseAuthHelper.GetDeviceId());
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             postCompleted = true;
 
@@ -157,11 +148,11 @@ public sealed class FirstRunReporter
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                var tokenPath = Path.Combine(_appDataDir, TokenFileName);
+                var tokenPath = Path.Combine(_appDataDir, InstallToken.FileName);
                 if (File.Exists(tokenPath))
                 {
                     var raw = File.ReadAllText(tokenPath).Trim();
-                    if (IsValidToken(raw))
+                    if (InstallToken.IsValid(raw))
                     {
                         return raw.ToLowerInvariant();
                     }
@@ -183,7 +174,7 @@ public sealed class FirstRunReporter
 
             // Linux: the AppImage is itself the executable, so it still carries
             // the downloaded filename.
-            return ExtractTokenFromPath(processPath);
+            return InstallToken.FromPath(processPath);
         }
         catch (Exception ex)
         {
@@ -212,39 +203,6 @@ public sealed class FirstRunReporter
         }
     }
 
-    private static string? ExtractTokenFromPath(string path)
-    {
-        // Walk up looking for a path segment matching foo_xxxxxxxx.ext
-        var segments = new[]
-        {
-            Path.GetFileName(path),
-            Path.GetFileName(Path.GetDirectoryName(path) ?? string.Empty),
-        };
-        foreach (var seg in segments)
-        {
-            if (string.IsNullOrEmpty(seg)) continue;
-            var match = System.Text.RegularExpressions.Regex.Match(
-                seg, @"_([0-9a-f]{8})(?:\.|$)",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (match.Success)
-            {
-                return match.Groups[1].Value.ToLowerInvariant();
-            }
-        }
-        return null;
-    }
-
-    private static bool IsValidToken(string token) =>
-        System.Text.RegularExpressions.Regex.IsMatch(token, "^[0-9a-fA-F]{8}$");
-
-    private static string GetPlatformKey()
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "win";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))     return "mac";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))   return "linux";
-        return "unknown";
-    }
-
     /// <summary>
     /// Returns a stable per-machine UUID for dedup, still cached in the app data directory so an
     /// install that already has one keeps it.
@@ -260,7 +218,7 @@ public sealed class FirstRunReporter
         var derived = DeriveMachineUuid();
         try
         {
-            var path = Path.Combine(_appDataDir, "machine_uuid.txt");
+            var path = Path.Combine(_appDataDir, AppPaths.MachineUuidFileName);
             if (File.Exists(path))
             {
                 var raw = File.ReadAllText(path).Trim();
@@ -333,8 +291,12 @@ public sealed class FirstRunReporter
     {
         try
         {
-            await File.WriteAllTextAsync(path,
+            // A marker that fails to land means the install reports itself again on the next
+            // launch, which puts the same install in the funnel twice.
+            var temp = AtomicFile.TempPathFor(path);
+            await File.WriteAllTextAsync(temp,
                 $"reported_at={DateTime.UtcNow:O}\nreason={reason}\n", ct);
+            await AtomicFile.ReplaceAsync(temp, path, cancellationToken: ct);
         }
         catch
         {
@@ -346,7 +308,7 @@ public sealed class FirstRunReporter
     {
         try
         {
-            var path = Path.Combine(_appDataDir, TokenFileName);
+            var path = Path.Combine(_appDataDir, InstallToken.FileName);
             if (File.Exists(path)) File.Delete(path);
         }
         catch

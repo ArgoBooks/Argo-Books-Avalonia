@@ -24,7 +24,9 @@ public static class DashboardCalculations
     /// its own date, or Pending. The dashboard card and the Revenue page card both show this.
     /// </summary>
     public static string FormatRevenue(CompanyData data, DateTime start, DateTime end) =>
-        CurrencyService.FormatTotalOrPending(convert =>
+        RevenueAggregator.AnyCollectedWaiting(data.Revenues, start, end) || RefundAggregator.AnyRefundWaiting(data.Payments, start, end)
+            ? CurrencyService.PendingMarker
+            : CurrencyService.FormatTotalOrPending(convert =>
             RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, start, end, convert)
             - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, start, end, convert));
 
@@ -33,7 +35,9 @@ public static class DashboardCalculations
     /// Pending. The dashboard card and the Expenses page card both show this.
     /// </summary>
     public static string FormatExpenses(CompanyData data, DateTime start, DateTime end) =>
-        CurrencyService.FormatTotalOrPending(convert =>
+        ExpenseAggregator.AnyWaiting(data.Expenses, start, end)
+            ? CurrencyService.PendingMarker
+            : CurrencyService.FormatTotalOrPending(convert =>
             ExpenseAggregator.SumExpensesDisplay(data.Expenses, start, end, convert));
 
     /// <summary>This month so far, as the dashboard's This Month preset has it.</summary>

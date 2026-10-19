@@ -19,6 +19,9 @@ public class GlobalSettings
     public ReviewPromptSettings ReviewPrompt { get; set; } = new();
     public BackupSettings Backups { get; set; } = new();
 
+    /// <summary>Import prompts the user chose not to see again, by key; app-wide, since they explain importing rather than one company.</summary>
+    public List<string> HiddenImportPrompts { get; set; } = [];
+
     /// <summary>
     /// Send a bank statement or spreadsheet that would not import, so the reason can be
     /// found and fixed. On by default: an import that fails for nobody's benefit is the
@@ -47,6 +50,21 @@ public class UpdateSettings
     /// the restart.
     /// </summary>
     public string? FileToOpenAfterUpdate { get; set; }
+
+    /// <summary>
+    /// The version an accepted update was installing, which the next launch compares with the version it is running to report whether the install took.
+    /// </summary>
+    public string? PendingUpdateVersion { get; set; }
+
+    /// <summary>
+    /// The version that accepted that update.
+    /// </summary>
+    public string? PendingUpdateFromVersion { get; set; }
+
+    /// <summary>
+    /// How many launches have tried to remove the copy the old Windows installer left in Program Files, so a user who keeps saying no is not asked forever.
+    /// </summary>
+    public int OldInstallRemovalAttempts { get; set; }
 }
 
 public class UiSettings

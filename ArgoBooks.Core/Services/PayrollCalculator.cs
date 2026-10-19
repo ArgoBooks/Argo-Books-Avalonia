@@ -38,7 +38,7 @@ public static class PayrollCalculator
         }
 
         // Quebec is handed off whole rather than branched through.
-        if (string.Equals(input.Province, "QC", StringComparison.OrdinalIgnoreCase))
+        if (Payroll.CraFormat.IsQuebec(input.Province))
         {
             return QuebecPayrollCalculator.Calculate(input, ytd, rates);
         }

@@ -1,5 +1,7 @@
 # Advanced Installer project setup
 
+> Advanced Installer is only used for [the bridge release](BridgeRelease.md). Every other release is built with `packaging/windows/build-release.ps1`, and once the bridge release is out, this project is no longer needed.
+
 Recovery guide for the Windows installer project. The `.aip` file lives at `Argo-Books-Avalonia/packaging/windows/Argo Books.aip` and is tracked in git, so recovering it is a checkout, not a rebuild. This doc is mostly here for reference. A full rebuild from scratch (about an hour) is only needed if the project file is lost from the repo as well.
 
 > FYI: "AI" in this doc always means **Advanced Installer**, not artificial intelligence.

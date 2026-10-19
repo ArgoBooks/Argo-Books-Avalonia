@@ -31,6 +31,7 @@
                 Margin="{Binding PanelMargin}"
                 BoxShadow="0 4 20 0 #26000000"
                 Focusable="True"
+                KeyboardNavigation.IsTabStop="False"
                 KeyDown="FileMenu_KeyDown"
                 Opacity="0"
                 RenderTransformOrigin="0,0">
@@ -217,6 +218,7 @@
                 Margin="{Binding SubmenuMargin}"
                 BoxShadow="0 4 20 0 #26000000"
                 Focusable="True"
+                KeyboardNavigation.IsTabStop="False"
                 KeyDown="FileMenu_KeyDown"
                 PointerEntered="RecentSubmenu_PointerEntered"
                 PointerExited="RecentSubmenu_PointerExited">
@@ -259,8 +261,7 @@
                         IsVisible="{Binding HasFilteredRecentCompanies}" />
 
                 <!-- Clear Recent -->
-                <Button x:Name="SubmenuItem3"
-                        Classes="menu-item"
+                <Button Classes="menu-item"
                         Command="{Binding ClearRecentCommand}"
                         IsVisible="{Binding HasFilteredRecentCompanies}">
                     <Grid ColumnDefinitions="Auto,*">

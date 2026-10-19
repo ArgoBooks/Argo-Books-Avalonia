@@ -58,7 +58,7 @@ public class ChartExcelExportService
         await Task.Run(() =>
         {
             using var package = new ExcelPackage();
-            var worksheetName = TruncateSheetName(chartTitle);
+            var worksheetName = ExcelSheetNames.Clean(chartTitle, "Chart Data");
             var worksheet = package.Workbook.Worksheets.Add(worksheetName);
 
             // Add headers
@@ -138,7 +138,7 @@ public class ChartExcelExportService
         await Task.Run(() =>
         {
             using var package = new ExcelPackage();
-            var worksheetName = TruncateSheetName(chartTitle);
+            var worksheetName = ExcelSheetNames.Clean(chartTitle, "Chart Data");
             var worksheet = package.Workbook.Worksheets.Add(worksheetName);
 
             var seriesNames = seriesData.Keys.ToList();
@@ -242,7 +242,7 @@ public class ChartExcelExportService
         await Task.Run(() =>
         {
             using var package = new ExcelPackage();
-            var worksheetName = TruncateSheetName(chartTitle);
+            var worksheetName = ExcelSheetNames.Clean(chartTitle, "Chart Data");
             var worksheet = package.Workbook.Worksheets.Add(worksheetName);
 
             // Add headers
@@ -328,7 +328,7 @@ public class ChartExcelExportService
         await Task.Run(() =>
         {
             using var package = new ExcelPackage();
-            var worksheetName = TruncateSheetName(chartTitle);
+            var worksheetName = ExcelSheetNames.Clean(chartTitle, "Chart Data");
             var worksheet = package.Workbook.Worksheets.Add(worksheetName);
 
             // Add headers
@@ -406,23 +406,5 @@ public class ChartExcelExportService
             columnNumber /= 26;
         }
         return result;
-    }
-
-    /// <summary>
-    /// Truncates worksheet name to Excel's 31 character limit and removes invalid characters.
-    /// </summary>
-    private static string TruncateSheetName(string name)
-    {
-        if (string.IsNullOrEmpty(name))
-            return "Chart Data";
-
-        // Remove invalid characters for sheet names
-        var invalidChars = new[] { ':', '\\', '/', '?', '*', '[', ']' };
-        foreach (var c in invalidChars)
-        {
-            name = name.Replace(c, '_');
-        }
-
-        return name.Length > 31 ? name[..31] : name;
     }
 }

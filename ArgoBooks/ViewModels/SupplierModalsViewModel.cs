@@ -435,7 +435,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
         }
         else
         {
-            newId = new Core.Data.IdGenerator(companyData).NextSupplierId();
+            newId = new IdGenerator(companyData).NextSupplierId();
         }
 
         var newSupplier = new Supplier

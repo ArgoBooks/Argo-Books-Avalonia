@@ -86,7 +86,7 @@ public class PurchaseOrderEmailRequest
 /// <summary>
 /// Response from the purchase order email API.
 /// </summary>
-public class PurchaseOrderEmailResponse : ArgoBooks.Core.Services.IEmailApiResponse
+public class PurchaseOrderEmailResponse : IEmailApiResponse
 {
     [JsonPropertyName("success")]
     public bool Success { get; set; }

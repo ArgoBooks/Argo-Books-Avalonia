@@ -27,8 +27,6 @@ public class RefundService
     {
         _http = http;
     }
-
-    private static string BaseRoot => ApiConfig.BaseUrl.TrimEnd('/');
     private static string? CurrentApiKey => PortalSettings.IsConfigured ? PortalSettings.ApiKey : null;
 
     /// <summary>
@@ -37,7 +35,7 @@ public class RefundService
     /// </summary>
     public async Task<RefundRequestResult> RequestRefundAsync(RefundDraft draft, CancellationToken ct = default)
     {
-        var req = BuildRequest(HttpMethod.Post, "/api/portal/refunds/request.php", new
+        var req = BuildRequest(HttpMethod.Post, "/refunds/request.php", new
         {
             invoice_id = draft.InvoiceId,
             invoice_number = draft.InvoiceNumber,
@@ -59,7 +57,7 @@ public class RefundService
     /// </summary>
     public async Task<RefundConfirmResult> ConfirmCodeAsync(long requestId, string code, CancellationToken ct = default)
     {
-        var req = BuildRequest(HttpMethod.Post, "/api/portal/refunds/confirm.php", new
+        var req = BuildRequest(HttpMethod.Post, "/refunds/confirm.php", new
         {
             request_id = requestId,
             code = code,
@@ -73,7 +71,7 @@ public class RefundService
     /// </summary>
     public async Task<RefundStatusResult> GetStatusAsync(long requestId, CancellationToken ct = default)
     {
-        var req = BuildRequest(HttpMethod.Get, $"/api/portal/refunds/status.php?id={requestId}", body: null);
+        var req = BuildRequest(HttpMethod.Get, $"/refunds/status.php?id={requestId}", body: null);
         return await SendAsync<RefundStatusResult>(req, ct);
     }
 
@@ -82,7 +80,7 @@ public class RefundService
     /// </summary>
     public async Task<RefundConfirmResult> CancelAsync(long requestId, CancellationToken ct = default)
     {
-        var req = BuildRequest(HttpMethod.Post, "/api/portal/refunds/cancel.php", new { request_id = requestId });
+        var req = BuildRequest(HttpMethod.Post, "/refunds/cancel.php", new { request_id = requestId });
         return await SendAsync<RefundConfirmResult>(req, ct);
     }
 
@@ -91,17 +89,17 @@ public class RefundService
     /// </summary>
     public async Task<ApiResult> ResendCodeAsync(long requestId, CancellationToken ct = default)
     {
-        var req = BuildRequest(HttpMethod.Post, "/api/portal/refunds/resend-code.php", new { request_id = requestId });
+        var req = BuildRequest(HttpMethod.Post, "/refunds/resend-code.php", new { request_id = requestId });
         return await SendAsync<ApiResult>(req, ct);
     }
 
     // ----- Account email verification + change -----
 
     public async Task<ApiResult> RequestRegistrationCodeAsync(CancellationToken ct = default)
-        => await SendAsync<ApiResult>(BuildRequest(HttpMethod.Post, "/api/portal/account/verify-email/request.php", body: null), ct);
+        => await SendAsync<ApiResult>(BuildRequest(HttpMethod.Post, "/account/verify-email/request.php", body: null), ct);
 
     public async Task<ApiResult> ConfirmRegistrationCodeAsync(string code, CancellationToken ct = default)
-        => await SendAsync<ApiResult>(BuildRequest(HttpMethod.Post, "/api/portal/account/verify-email/confirm.php", new { code }), ct);
+        => await SendAsync<ApiResult>(BuildRequest(HttpMethod.Post, "/account/verify-email/confirm.php", new { code }), ct);
 
     /// <summary>
     /// First-time setup of owner_email when the portal company row has none.
@@ -112,31 +110,31 @@ public class RefundService
     /// that code via /verify-email/confirm.php.
     /// </summary>
     public async Task<SetInitialOwnerEmailResult> SetInitialOwnerEmailAsync(string email, CancellationToken ct = default)
-        => await SendAsync<SetInitialOwnerEmailResult>(BuildRequest(HttpMethod.Post, "/api/portal/account/set-initial-email.php", new { email }), ct);
+        => await SendAsync<SetInitialOwnerEmailResult>(BuildRequest(HttpMethod.Post, "/account/set-initial-email.php", new { email }), ct);
 
     public async Task<EmailChangeRequestResult> RequestEmailChangeAsync(string newEmail, bool passwordVerified, CancellationToken ct = default)
         => await SendAsync<EmailChangeRequestResult>(
-            BuildRequest(HttpMethod.Post, "/api/portal/account/email-change/request.php", new { new_email = newEmail, password_verified = passwordVerified }), ct);
+            BuildRequest(HttpMethod.Post, "/account/email-change/request.php", new { new_email = newEmail, password_verified = passwordVerified }), ct);
 
     public async Task<EmailChangeStateResult> ConfirmEmailChangeOldAsync(long changeId, string code, CancellationToken ct = default)
         => await SendAsync<EmailChangeStateResult>(
-            BuildRequest(HttpMethod.Post, "/api/portal/account/email-change/confirm-old.php", new { change_id = changeId, code }), ct);
+            BuildRequest(HttpMethod.Post, "/account/email-change/confirm-old.php", new { change_id = changeId, code }), ct);
 
     public async Task<EmailChangeStateResult> ConfirmEmailChangeNewAsync(long changeId, string code, CancellationToken ct = default)
         => await SendAsync<EmailChangeStateResult>(
-            BuildRequest(HttpMethod.Post, "/api/portal/account/email-change/confirm-new.php", new { change_id = changeId, code }), ct);
+            BuildRequest(HttpMethod.Post, "/account/email-change/confirm-new.php", new { change_id = changeId, code }), ct);
 
     public async Task<ApiResult> CancelEmailChangeAsync(long changeId, CancellationToken ct = default)
-        => await SendAsync<ApiResult>(BuildRequest(HttpMethod.Post, "/api/portal/account/email-change/cancel.php", new { change_id = changeId }), ct);
+        => await SendAsync<ApiResult>(BuildRequest(HttpMethod.Post, "/account/email-change/cancel.php", new { change_id = changeId }), ct);
 
     public async Task<ApiResult> ResendEmailChangeCodeAsync(long changeId, string target, CancellationToken ct = default)
-        => await SendAsync<ApiResult>(BuildRequest(HttpMethod.Post, "/api/portal/account/email-change/resend-code.php", new { change_id = changeId, target }), ct);
+        => await SendAsync<ApiResult>(BuildRequest(HttpMethod.Post, "/account/email-change/resend-code.php", new { change_id = changeId, target }), ct);
 
     // ----- helpers -----
 
     private static HttpRequestMessage BuildRequest(HttpMethod method, string path, object? body)
     {
-        var url = BaseRoot + path;
+        var url = PortalSettings.ApiBaseUrl + path;
         var req = new HttpRequestMessage(method, url);
         var apiKey = CurrentApiKey;
         if (!string.IsNullOrEmpty(apiKey))

@@ -528,7 +528,7 @@ public RevenuePageViewModel()
             var statusDisplay = revenue.IsPendingConversion ? "Pending" : GetStatusDisplay(revenue, lostDamagedIds, returnedIds, refundedAmount);
             var isFromPortal = !string.IsNullOrEmpty(revenue.InvoiceId) &&
                 onlinePaymentInvoiceIds.Contains(revenue.InvoiceId);
-            var (productName, productMoreText) = FormatProductDescription(revenue);
+            var (productName, productMoreText) = Utilities.TransactionDisplay.ProductSummary(revenue);
 
             var hasReceipt = !string.IsNullOrEmpty(revenue.ReceiptId);
             var receipt = hasReceipt ? companyData?.GetReceipt(revenue.ReceiptId!) : null;
@@ -610,19 +610,6 @@ public RevenuePageViewModel()
         }
 
         Revenue.ReplaceAll(pagedRevenue);
-    }
-
-    private static (string name, string moreText) FormatProductDescription(Revenue revenue)
-    {
-        if (revenue.LineItems.Count <= 1)
-            return (revenue.Description, string.Empty);
-
-        var firstName = revenue.LineItems[0].Description;
-        if (string.IsNullOrEmpty(firstName))
-            firstName = revenue.Description.Split(',')[0].Trim();
-
-        var remaining = revenue.LineItems.Count - 1;
-        return (firstName, $" +{remaining} more");
     }
 
     private static string GetStatusDisplay(Revenue revenue, HashSet<string> lostDamagedIds, HashSet<string> returnedIds, decimal refundedAmount)
@@ -819,6 +806,7 @@ public RevenuePageViewModel()
             await IntegrationImportFlow.RunStripeAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
                 SetStatus = v => StripeSyncStatus = v,
+                SetBusy = busy => IsSyncingStripe = busy,
                 Inform = Notify,
                 AfterChange = LoadRevenue,
                 AfterQueueChange = CheckStripePendingAsync
@@ -851,7 +839,9 @@ public RevenuePageViewModel()
     private int _argoApiPendingCount;
 
     public string ArgoApiBannerText =>
-        "Argo Books API: {0} items are waiting to be imported.".TranslateFormat(ArgoApiPendingCount);
+        ArgoApiPendingCount == 1
+            ? "Argo Books API: 1 item is waiting to be imported.".Translate()
+            : "Argo Books API: {0} items are waiting to be imported.".TranslateFormat(ArgoApiPendingCount);
 
     partial void OnArgoApiPendingCountChanged(int value) => OnPropertyChanged(nameof(ArgoApiBannerText));
 
@@ -930,6 +920,7 @@ public RevenuePageViewModel()
             await IntegrationImportFlow.RunArgoApiAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
                 SetStatus = v => ArgoApiSyncStatus = v,
+                SetBusy = busy => IsSyncingArgoApi = busy,
                 Inform = Notify,
                 AfterChange = LoadRevenue,
                 AfterQueueChange = RefreshArgoApiQueueAsync
@@ -1100,7 +1091,7 @@ public partial class RevenueDisplayItem : ObservableObject
     public string PendingConversionHint => CurrencyService.BuildPendingConversionHint(Total, OriginalCurrency, Date);
 
     // "-" stands in for a missing customer.
-    public string CustomerInitials => CustomerName == "-" ? "?" : Helpers.InitialsHelper.From(CustomerName);
+    public string CustomerInitials => CustomerName == "-" ? "?" : InitialsHelper.From(CustomerName);
 
     public bool IsReturned => StatusDisplay == "Returned";
     public bool IsPartialReturn => StatusDisplay == "Partial Return";

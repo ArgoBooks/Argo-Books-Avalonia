@@ -14,7 +14,7 @@ internal static class SecureTempDirectory
     /// </summary>
     public static string Create()
     {
-        var tempPath = Path.Combine(Path.GetTempPath(), "ArgoBooks", Guid.NewGuid().ToString("N"));
+        var tempPath = Path.Combine(AppPaths.Temp, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempPath);
         if (!OperatingSystem.IsWindows())
         {
@@ -71,7 +71,7 @@ internal static class SecureTempDirectory
     /// </summary>
     public static int DeleteAbandoned(string? root = null, DateTime? nowUtc = null)
     {
-        root ??= Path.Combine(Path.GetTempPath(), "ArgoBooks");
+        root ??= AppPaths.Temp;
         var cutoff = (nowUtc ?? DateTime.UtcNow) - AbandonedAfter;
         var deleted = 0;
 

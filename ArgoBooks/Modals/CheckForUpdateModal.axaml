@@ -199,6 +199,7 @@
                                                     FontSize="12"
                                                     Foreground="{DynamicResource TextTertiaryBrush}"
                                                     HorizontalAlignment="Center"
+                                                    TextAlignment="Center"
                                                     TextWrapping="Wrap"
                                                     MaxWidth="340" />
                                 <Button Classes="secondary-button"

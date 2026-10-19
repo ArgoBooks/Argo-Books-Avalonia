@@ -664,6 +664,7 @@ public class CompanyManager : IDisposable
     /// <param name="companyName">Name of the company.</param>
     /// <param name="password">Optional password for encryption.</param>
     /// <param name="companyInfo">Optional company information.</param>
+    /// <param name="openingBalance">The bank balance the company starts from, if the user gave one.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task CreateCompanyAsync(
         string filePath,
@@ -671,6 +672,7 @@ public class CompanyManager : IDisposable
         string? password = null,
         CompanyInfo? companyInfo = null,
         string? defaultCurrency = null,
+        OpeningBalance? openingBalance = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(filePath);
@@ -716,6 +718,8 @@ public class CompanyManager : IDisposable
             // Before CompanyOpened is raised below, so its subscribers see the chosen currency.
             if (!string.IsNullOrEmpty(defaultCurrency))
                 CompanyData.Settings.Localization.Currency = defaultCurrency;
+
+            CompanyData.Settings.OpeningBalance = openingBalance;
 
             // Save all data to temp directory first (before creating receipts subdirectory,
             // otherwise GetCompanyDirectory will incorrectly find receipts/ as the company dir)
@@ -1914,16 +1918,6 @@ public class CompanyManager : IDisposable
 
         return await _footerService.ReadFooterAsync(filePath, cancellationToken);
     }
-
-    /// <summary>
-    /// Extracts the company logo from a .argo file without fully opening it.
-    /// Returns null for files without a logo.
-    /// </summary>
-    public Task<byte[]?> ExtractLogoFromFileAsync(string filePath, CancellationToken cancellationToken = default)
-    {
-        return _fileService.ExtractLogoFromFileAsync(filePath, cancellationToken);
-    }
-
     /// <summary>
     /// Gets the list of recent companies with their metadata.
     /// </summary>
@@ -2065,13 +2059,13 @@ public class CompanyManager : IDisposable
     }
 
     /// <summary>
-    /// Saves only the payment-sync-related files (payments, invoices, revenues, id counters, settings)
-    /// to the temp directory and repackages the .argo file, without triggering a full company save
-    /// workflow (no CompanySaving/CompanySaved events, no MarkAsSaved).
+    /// Writes the whole company to its file after a background sync added records, without the full save
+    /// workflow (no CompanySaving/CompanySaved events, no MarkAsSaved). It writes nothing while the user has
+    /// unsaved edits, since those would be committed along with the sync.
     /// </summary>
     /// <returns>
     /// Whether <paramref name="companyData"/> was written to its file. False when it is no longer the
-    /// open company or no company file is open, in which case nothing was saved.
+    /// open company, no company file is open, or the user has unsaved edits, in which case nothing was saved.
     /// </returns>
     public async Task<bool> SavePaymentSyncAsync(CompanyData companyData, CancellationToken cancellationToken = default)
     {
@@ -2087,6 +2081,10 @@ public class CompanyManager : IDisposable
             // Merge deferred receipts before writing receipts.json (see SaveCompanyAsync).
             await EnsureReceiptsLoadedAsync();
             if (!ReferenceEquals(CompanyData, companyData) || CurrentFilePath == null || _currentTempDirectory == null)
+                return false;
+
+            // Checked again here as well as by the caller, because the user can make an edit while this waits for the lock and the receipts.
+            if (HasUnsavedChanges)
                 return false;
 
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
@@ -2199,25 +2197,9 @@ public class CompanyManager : IDisposable
         if (string.IsNullOrEmpty(CurrentFilePath))
             return;
 
-        var directory = Path.GetDirectoryName(CurrentFilePath);
-        if (string.IsNullOrEmpty(directory))
-            return;
-
         try
         {
-            if (OperatingSystem.IsWindows())
-            {
-                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{CurrentFilePath}\"");
-            }
-            else if (OperatingSystem.IsMacOS())
-            {
-                System.Diagnostics.Process.Start("open", $"-R \"{CurrentFilePath}\"");
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                // Try common file managers
-                System.Diagnostics.Process.Start("xdg-open", directory);
-            }
+            Platform.FileManager.ShowFile(CurrentFilePath);
         }
         catch
         {

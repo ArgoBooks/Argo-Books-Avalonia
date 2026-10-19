@@ -57,7 +57,7 @@ public static class CurrencyService
     {
         var original = CurrencyInfo.GetByCode(originalCurrency).Format(originalAmount);
         var defaultCode = CurrentCurrencyCode;
-        var dateText = date.ToString("MMM d, yyyy");
+        var dateText = date.ToString(Core.Data.DateFormats.Short);
 
         if (date.Date > DateTime.Today)
         {
@@ -264,6 +264,9 @@ public static class CurrencyService
     /// </summary>
     public static string FormatNetProfitOrPending(CompanyData data, DateTime start, DateTime end) =>
         CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, start, end, collectedOnly: true)
+        || RevenueAggregator.AnyCollectedWaiting(data.Revenues, start, end)
+        || ExpenseAggregator.AnyWaiting(data.Expenses, start, end)
+        || RefundAggregator.AnyRefundWaiting(data.Payments, start, end)
             ? PendingMarker
             : FormatTotalOrPending(convert => ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert));
 
@@ -297,7 +300,7 @@ public static class CurrencyService
     public static async Task<bool> TryWarmTodayRateAsync(CancellationToken cancellationToken = default)
     {
         var code = CurrentCurrencyCode;
-        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(code))
             return false;
 
         var svc = ExchangeRateService.Instance;
@@ -320,7 +323,7 @@ public static class CurrencyService
     public static async Task WarmCompanyRatesAsync(CompanyData data)
     {
         var code = CurrentCurrencyCode;
-        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase) || ExchangeRateService.Instance is not { } rates)
+        if (UsdConversion.IsUsd(code) || ExchangeRateService.Instance is not { } rates)
             return;
 
         var dates = DisplayCurrency.ReportDates(data, null).ToList();
@@ -347,7 +350,7 @@ public static class CurrencyService
     /// </summary>
     public static async Task WarmRateForDateAsync(DateTime date, string code, CancellationToken cancellationToken = default)
     {
-        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(code))
             return;
 
         var svc = ExchangeRateService.Instance;
@@ -383,23 +386,5 @@ public static class CurrencyService
 
         // Otherwise convert from USD to the target currency
         return FormatFromUSD(amountUSD, date);
-    }
-
-    /// <summary>
-    /// Gets the currency code from a display string like "USD - US Dollar ($)".
-    /// </summary>
-    public static string ParseCurrencyCode(string displayString)
-    {
-        return CurrencyInfo.ParseCodeFromDisplayString(displayString);
-    }
-
-    public static string GetDisplayString(string currencyCode)
-    {
-        return CurrencyInfo.GetByCode(currencyCode).DisplayString;
-    }
-
-    public static string GetSymbol(string currencyCode)
-    {
-        return CurrencyInfo.GetSymbol(currencyCode);
     }
 }

@@ -1,6 +1,7 @@
 ﻿using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using CommunityToolkit.Mvvm.ComponentModel;
+using ArgoBooks.Core.Services;
 
 namespace ArgoBooks.Core.Models.Transactions;
 
@@ -302,7 +303,7 @@ public partial class Invoice : ObservableObject, IRecord
     /// Whether this invoice's original currency is USD (including legacy data which defaults to USD).
     /// </summary>
     [JsonIgnore]
-    public bool IsUSD => string.Equals(OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase);
+    public bool IsUSD => UsdConversion.IsUsd(OriginalCurrency);
 
     /// <summary>
     /// Whether this invoice was saved offline and is awaiting USD conversion.

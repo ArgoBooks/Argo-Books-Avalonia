@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using ArgoBooks.Utilities;
 
 namespace ArgoBooks.Controls;
@@ -16,6 +18,7 @@ public partial class ModalOverlay : UserControl
     private Panel? _overlayPanel;
     private ContentPresenter? _modalContentPresenter;
     private bool _contentPresented;
+    private IInputElement? _focusBeforeOpen;
 
     #region Styled Properties
 
@@ -27,6 +30,9 @@ public partial class ModalOverlay : UserControl
 
     public static readonly StyledProperty<bool> CloseOnEscapeProperty =
         AvaloniaProperty.Register<ModalOverlay, bool>(nameof(CloseOnEscape), true);
+
+    public static readonly StyledProperty<bool> TakesFocusProperty =
+        AvaloniaProperty.Register<ModalOverlay, bool>(nameof(TakesFocus), true);
 
     public static readonly StyledProperty<object?> ModalContentProperty =
         AvaloniaProperty.Register<ModalOverlay, object?>(nameof(ModalContent));
@@ -60,6 +66,13 @@ public partial class ModalOverlay : UserControl
     {
         get => GetValue(CloseOnEscapeProperty);
         set => SetValue(CloseOnEscapeProperty, value);
+    }
+
+    /// <summary>False for a message the user is meant to act around, such as the tutorial pointing at the sidebar, so the modal neither takes focus nor holds Tab.</summary>
+    public bool TakesFocus
+    {
+        get => GetValue(TakesFocusProperty);
+        set => SetValue(TakesFocusProperty, value);
     }
 
     /// <summary>
@@ -171,6 +184,24 @@ public partial class ModalOverlay : UserControl
             RequestClose();
             e.Handled = true;
         }
+        // Cycle only keeps Tab inside once a control in the modal has focus, so Tab from the modal itself steps in to its first control, or its last on Shift+Tab.
+        else if (e.Key == Key.Tab && IsOpen && e.Source == _overlayPanel)
+        {
+            StepIn(e.KeyModifiers);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Focuses the modal's first control, or its last when Shift is held, as Tab into the modal would.</summary>
+    public bool StepIn(KeyModifiers modifiers)
+    {
+        if (!IsOpen || _modalContentPresenter == null)
+            return false;
+
+        var target = (modifiers & KeyModifiers.Shift) != 0
+            ? FocusManager.FindLastFocusableElement(_modalContentPresenter)
+            : FocusManager.FindFirstFocusableElement(_modalContentPresenter);
+        return target?.Focus(NavigationMethod.Tab, modifiers) == true;
     }
 
     private void OnIsOpenChanged(bool isOpen)
@@ -183,15 +214,63 @@ public partial class ModalOverlay : UserControl
 
         if (isOpen)
         {
-            Focus();
+            _focusBeforeOpen = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+            if (TakesFocus)
+                TakeFocus();
             Opened?.Invoke(this, EventArgs.Empty);
         }
         else
         {
             Closed?.Invoke(this, EventArgs.Empty);
-            ModalHelper.ReturnFocusToAppShell(this);
+            if (TakesFocus)
+                ReturnFocus();
         }
     }
+
+    /// <summary>Moves focus into the modal, so Escape and Enter act on it and not on the screen behind.</summary>
+    private void TakeFocus()
+    {
+        // Posted, because the modal is only laid out after this change, and a control not yet shown cannot take focus.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!IsOpen || _overlayPanel is not { IsEffectivelyVisible: true } panel)
+                return;
+
+            // A field the modal's own code focused while it opened keeps that focus.
+            if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
+                && panel.IsVisualAncestorOf(focused))
+                return;
+
+            panel.Focus();
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Hands focus back to a modal still open beneath this one, or else to the app shell so its shortcuts work again.</summary>
+    private void ReturnFocus()
+    {
+        var previous = _focusBeforeOpen;
+        _focusBeforeOpen = null;
+
+        if (previous is InputElement { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } element
+            && element.GetVisualAncestors().OfType<ModalOverlay>().Any(m => m != this && m.IsOpen))
+        {
+            Dispatcher.UIThread.Post(() => element.Focus(), DispatcherPriority.Background);
+            return;
+        }
+
+        // A modal opened alongside another, or from inside a web view, remembers nothing in the one beneath it, which still needs focus.
+        if (TopLevel.GetTopLevel(this) is { } top && FindTopmost(top, except: this) is { } beneath)
+        {
+            beneath.TakeFocus();
+            return;
+        }
+
+        ModalHelper.ReturnFocusToAppShell(this);
+    }
+
+    /// <summary>The open modal drawn above the others, which is the last one in the window's visual tree.</summary>
+    public static ModalOverlay? FindTopmost(TopLevel top, ModalOverlay? except = null) =>
+        top.GetVisualDescendants().OfType<ModalOverlay>().LastOrDefault(m => m != except && m.IsOpen && m.TakesFocus && m.IsEffectivelyVisible);
 
     private void OnBackdropPointerPressed(object? sender, PointerPressedEventArgs e)
     {

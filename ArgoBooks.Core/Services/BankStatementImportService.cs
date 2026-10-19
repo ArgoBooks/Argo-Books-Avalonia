@@ -75,15 +75,14 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
 
     private List<BankStatementLine> ParseExcelCore(string filePath, Action<List<string>> normalize, bool requireEssentials, CancellationToken cancellationToken)
     {
-        // ClosedXML reads .xlsx only, so a legacy .xls is converted first. Done here rather
+        // ClosedXML cannot open a legacy .xls or an .ods, so they are converted first. Done here rather
         // than at the two call sites, which is why the temp file is deleted below.
         string? tempXlsx = null;
         try
         {
-            if (filePath.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
-                && !filePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            if (SpreadsheetFiles.NeedsConversion(filePath))
             {
-                tempXlsx = LegacyXlsConverter.ConvertXlsToTempXlsx(filePath);
+                tempXlsx = SpreadsheetFiles.ConvertToTempXlsx(filePath);
                 filePath = tempXlsx;
             }
 
@@ -127,19 +126,18 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
     {
         try
         {
-            // FileShare.ReadWrite so a statement still imports while it's open in Excel/LibreOffice.
+            var text = await Task.Run(() => TextFileDecoder.ReadAllText(filePath), cancellationToken);
             var collected = new List<string>();
-            await using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true))
+            using (var reader = new StringReader(text))
             {
                 string? line;
-                while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
+                while ((line = reader.ReadLine()) != null)
                     collected.Add(line);
             }
             var lines = collected.ToArray();
             if (lines.Length < 2) return [];
 
-            var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(lines[0]);
+            var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(lines);
             var parsed = lines
                 .Where(l => !string.IsNullOrWhiteSpace(l))
                 .Select(l => SpreadsheetAnalysisService.ParseCsvLine(l, delimiter))
@@ -232,7 +230,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         Assign(ColBalance, h => h.Contains("balance") || h.Contains("bal"));
         Assign(ColAmount, h => h is "amount" or "value" or "amt" || (h.Contains("amount") && !h.Contains("tax")));
         Assign(ColReference, h => h.Contains("reference") || h is "ref" || h.Contains("ref no") || h.Contains("cheque") || h.Contains("check") || h.Contains("trans id") || h.Contains("transaction id"));
-        Assign(ColDescription, h => h.Contains("desc") || h.Contains("memo") || h.Contains("narrative") || h.Contains("detail") || h.Contains("particular") || h.Contains("payee") || h.Contains("name") || h.Contains("transaction"));
+        Assign(ColDescription, h => h.Contains("desc") || h.Contains("memo") || h.Contains("narrat") || h.Contains("detail") || h.Contains("particular") || h.Contains("payee") || h.Contains("name") || h.Contains("transaction"));
     }
 
     private static List<BankStatementLine> BuildLines(List<string> headers, List<List<object?>> rows, CancellationToken cancellationToken)
@@ -262,7 +260,8 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
 
             // Canonical signed amount: negative = money out, positive = money in.
             // Prefer an explicit signed Amount column; otherwise derive from Credit - Debit.
-            var amount = signedAmount ?? ((credit ?? 0m) - (debit ?? 0m));
+            // Some banks write debits as negative numbers, which subtracted as they are would turn spending into income.
+            var amount = signedAmount ?? (Math.Abs(credit ?? 0m) - Math.Abs(debit ?? 0m));
 
             result.Add(new BankStatementLine
             {

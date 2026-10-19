@@ -89,11 +89,11 @@ public partial class InvoiceModals : UserControl
                 Title = "Save Invoice PDF".Translate(),
                 SuggestedFileName = vm.PdfFileName,
                 DefaultExtension = "pdf",
-                FileTypeChoices = [new FilePickerFileType("PDF") { Patterns = ["*.pdf"] }]
+                FileTypeChoices = [Utilities.FilePickerTypes.PdfFileType]
             });
             if (saved == null) return;
 
-            await using var file = System.IO.File.Create(saved.Path.LocalPath);
+            await using var file = File.Create(saved.Path.LocalPath);
             await pdf.CopyToAsync(file);
         }
         catch (Exception ex)

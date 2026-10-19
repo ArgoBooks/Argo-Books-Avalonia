@@ -106,9 +106,14 @@ public enum FeatureName
     // Year-end books sent to an accountant
     AccountantPackSent,
 
-    // The version is in the context on both, so uptake divides offered into applied.
+    // Each carries the versions in its context, so the stats show how many offered updates were applied, and how many applied ones installed or failed.
     UpdateOffered,
     UpdateApplied,
+    UpdateInstalled,
+    UpdateFailed,
+
+    // Sent when the Velopack copy on Windows removes the copy the old installer put in Program Files.
+    OldInstallRemoved,
 
     // A schedule the user set up, and the transactions it produced on a later open.
     RecurringScheduleCreated,

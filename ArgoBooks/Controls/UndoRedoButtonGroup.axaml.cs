@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
@@ -25,11 +26,61 @@ public partial class UndoRedoButtonGroup : UserControl
     private int _currentRedoHoverIndex = -1;
 
     private static IBrush HighlightBrush => ConverterUtils.AccentTint(40);
-    private static readonly IBrush TransparentBrush = Brushes.Transparent;
 
     public UndoRedoButtonGroup()
     {
         InitializeComponent();
+        // Tunnelled, because the dropdown button that keeps focus would otherwise take Enter and reopen its list.
+        AddHandler(KeyDownEvent, OnHistoryKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>Lets the arrow keys select actions in an open history list the way hovering does, and Enter apply them like a click.</summary>
+    private void OnHistoryKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not IUndoRedoButtonGroupViewModel vm)
+            return;
+
+        if (_undoPopup?.IsOpen == true)
+        {
+            e.Handled = HandleHistoryKey(e.Key, _undoPopup, _undoHistoryList, ref _currentUndoHoverIndex, vm.UndoToCommand);
+            UpdateUndoHighlighting();
+            UpdateUndoCountLabel();
+        }
+        else if (_redoPopup?.IsOpen == true)
+        {
+            e.Handled = HandleHistoryKey(e.Key, _redoPopup, _redoHistoryList, ref _currentRedoHoverIndex, vm.RedoToCommand);
+            UpdateRedoHighlighting();
+            UpdateRedoCountLabel();
+        }
+    }
+
+    private static bool HandleHistoryKey(Key key, Popup popup, ItemsControl? list, ref int index, ICommand command)
+    {
+        switch (key)
+        {
+            case Key.Down:
+                index = Math.Min(index + 1, (list?.ItemCount ?? 0) - 1);
+                break;
+            case Key.Up:
+                index = Math.Max(index - 1, 0);
+                break;
+            case Key.Enter:
+                if (index >= 0)
+                    command.Execute(index);
+                popup.Close();
+                index = -1;
+                return true;
+            case Key.Escape:
+                popup.Close();
+                index = -1;
+                return true;
+            default:
+                return false;
+        }
+
+        if (index >= 0)
+            list?.ContainerFromIndex(index)?.BringIntoView();
+        return true;
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -128,7 +179,7 @@ public partial class UndoRedoButtonGroup : UserControl
             if (container is ContentPresenter { Child: Border border })
             {
                 // Highlight items from 0 to hoverIndex (inclusive)
-                border.Background = i <= _currentUndoHoverIndex ? HighlightBrush : TransparentBrush;
+                border.Background = i <= _currentUndoHoverIndex ? HighlightBrush : Brushes.Transparent;
             }
         }
     }
@@ -143,7 +194,7 @@ public partial class UndoRedoButtonGroup : UserControl
             if (container is ContentPresenter { Child: Border border })
             {
                 // Highlight items from 0 to hoverIndex (inclusive)
-                border.Background = i <= _currentRedoHoverIndex ? HighlightBrush : TransparentBrush;
+                border.Background = i <= _currentRedoHoverIndex ? HighlightBrush : Brushes.Transparent;
             }
         }
     }

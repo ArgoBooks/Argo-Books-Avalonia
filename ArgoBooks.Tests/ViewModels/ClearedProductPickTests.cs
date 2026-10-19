@@ -26,8 +26,7 @@ public class ClearedProductPickTests : ModalViewModelTestBase
         Assert.Equal(string.Empty, line.ProductId);
     }
 
-    [Fact]
-    public async Task ABankStatementRow_WhoseProductIsCleared_IsNotImportedUnderIt()
+    private ImportLineRow RowPickedAsPaper()
     {
         Company.Categories.Add(new Category { Id = "CAT-PUR-001", Name = "Office", Type = CategoryType.Expense });
         var paper = new Product { Id = "PRD-001", Name = "Paper", Type = CategoryType.Expense, CategoryId = "CAT-PUR-001" };
@@ -44,7 +43,27 @@ public class ClearedProductPickTests : ModalViewModelTestBase
         });
         row.SetExistingProduct(paper, "Office");
         row.SetExistingSupplier(acme);
+        return row;
+    }
+
+    [Fact]
+    public void ABankStatementRow_WhoseProductIsTypedOver_StandsForTheTypedProduct()
+    {
+        var row = RowPickedAsPaper();
+
         row.ProductSearchText = "Pens";
+        row.ResolvedProductObject = null;
+
+        Assert.Null(row.ResolvedProductId);
+        Assert.Equal("Pens", row.NewProductName);
+    }
+
+    [Fact]
+    public async Task ABankStatementRow_WhoseProductIsCleared_IsNotImportedUnderIt()
+    {
+        var row = RowPickedAsPaper();
+
+        row.ProductSearchText = "";
         row.ResolvedProductObject = null;
 
         var vm = new BankStatementImportModalViewModel();

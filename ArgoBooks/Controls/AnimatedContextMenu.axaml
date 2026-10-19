@@ -35,6 +35,9 @@
                     Padding="6"
                     MinWidth="140"
                     BoxShadow="0 4 12 0 #40000000"
+                    Focusable="True"
+                    KeyboardNavigation.IsTabStop="False"
+                    KeyDown="OnMenuKeyDown"
                     Opacity="0"
                     RenderTransformOrigin="0,0">
                 <Border.RenderTransform>

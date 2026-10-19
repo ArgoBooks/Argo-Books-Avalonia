@@ -1,6 +1,7 @@
 ﻿using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -219,8 +220,12 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
             IsReadyToInstall = true;
             IsDownloading = false;
         }
-        catch
+        catch (Exception ex)
         {
+            var target = _updateService.AvailableUpdate?.Version ?? "unknown";
+            var detail = ex is UpdateSignatureException ? "signature check failed" : "download failed";
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateFailed, UpdateOutcome.Context(AppInfo.VersionNumber, target, detail));
+
             IsDownloading = false;
             HasError = true;
             ErrorMessage = _updateService.LastError ?? "Download failed";
@@ -250,6 +255,16 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
         }
         catch
         {
+            // The app stays open when the update never starts, so this is reported now rather than as a failed install on the next launch.
+            var target = _updateService.AvailableUpdate?.Version ?? "unknown";
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateFailed,
+                UpdateOutcome.Context(AppInfo.VersionNumber, target, "update did not start"));
+            if (App.SettingsService is { } settings)
+            {
+                App.ClearUpdateInProgress(settings.GlobalSettings.Updates);
+                try { await settings.SaveGlobalSettingsAsync(); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+
             ResetStates();
             HasError = true;
 
@@ -267,7 +282,7 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
     [RelayCommand]
     private void ViewReleaseNotes()
     {
-        var url = _updateService?.AvailableUpdate?.ReleaseNotesUrl ?? $"{ApiConfig.BaseUrl}/whats-new/";
+        var url = _updateService?.AvailableUpdate?.ReleaseNotesUrl ?? WebsiteUrls.WhatsNew;
 
         UrlHelper.SafeOpenUrl(url);
     }

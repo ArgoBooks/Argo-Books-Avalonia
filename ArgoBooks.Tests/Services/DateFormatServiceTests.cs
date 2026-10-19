@@ -1,22 +1,17 @@
 using System.Globalization;
-using System.Reflection;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Services;
 using Xunit;
 
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// Tests for the DateFormatService class.
-/// Since DateFormatService is a static class that depends on App.CompanyManager for CurrentFormat,
-/// we test the private GetDotNetFormat method directly via reflection, and the pure static methods.
+/// Tests for the date format setting: how each setting value maps to a .NET format, and how
+/// DateFormatService writes a date with it.
 /// </summary>
 public class DateFormatServiceTests
 {
-    private static readonly MethodInfo GetDotNetFormatMethod =
-        typeof(DateFormatService).GetMethod("GetDotNetFormat", BindingFlags.NonPublic | BindingFlags.Static)!;
-
-    private static string InvokeGetDotNetFormat(string userFormat) =>
-        (string)GetDotNetFormatMethod.Invoke(null, [userFormat])!;
+    private static string InvokeGetDotNetFormat(string userFormat) => DateFormats.ToDotNet(userFormat);
 
     #region Format with MM/DD/YYYY Tests
 
@@ -175,6 +170,17 @@ public class DateFormatServiceTests
         var result = WithCulture("de-DE", () => DateFormatService.Format(date));
 
         Assert.Equal("05/01/2025", result);
+    }
+
+    /// <summary>Reports write table dates through the same setting, so a day-first company sees day-first rows.</summary>
+    [Fact]
+    public void ADayFirstSetting_KeepsSlashSeparatorsOnAGermanMachine()
+    {
+        var date = new DateTime(2025, 3, 15);
+
+        var result = WithCulture("de-DE", () => DateFormats.Format(date, "DD/MM/YYYY"));
+
+        Assert.Equal("15/03/2025", result);
     }
 
     #endregion

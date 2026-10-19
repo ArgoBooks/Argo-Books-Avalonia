@@ -15,7 +15,6 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public sealed class SourceSurveyReporter
 {
-    private const string EndpointPath = "/api/track-app-event.php";
 
     private readonly HttpClient _httpClient;
     private readonly IErrorLogger? _errorLogger;
@@ -46,7 +45,7 @@ public sealed class SourceSurveyReporter
         PostAsync(new SurveyPayload
         {
             Event = "signup_survey",
-            Platform = GetPlatformKey(),
+            Platform = TelemetryPlatform.Key,
             AppVersion = _appVersion,
             MachineUuid = machineUuid,
             Answer = answer,
@@ -69,7 +68,7 @@ public sealed class SourceSurveyReporter
         PostAsync(new SurveyPayload
         {
             Event = "exit_survey",
-            Platform = GetPlatformKey(),
+            Platform = TelemetryPlatform.Key,
             AppVersion = _appVersion,
             MachineUuid = machineUuid,
             Answer = goal,
@@ -80,7 +79,7 @@ public sealed class SourceSurveyReporter
     {
         try
         {
-            var url = $"{ApiConfig.BaseUrl}{EndpointPath}";
+            var url = $"{ApiConfig.BaseUrl}{TelemetryPlatform.AppEventEndpoint}";
             using var response = await _httpClient.PostAsJsonAsync(url, payload, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -109,14 +108,6 @@ public sealed class SourceSurveyReporter
             NetworkFailure.Report(_errorLogger, ex, "SourceSurveyReporter.ReportAsync");
             return false;
         }
-    }
-
-    private static string GetPlatformKey()
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "win";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))     return "mac";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))   return "linux";
-        return "unknown";
     }
 
     private sealed class SurveyPayload

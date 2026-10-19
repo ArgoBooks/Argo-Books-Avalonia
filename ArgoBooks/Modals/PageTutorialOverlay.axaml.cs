@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using ArgoBooks.Helpers;
+using ArgoBooks.Utilities;
 using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Modals;
@@ -82,6 +83,12 @@ public partial class PageTutorialOverlay : UserControl
         if (e.PropertyName == nameof(PageTutorialViewModel.IsOpen) && _viewModel?.IsOpen == true)
         {
             Dispatcher.UIThread.Post(UpdateHighlightBounds, DispatcherPriority.Loaded);
+            // Focus on the card keeps Tab among its buttons rather than the page behind it.
+            Dispatcher.UIThread.Post(() => NextButton.Focus(), DispatcherPriority.Loaded);
+        }
+        else if (e.PropertyName == nameof(PageTutorialViewModel.IsOpen))
+        {
+            ModalHelper.ReturnFocusToAppShell(this);
         }
     }
 

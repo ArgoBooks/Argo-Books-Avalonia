@@ -36,11 +36,7 @@ public partial class App : Application
     public static IUpdateService? UpdateService { get; set; }
 
     /// <summary>
-    /// Builds the platform's update service. Set by the platform entry point, which cannot
-    /// hand over an instance without paying for it before Avalonia has started: constructing
-    /// NetSparkle loads its assemblies and signature crypto, and that landed squarely in the
-    /// window where the screen is still empty. Nothing reads UpdateService until the shell
-    /// view model is built, long after the splash is up.
+    /// Builds the platform's update service once the first window is showing, since building it at startup would delay the first paint.
     /// </summary>
     public static Func<IUpdateService?>? UpdateServiceFactory { get; set; }
 
@@ -128,6 +124,10 @@ public partial class App : Application
     /// Gets the error logger instance for centralized error logging.
     /// </summary>
     public static IErrorLogger? ErrorLogger { get; private set; }
+
+    /// <summary>The main window, which owns file pickers and dialogs; null when not running on a desktop.</summary>
+    public static Window? DesktopMainWindow =>
+        Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop ? desktop.MainWindow : null;
 
     /// <summary>
     /// Gets the telemetry manager instance for anonymous usage tracking.
@@ -280,11 +280,6 @@ public partial class App : Application
     public static ReturnsModalsViewModel? ReturnsModalsViewModel => _appShellViewModel?.ReturnsModalsViewModel;
 
     /// <summary>
-    /// Gets the report modals view model for shared access.
-    /// </summary>
-    public static ReportModalsViewModel? ReportModalsViewModel => _appShellViewModel?.ReportModalsViewModel;
-
-    /// <summary>
     /// Gets the prediction info modal view model for shared access.
     /// </summary>
     public static PredictionInfoModalViewModel? PredictionInfoModalViewModel => _appShellViewModel?.PredictionInfoModalViewModel;
@@ -303,11 +298,6 @@ public partial class App : Application
     /// Gets the header view model for shared access.
     /// </summary>
     public static HeaderViewModel? HeaderViewModel => _appShellViewModel?.HeaderViewModel;
-
-    /// <summary>
-    /// Gets the version history modal view model for shared access.
-    /// </summary>
-    public static VersionHistoryModalViewModel? VersionHistoryModalViewModel => _appShellViewModel?.VersionHistoryModalViewModel;
 
     /// <summary>
     /// Gets the event log service for version history tracking.
@@ -1362,8 +1352,10 @@ public partial class App : Application
             // entries as breadcrumbs.
             CrashReporter.SetBreadcrumbSource(errorLogger);
 
-            // A web view that cannot start throws from an async void attach handler, which lands on the dispatcher as an unhandled exception and ends the process.
+            // A web view that cannot start throws from an async void attach handler, which lands on the dispatcher as an unhandled exception and ends the process (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
             WebViewEnvironment.InstallDispatcherGuard(errorLogger);
+
+            Helpers.ChartRedraw.Register();
 
             // Before any window exists: RequestedThemeVariant is "Default" (follows the OS) until the saved theme is applied, so applying it late flashes the wrong palette.
             SettingsService = new GlobalSettingsService(errorLogger);
@@ -1420,7 +1412,7 @@ public partial class App : Application
                 {
                     errorLogger.LogWarning(
                         $"Could not create the update service: {ex.Message}",
-                        "Startup", Core.Models.Telemetry.ErrorCategory.Network,
+                        "Startup", ErrorCategory.Network,
                         "UpdateServiceCreateFailed");
                 }
             }
@@ -2053,10 +2045,6 @@ public partial class App : Application
         {
             try
             {
-                // The installer restarts the app, so this is flushed with the rest of the
-                // shutdown rather than uploaded from the version being replaced.
-                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied, AppInfo.VersionNumber);
-
                 if (CompanyManager?.IsCompanyOpen == true)
                 {
                     // Use synchronous wait since we must complete before the process exits
@@ -2069,12 +2057,20 @@ public partial class App : Application
                     // Flag that we're updating so we can auto-reopen the company after restart
                     SettingsService.GlobalSettings.Updates.AutoOpenRecentAfterUpdate = true;
                     SettingsService.GlobalSettings.Updates.FileToOpenAfterUpdate = _fileToOpenAfterUpdate;
+                    SettingsService.GlobalSettings.Updates.PendingUpdateVersion = UpdateService?.AvailableUpdate?.Version;
+                    SettingsService.GlobalSettings.Updates.PendingUpdateFromVersion = AppInfo.VersionNumber;
                     Task.Run(async () => await SettingsService.SaveGlobalSettingsAsync())
                         .GetAwaiter().GetResult();
                 }
+
+                // Recorded only once the work is saved, since a failed save cancels the update.
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied,
+                    UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown"));
             }
             catch (Exception ex)
             {
+                if (SettingsService != null)
+                    ClearUpdateInProgress(SettingsService.GlobalSettings.Updates);
                 // The installer restarts the app, so going ahead would throw away whatever did not
                 // get written. Refuse, the same as the close, auto-lock and tutorial-restart paths.
                 applying.Cancel = true;
@@ -2085,6 +2081,10 @@ public partial class App : Application
                     NotificationType.Warning);
             }
         };
+
+        await ReportLastUpdateOutcomeAsync();
+        // Not awaited, because it waits for the user to answer the Windows permission prompt and the update check should not.
+        _ = RemoveOldWindowsInstallAsync();
 
         try
         {
@@ -2099,6 +2099,90 @@ public partial class App : Application
         catch (Exception ex)
         {
             ErrorLogger?.LogWarning($"Background update check failed: {ex.Message}", "AutoUpdate");
+        }
+    }
+
+    /// <summary>
+    /// Forgets an update that did not start, so the next launch neither reopens the company as if after an update nor reports it as failed.
+    /// </summary>
+    internal static void ClearUpdateInProgress(UpdateSettings updates)
+    {
+        updates.AutoOpenRecentAfterUpdate = false;
+        updates.FileToOpenAfterUpdate = null;
+        updates.PendingUpdateVersion = null;
+        updates.PendingUpdateFromVersion = null;
+    }
+
+    /// <summary>
+    /// On the launch after an accepted update, reports once whether it installed.
+    /// </summary>
+    private static async Task ReportLastUpdateOutcomeAsync()
+    {
+        var settings = SettingsService;
+        if (settings?.GlobalSettings.Updates is not { PendingUpdateVersion: { } target } updates)
+            return;
+
+        try
+        {
+            var installed = UpdateOutcome.IsInstalled(AppInfo.VersionNumber, target);
+            var from = updates.PendingUpdateFromVersion ?? "unknown";
+            updates.PendingUpdateVersion = null;
+            updates.PendingUpdateFromVersion = null;
+            await settings.SaveGlobalSettingsAsync();
+
+            if (installed)
+            {
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateInstalled, UpdateOutcome.Context(from, target));
+            }
+            else
+            {
+                ErrorLogger?.LogWarning($"Update to {target} did not install.", "AutoUpdate");
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateFailed, UpdateOutcome.Context(from, target));
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogger?.LogWarning($"Could not report the last update: {ex.Message}", "AutoUpdate");
+        }
+    }
+
+    /// <summary>The first launches after moving to the Velopack install try this many times to remove the old copy, so a user who keeps saying no is not asked forever.</summary>
+    private const int MaxOldInstallRemovalAttempts = 3;
+
+    /// <summary>
+    /// On Windows, removes the copy the old installer put in Program Files once the Velopack copy is running, which Windows asks the user to allow.
+    /// </summary>
+    private static async Task RemoveOldWindowsInstallAsync()
+    {
+        var settings = SettingsService;
+        if (UpdateService is not { HasOldInstallToRemove: true } updateService || settings == null)
+            return;
+
+        var updates = settings.GlobalSettings.Updates;
+        if (updates.OldInstallRemovalAttempts >= MaxOldInstallRemovalAttempts)
+            return;
+
+        try
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => _appShellViewModel?.AddNotification(
+                "Finishing the update".Translate(),
+                "Windows will ask for permission to remove the previous copy of Argo Books. Your companies and settings stay as they are.".Translate(),
+                NotificationType.Info));
+
+            if (await updateService.RemoveOldInstallAsync())
+            {
+                updates.OldInstallRemovalAttempts = 0;
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.OldInstallRemoved, AppInfo.VersionNumber);
+            }
+            else
+            {
+                updates.OldInstallRemovalAttempts++;
+            }
+            await settings.SaveGlobalSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogger?.LogWarning($"Could not remove the old install: {ex.Message}", "AutoUpdate");
         }
     }
 
@@ -2493,11 +2577,11 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Shows the OS image-picker, decodes the result into a Bitmap, and hands the
-    /// pair off to the caller. Centralized so customer and supplier avatar pickers
-    /// share the file-type filter and error handling.
+    /// Shows the OS image picker, decodes the result into a Bitmap, and hands the pair to the
+    /// caller. Every avatar and logo picker goes through here, so they accept the same formats
+    /// and explain an unreadable file the same way.
     /// </summary>
-    private static async Task PickAvatarAsync(string title, Action<string, Bitmap> onPicked, string errorTag)
+    private static async Task PickPictureAsync(string title, string notSupportedTitle, Action<string, Bitmap> onPicked, string errorTag)
     {
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
             return;
@@ -2506,7 +2590,7 @@ public partial class App : Application
         {
             Title = title,
             AllowMultiple = false,
-            FileTypeFilter = [Utilities.FilePickerTypes.ImageFileType]
+            FileTypeFilter = [Utilities.FilePickerTypes.PictureFileType]
         });
 
         if (files.Count == 0) return;
@@ -2515,9 +2599,9 @@ public partial class App : Application
         var prepared = await Task.Run(() => Helpers.ImageFileLoader.TryPrepare(path));
         if (prepared == null)
         {
-            ErrorLogger?.LogWarning($"Could not read avatar image: {path}", errorTag);
+            ErrorLogger?.LogWarning($"Could not read picked image: {path}", errorTag);
             await ShowErrorDialogAsync(
-                "Image Not Supported".Translate(),
+                notSupportedTitle,
                 "That image could not be read. Try a PNG or JPEG.".Translate());
             return;
         }
@@ -2769,7 +2853,8 @@ public partial class App : Application
             settings?.Company.ProvinceState,
             settings?.Company.Email,
             CompanyManager.CompanyData!.Settings.Localization.Currency,
-            contextMessage);
+            contextMessage,
+            CompanyManager.CompanyData.Settings.OpeningBalance);
     }
 
     /// <summary>
@@ -2805,9 +2890,26 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Performs the AI-powered import flow: analyze → review → validate → import.
+    /// Performs the AI-powered import flow: analyze → review → validate → import. A .xls or .ods
+    /// is read from a converted copy, which is deleted once the import has finished with it.
     /// </summary>
     private static async Task PerformAiImportAsync(string filePath, CompanyData companyData, bool isCsv)
+    {
+        var convertedFiles = new List<string>();
+        try
+        {
+            await RunAiImportAsync(filePath, companyData, isCsv, convertedFiles);
+        }
+        finally
+        {
+            foreach (var file in convertedFiles)
+            {
+                try { File.Delete(file); } catch { /* a temp file we could not remove is not worth failing an import over */ }
+            }
+        }
+    }
+
+    private static async Task RunAiImportAsync(string filePath, CompanyData companyData, bool isCsv, List<string> convertedFiles)
     {
         if (_appShellViewModel == null) return;
 
@@ -2822,23 +2924,25 @@ public partial class App : Application
         _mainWindowViewModel?.ShowLoading("Analyzing spreadsheet structure...".Translate(), "Reading file...", 0, analysisCts, ConfirmCancelAsync);
         await Task.Yield(); // Allow UI to render the loading overlay before heavy work begins
 
-        // Legacy .xls (BIFF) is not read by the pipeline directly. Convert it to a temp .xlsx up front so the rest of the flow only ever sees .xlsx/.csv (unchanged).
-        if (!isCsv
-            && filePath.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
-            && !filePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        // A legacy .xls or an .ods is not read by the pipeline directly. It is converted to a temp .xlsx up front so the rest of the flow only ever sees .xlsx/.csv.
+        if (!isCsv && SpreadsheetFiles.NeedsConversion(filePath))
         {
+            var isOds = filePath.EndsWith(".ods", StringComparison.OrdinalIgnoreCase);
             try
             {
-                filePath = await Task.Run(() => LegacyXlsConverter.ConvertXlsToTempXlsx(filePath));
+                filePath = await Task.Run(() => SpreadsheetFiles.ConvertToTempXlsx(filePath));
+                convertedFiles.Add(filePath);
             }
             catch (Exception ex)
             {
                 _mainWindowViewModel?.HideLoading();
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "xls-convert");
-                ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to convert legacy .xls file for import");
+                ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to convert a .xls or .ods file for import");
                 await ShowErrorDialogAsync(
                     "Import Failed".Translate(),
-                    "This .xls file could not be read. Try re-saving it as .xlsx and importing that instead.".Translate());
+                    isOds
+                        ? "This .ods file could not be read. Try re-saving it as .xlsx and importing that instead.".Translate()
+                        : "This .xls file could not be read. Try re-saving it as .xlsx and importing that instead.".Translate());
                 return;
             }
         }
@@ -3000,7 +3104,7 @@ public partial class App : Application
                     currencyScan.Resolved.Values.SelectMany(m => m.Values)
                         .Concat(importOptions.SymbolResolution.Values)
                         .Append(companyData.Settings.Localization.Currency)
-                        .Any(c => !string.IsNullOrEmpty(c) && !string.Equals(c, "USD", StringComparison.OrdinalIgnoreCase));
+                        .Any(c => !UsdConversion.IsUsd(c));
                 if (hasNonUsd)
                 {
                     var importDates = importService.CollectTransactionDates(filePath, updatedAnalysis);
@@ -3207,17 +3311,8 @@ public partial class App : Application
             _ = TelemetryManager?.TrackFeatureAsync(
                 FeatureName.DataImported, importContext, importStopwatch.ElapsedMilliseconds);
 
-            // Create snapshot for redo
-            var importedSnapshot = CreateCompanyDataSnapshot(companyData);
-
-            RecordImportUndoStep(companyData, snapshot, importedSnapshot);
+            FinishImport(companyData, snapshot);
             rollbackSnapshot = null;
-
-            CompanyManager.MarkAsChanged();
-
-            // Auto-switch date range to "All Time" so imported data is visible on dashboard/analytics
-            // (imported data may be from any time period, not necessarily the current month)
-            ChartSettingsService.Instance.SelectedDateRange = "All Time";
 
             // Combine Tier 1 and Tier 2 counts
             var totalUpdated = 0;
@@ -3315,10 +3410,7 @@ public partial class App : Application
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Argo Books Backup")
-                {
-                    Patterns = ["*.argobk"]
-                }
+                Utilities.FilePickerTypes.BackupFileType
             ]
         });
 
@@ -3344,14 +3436,11 @@ public partial class App : Application
         var saveFile = await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save Restored Company As".Translate(),
-            SuggestedFileName = $"{suggestedName}.argo",
-            DefaultExtension = "argo",
+            SuggestedFileName = suggestedName + FileFormatConstants.CompanyFileExtension,
+            DefaultExtension = FileFormatConstants.CompanyFileExtension.TrimStart('.'),
             FileTypeChoices =
             [
-                new FilePickerFileType("Argo Books Files")
-                {
-                    Patterns = ["*.argo"]
-                }
+                Utilities.FilePickerTypes.CompanyFileType
             ]
         });
 
@@ -3470,6 +3559,7 @@ public partial class App : Application
 
         if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
         {
+            Key = "bank-statement",
             Title = "Import a bank statement".Translate(),
             Description = "Argo Books reads the statement and creates the expenses and revenue from it.".Translate(),
             Points =
@@ -3491,7 +3581,7 @@ public partial class App : Application
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Bank statements") { Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"] }
+                Utilities.FilePickerTypes.BankStatementFileType
             ]
         });
         if (file.Count == 0)
@@ -3520,6 +3610,7 @@ public partial class App : Application
 
         if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
         {
+            Key = "bank-statement-check",
             Title = "Check a statement against your books".Translate(),
             Description = "Argo Books compares the statement to what you have already recorded, so you can see what is missing or recorded twice.".Translate(),
             Points =
@@ -3541,7 +3632,7 @@ public partial class App : Application
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Bank statements") { Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"] }
+                Utilities.FilePickerTypes.BankStatementFileType
             ]
         });
         if (file.Count == 0)
@@ -3559,7 +3650,7 @@ public partial class App : Application
         try
         {
             List<Core.Models.BankMatching.BankStatementLine> lines;
-            if (ext == ".pdf")
+            if (ext == ".pdf" || StatementImages.IsImage(filePath))
             {
                 _mainWindowViewModel?.HideLoading();
                 lines = await ImportPdfStatementAsync(filePath);
@@ -3567,21 +3658,9 @@ public partial class App : Application
             }
             else
             {
-                var parser = new BankStatementImportService(ErrorLogger);
-                var isCsv = ext == ".csv";
-
-                // Try local column detection first (instant, no AI). Fall back to AI column mapping
-                // only when the headers aren't recognized locally.
-                lines = isCsv
-                    ? await parser.ParseCsvAsync(filePath)
-                    : await parser.ParseExcelAsync(filePath);
-
-                if (lines.Count == 0)
-                {
-                    // Null: the user is out of bank imports and has just been told so.
-                    if (await TryAiParseBankStatementAsync(filePath, isCsv, parser) is not { } aiLines) return;
-                    lines = aiLines;
-                }
+                // Null: the user is out of bank imports and has just been told so.
+                if (await ReadStatementFileAsync(filePath) is not { } read) return;
+                lines = read;
             }
 
             _mainWindowViewModel?.HideLoading();
@@ -3589,7 +3668,7 @@ public partial class App : Application
             if (lines.Count == 0)
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:no-rows:{ext.TrimStart('.')}");
-                _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank-matching:no-rows:{ext.TrimStart('.')}");
+                _ = ImportDiagnosticOffer.SendAsync(filePath, $"bank-matching:no-rows:{ext.TrimStart('.')}");
                 await ShowInfoDialogAsync("Info".Translate(),
                     "No transactions were found. Make sure the file has Date, Description and Amount (or Debit/Credit) columns.".Translate());
                 return;
@@ -3674,7 +3753,7 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:unreadable:{ext.TrimStart('.')}");
-            _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank-matching:unreadable:{ext.TrimStart('.')}");
+            _ = ImportDiagnosticOffer.SendAsync(filePath, $"bank-matching:unreadable:{ext.TrimStart('.')}");
             await ShowInfoDialogAsync("Import Bank Statement".Translate(), ImportRescueMessages.UnreadableFile);
         }
         catch (Exception ex)
@@ -3684,6 +3763,25 @@ public partial class App : Application
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Bank statement import failed");
             await ShowErrorDialogAsync("Import Failed".Translate(), "Failed to import bank statement:\n\n{0}".TranslateFormat(ex.Message));
         }
+    }
+
+    /// <summary>
+    /// Reads a CSV, Excel or OFX statement. For CSV and Excel that is local column detection first,
+    /// which is instant, then the AI column mapping when the headers are not recognised, as in a
+    /// statement in another language. Null when the user is out of bank imports and has just been told so.
+    /// </summary>
+    internal static async Task<List<Core.Models.BankMatching.BankStatementLine>?> ReadStatementFileAsync(string filePath)
+    {
+        if (OfxStatementReader.IsOfxFile(filePath))
+            return await Task.Run(() => OfxStatementReader.Read(filePath));
+
+        var parser = new BankStatementImportService(ErrorLogger);
+        var isCsv = SpreadsheetFiles.IsDelimitedText(filePath);
+        var lines = isCsv
+            ? await parser.ParseCsvAsync(filePath)
+            : await parser.ParseExcelAsync(filePath);
+
+        return lines.Count > 0 ? lines : await TryAiParseBankStatementAsync(filePath, isCsv, parser);
     }
 
     /// <summary>
@@ -3704,22 +3802,37 @@ public partial class App : Application
         if (usage == null) return null;
         _mainWindowViewModel?.ShowLoading("Scanning bank statement...".Translate());
 
-        var analysisService = new SpreadsheetAnalysisService(gemini, ErrorLogger, CompanyManager?.CurrentCompanySettings?.Company.Country);
-        var analysis = isCsv
-            ? await analysisService.AnalyzeCsvAsync(filePath)
-            : await analysisService.AnalyzeAsync(filePath);
+        // The analysis opens the workbook itself, so a .xls or .ods is converted for it first.
+        var converted = !isCsv && SpreadsheetFiles.NeedsConversion(filePath)
+            ? await Task.Run(() => SpreadsheetFiles.ConvertToTempXlsx(filePath))
+            : null;
+        var readPath = converted ?? filePath;
+        try
+        {
+            var analysisService = new SpreadsheetAnalysisService(gemini, ErrorLogger, CompanyManager?.CurrentCompanySettings?.Company.Country);
+            var analysis = isCsv
+                ? await analysisService.AnalyzeCsvAsync(readPath)
+                : await analysisService.AnalyzeAsync(readPath);
 
-        var sheet = analysis?.Sheets.FirstOrDefault();
-        if (sheet == null) return [];
+            var sheet = analysis?.Sheets.FirstOrDefault();
+            if (sheet == null) return [];
 
-        var lines = isCsv
-            ? await parser.ParseCsvWithAnalysisAsync(filePath, sheet)
-            : await parser.ParseExcelWithAnalysisAsync(filePath, sheet);
+            var lines = isCsv
+                ? await parser.ParseCsvWithAnalysisAsync(readPath, sheet)
+                : await parser.ParseExcelWithAnalysisAsync(readPath, sheet);
 
-        if (lines.Count > 0)
-            await usage.IncrementUsageAsync();
+            if (lines.Count > 0)
+                await usage.IncrementUsageAsync();
 
-        return lines;
+            return lines;
+        }
+        finally
+        {
+            if (converted != null)
+            {
+                try { File.Delete(converted); } catch { /* a temp file we could not remove is not worth failing an import over */ }
+            }
+        }
     }
 
     /// <summary>
@@ -3756,10 +3869,11 @@ public partial class App : Application
     internal sealed record BankPdfReadProgress(Action<long> Begin, Action<bool> End, Func<bool> StillWanted);
 
     /// <summary>
-    /// The one way a PDF bank statement is read, for the Bank Matching page and the import modal:
-    /// checks the bank-import limit, sends the PDF to the AI extractor, and charges the single
-    /// bank-import credit once rows come back. Returns the rows, or an empty list when the user is
-    /// out of imports, the server is busy, or nothing could be read (each told to the user).
+    /// The one way a PDF bank statement, or a photo or scan of a paper one, is read, for the Bank
+    /// Matching page and the import modal: checks the bank-import limit, sends the PDF to the AI
+    /// extractor, and charges the single bank-import credit once rows come back. A picture goes on
+    /// a PDF page first, since the extractor reads only PDFs. Returns the rows, or an empty list when
+    /// the user is out of imports, the server is busy, or nothing could be read (each told to the user).
     /// </summary>
     internal static async Task<List<Core.Models.BankMatching.BankStatementLine>> ReadBankPdfStatementAsync(
         string filePath, BankPdfReadProgress progress)
@@ -3772,12 +3886,23 @@ public partial class App : Application
             return [];
         }
 
+        var isPicture = StatementImages.IsImage(filePath);
         progress.Begin(new FileInfo(filePath).Length);
         List<Core.Models.BankMatching.BankStatementLine> extracted;
         try
         {
-            var bytes = await SharedFileReader.ReadAllBytesAsync(filePath);
-            extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            var bytes = isPicture
+                ? await Task.Run(() => StatementImages.ToPdf(filePath))
+                : await SharedFileReader.ReadAllBytesAsync(filePath);
+            extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.ChangeExtension(Path.GetFileName(filePath), ".pdf"));
+        }
+        catch (InvalidDataException) when (isPicture)
+        {
+            // Nothing was sent, so nothing is charged.
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-photo:unreadable");
+            if (EndRead(progress, false))
+                await ShowInfoDialogAsync("Import Bank Statement".Translate(), "This picture could not be read. Try saving it as a JPEG or PNG.".Translate());
+            return [];
         }
         catch (ServerRateLimitedException ex)
         {
@@ -3810,11 +3935,13 @@ public partial class App : Application
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:extract-empty");
             // Sent whether or not the screen is still open: the extraction failed either way,
             // and the file is the open question either way.
-            _ = Services.ImportDiagnosticOffer.SendAsync(filePath, "bank-pdf:extract-empty");
+            _ = ImportDiagnosticOffer.SendAsync(filePath, "bank-pdf:extract-empty");
             if (stillWanted)
                 await ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
-                    "We couldn't read any transactions from that PDF. It may not be a recognizable bank statement, or the server couldn't process it. Try again, or import a CSV or Excel export instead.".Translate());
+                    isPicture
+                        ? "We couldn't read any transactions from that picture. Make sure the whole statement is in it and the text is sharp, then try again, or import a CSV or Excel export instead.".Translate()
+                        : "We couldn't read any transactions from that PDF. It may not be a recognizable bank statement, or the server couldn't process it. Try again, or import a CSV or Excel export instead.".Translate());
             return [];
         }
 
@@ -3839,7 +3966,7 @@ public partial class App : Application
     /// </summary>
     private static Task<List<Core.Models.BankMatching.BankStatementLine>> ImportPdfStatementAsync(string filePath) =>
         ReadBankPdfStatementAsync(filePath, new BankPdfReadProgress(
-            _ => ShowBusyOverlay("Reading PDF statement...".Translate()),
+            _ => ShowBusyOverlay(StatementImages.IsImage(filePath) ? "Reading statement photo...".Translate() : "Reading PDF statement...".Translate()),
             _ => HideBusyOverlay(),
             () => true));
 
@@ -3901,6 +4028,23 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Ends an import that ran to completion: records its undo step, marks the company changed and
+    /// shows all dates on the charts, since imported data may be from any period. An import that
+    /// changed nothing, as when every row was skipped, does none of these, so it leaves no undo step
+    /// that would undo nothing and no unsaved change.
+    /// </summary>
+    internal static void FinishImport(CompanyData companyData, string beforeImport)
+    {
+        var afterImport = CreateCompanyDataSnapshot(companyData);
+        if (afterImport == beforeImport)
+            return;
+
+        RecordImportUndoStep(companyData, beforeImport, afterImport);
+        CompanyManager?.MarkAsChanged();
+        ChartSettingsService.Instance.SelectedDateRange = "All Time";
+    }
+
+    /// <summary>
     /// Records the undo step for an import. Undo and redo put the whole company back to how it was
     /// before or after the import, so they only run while nothing has been added since. A record
     /// added afterwards with no undo step of its own (an invoice sent, a payment synced, a receipt
@@ -3910,7 +4054,7 @@ public partial class App : Application
     /// workbook may have routed bank rows into a session) and the current page, whose charts
     /// otherwise stay stale until the user navigates away and back.
     /// </summary>
-    internal static void RecordImportUndoStep(CompanyData companyData, string beforeImport, string afterImport)
+    private static void RecordImportUndoStep(CompanyData companyData, string beforeImport, string afterImport)
     {
         bool Restore(string target, string current)
         {
@@ -4057,7 +4201,7 @@ public partial class App : Application
         data.InvalidateLookupCaches();
 
         // An undo takes away rows whose conversions were queued, and a redo brings them back pending.
-        Core.Services.UsdConversion.Mirror(data, queuedBefore.Concat(data.PendingConversions.Select(p => p.Key)));
+        UsdConversion.Mirror(data, queuedBefore.Concat(data.PendingConversions.Select(p => p.Key)));
     }
 
     /// <summary>
@@ -4071,10 +4215,7 @@ public partial class App : Application
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Argo Books Files")
-                {
-                    Patterns = ["*.argo"]
-                },
+                Utilities.FilePickerTypes.CompanyFileType,
                 new FilePickerFileType("All Files")
                 {
                     Patterns = ["*.*"]
@@ -4600,14 +4741,11 @@ public partial class App : Application
         return await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save Company".Translate(),
-            SuggestedFileName = $"{CompanyManager.ToCompanyFileName(suggestedFileName)}.argo",
-            DefaultExtension = "argo",
+            SuggestedFileName = CompanyManager.ToCompanyFileName(suggestedFileName) + FileFormatConstants.CompanyFileExtension,
+            DefaultExtension = FileFormatConstants.CompanyFileExtension.TrimStart('.'),
             FileTypeChoices =
             [
-                new FilePickerFileType("Argo Books Files")
-                {
-                    Patterns = ["*.argo"]
-                }
+                Utilities.FilePickerTypes.CompanyFileType
             ]
         });
     }
@@ -4717,7 +4855,7 @@ public partial class App : Application
             {
                 var watcher = new FileSystemWatcher(directory)
                 {
-                    Filter = "*.argo",
+                    Filter = "*" + FileFormatConstants.CompanyFileExtension,
                     NotifyFilter = NotifyFilters.FileName,
                     EnableRaisingEvents = true
                 };

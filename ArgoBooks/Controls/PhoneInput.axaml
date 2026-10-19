@@ -7,7 +7,8 @@
              x:Class="ArgoBooks.Controls.PhoneInput"
              x:DataType="controls:PhoneInput"
              x:Name="Root"
-             Focusable="True">
+             Focusable="True"
+             KeyboardNavigation.IsTabStop="False">
 
     <Grid ColumnDefinitions="Auto,8,*">
         <!-- Fixed width so typing a search doesn't push the number box around -->

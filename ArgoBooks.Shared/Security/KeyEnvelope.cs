@@ -51,18 +51,7 @@ public static class KeyEnvelope
         ArgumentNullException.ThrowIfNull(wrappingKey);
         ArgumentNullException.ThrowIfNull(nonce);
 
-        var ciphertext = new byte[dataKey.Length];
-        var tag = new byte[KeyDerivation.TagSize];
-
-        using (var aesGcm = new AesGcm(wrappingKey, KeyDerivation.TagSize))
-        {
-            aesGcm.Encrypt(nonce, dataKey, ciphertext, tag);
-        }
-
-        var result = new byte[ciphertext.Length + tag.Length];
-        Buffer.BlockCopy(ciphertext, 0, result, 0, ciphertext.Length);
-        Buffer.BlockCopy(tag, 0, result, ciphertext.Length, tag.Length);
-        return result;
+        return AesGcmBlob.Encrypt(dataKey, wrappingKey, nonce);
     }
 
     /// <summary>
@@ -84,16 +73,6 @@ public static class KeyEnvelope
         if (wrappedKey.Length <= KeyDerivation.TagSize)
             throw new CryptographicException("Invalid wrapped key.");
 
-        var ciphertextLength = wrappedKey.Length - KeyDerivation.TagSize;
-        var ciphertext = new byte[ciphertextLength];
-        var tag = new byte[KeyDerivation.TagSize];
-
-        Buffer.BlockCopy(wrappedKey, 0, ciphertext, 0, ciphertextLength);
-        Buffer.BlockCopy(wrappedKey, ciphertextLength, tag, 0, KeyDerivation.TagSize);
-
-        var dataKey = new byte[ciphertextLength];
-        using var aesGcm = new AesGcm(wrappingKey, KeyDerivation.TagSize);
-        aesGcm.Decrypt(nonce, ciphertext, tag, dataKey);
-        return dataKey;
+        return AesGcmBlob.Decrypt(wrappedKey, wrappingKey, nonce);
     }
 }

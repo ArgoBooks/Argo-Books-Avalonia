@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="200"
              x:Class="ArgoBooks.Modals.ConfirmationDialog"
              x:DataType="vm:ConfirmationDialogViewModel"
@@ -12,12 +13,6 @@
     <Design.DataContext>
         <vm:ConfirmationDialogViewModel />
     </Design.DataContext>
-
-    <UserControl.Resources>
-        <StreamGeometry x:Key="DialogInfoGeometry">M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z</StreamGeometry>
-        <StreamGeometry x:Key="DialogWarningGeometry">M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z</StreamGeometry>
-        <StreamGeometry x:Key="DialogErrorGeometry">M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z</StreamGeometry>
-    </UserControl.Resources>
 
     <Panel>
         <controls:ModalOverlay IsOpen="{Binding IsOpen}"
@@ -55,25 +50,20 @@
                                     <Setter Property="Background" Value="{DynamicResource DangerIconBgBrush}" />
                                 </Style>
                             </Border.Styles>
-                            <PathIcon Width="22" Height="22"
-                                      Classes.info="{Binding IsInfoIcon}"
-                                      Classes.warning="{Binding IsWarningIcon}"
-                                      Classes.error="{Binding IsErrorIcon}">
-                                <PathIcon.Styles>
-                                    <Style Selector="PathIcon.info">
-                                        <Setter Property="Data" Value="{StaticResource DialogInfoGeometry}" />
-                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
-                                    </Style>
-                                    <Style Selector="PathIcon.warning">
-                                        <Setter Property="Data" Value="{StaticResource DialogWarningGeometry}" />
-                                        <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
-                                    </Style>
-                                    <Style Selector="PathIcon.error">
-                                        <Setter Property="Data" Value="{StaticResource DialogErrorGeometry}" />
-                                        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
-                                    </Style>
-                                </PathIcon.Styles>
-                            </PathIcon>
+                            <Panel>
+                                <PathIcon Width="22" Height="22"
+                                          Data="{x:Static icons:Icons.Info}"
+                                          Foreground="{DynamicResource PrimaryBrush}"
+                                          IsVisible="{Binding IsInfoIcon}" />
+                                <PathIcon Width="22" Height="22"
+                                          Data="{x:Static icons:Icons.Warning}"
+                                          Foreground="{DynamicResource WarningBrush}"
+                                          IsVisible="{Binding IsWarningIcon}" />
+                                <PathIcon Width="22" Height="22"
+                                          Data="{x:Static icons:Icons.WarningCircle}"
+                                          Foreground="{DynamicResource DangerBrush}"
+                                          IsVisible="{Binding IsErrorIcon}" />
+                            </Panel>
                         </Border>
                         <ScrollViewer Grid.Column="1"
                                       MaxHeight="360"
@@ -98,7 +88,7 @@
 
                         <!-- Secondary Button -->
                         <Button Classes.secondary-button="{Binding !IsSecondaryDestructive}"
-                                Classes.danger-button="{Binding IsSecondaryDestructive}"
+                                Classes.danger-outline-button="{Binding IsSecondaryDestructive}"
                                 Content="{Binding SecondaryButtonText}"
                                 Command="{Binding SecondaryActionCommand}"
                                 IsVisible="{Binding ShowSecondaryButton}" />

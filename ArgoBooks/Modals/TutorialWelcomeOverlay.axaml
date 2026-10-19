@@ -5,18 +5,20 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:local="using:ArgoBooks"
+             xmlns:controls="using:ArgoBooks.Controls"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="ArgoBooks.Modals.TutorialWelcomeOverlay"
-             x:DataType="vm:TutorialWelcomeViewModel"
-             IsVisible="{Binding IsOpen}">
+             x:DataType="vm:TutorialWelcomeViewModel">
 
     <Design.DataContext>
         <vm:TutorialWelcomeViewModel />
     </Design.DataContext>
 
-    <!-- Semi-transparent backdrop -->
-    <Panel Background="{DynamicResource OverlayBrush}">
-        <!-- Centered welcome card -->
+    <!-- The card closes only through its own buttons. -->
+    <controls:ModalOverlay IsOpen="{Binding IsOpen}"
+                           CloseOnBackdropClick="False"
+                           CloseOnEscape="False">
+        <controls:ModalOverlay.ModalContent>
         <Border Background="{DynamicResource SurfaceBrush}"
                 BorderThickness="0"
                 CornerRadius="16"
@@ -156,5 +158,6 @@
                 </Border>
             </Grid>
         </Border>
-    </Panel>
+        </controls:ModalOverlay.ModalContent>
+    </controls:ModalOverlay>
 </UserControl>

@@ -2,9 +2,12 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.BankMatching;
 using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Localization;
+using ArgoBooks.Services;
 using Xunit;
 
 namespace ArgoBooks.Tests.Services;
@@ -130,5 +133,31 @@ public class ImportUndoSnapshotTests
         data.Invoices.Add(new Invoice { Id = "INV-2026-00042", InvoiceNumber = "INV-2026-00042" });
 
         Assert.True(App.HasRecordsAddedSince(data, afterImport));
+    }
+
+    /// <summary>The import undo steps recorded while <paramref name="import"/> runs, told apart from other tests' actions by the import's description.</summary>
+    private static int ImportStepsRecordedBy(Action import)
+    {
+        var description = "AI import spreadsheet data".Translate();
+        var recorded = 0;
+        void OnRecorded(object? sender, ActionRecordedEventArgs e)
+        {
+            if (e.Action.Description == description) Interlocked.Increment(ref recorded);
+        }
+
+        App.UndoRedoManager.ActionRecorded += OnRecorded;
+        try { import(); }
+        finally { App.UndoRedoManager.ActionRecorded -= OnRecorded; }
+        return recorded;
+    }
+
+    [Fact]
+    public void AnImportThatSkippedEveryRow_LeavesNoUndoStep()
+    {
+        var data = new CompanyData();
+        data.Customers.Add(new Customer { Id = "CUS-001", Name = "Already here" });
+        var before = App.CreateCompanyDataSnapshot(data);
+
+        Assert.Equal(0, ImportStepsRecordedBy(() => App.FinishImport(data, before)));
     }
 }

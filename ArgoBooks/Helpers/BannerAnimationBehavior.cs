@@ -49,6 +49,7 @@ public static class BannerAnimationBehavior
             var shown = GetIsVisible(border);
             border.Opacity = shown ? 1 : 0;
             border.IsHitTestVisible = shown;
+            border.IsEnabled = shown;
         }
     }
 
@@ -76,6 +77,7 @@ public static class BannerAnimationBehavior
             SetTransitionDuration(border, FadeInDuration);
             border.Opacity = 1;
             border.IsHitTestVisible = true;
+            border.IsEnabled = true;
         }, DispatcherPriority.Render);
     }
 
@@ -87,6 +89,8 @@ public static class BannerAnimationBehavior
             SetTransitionDuration(border, FadeOutDuration);
             border.Opacity = 0;
             border.IsHitTestVisible = false;
+            // Disabled as well, because a faded banner's buttons would otherwise still take Tab.
+            border.IsEnabled = false;
         }, DispatcherPriority.Background);
     }
 

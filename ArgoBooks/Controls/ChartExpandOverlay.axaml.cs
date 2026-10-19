@@ -109,7 +109,7 @@ public partial class ChartExpandOverlay : UserControl
         if (e.Property != ContentProperty) return;
 
         // Close any open overlay when navigating away
-        if (IsVisible) CloseOverlay();
+        if (Overlay.IsOpen) CloseOverlay();
 
         // Re-discover charts after the new page is loaded
         Dispatcher.UIThread.Post(DecorateCurrentPage, DispatcherPriority.Loaded);
@@ -332,7 +332,7 @@ public partial class ChartExpandOverlay : UserControl
     /// </summary>
     private void ShowChart(Panel sourcePanel, Button expandButton)
     {
-        if (IsVisible) return;
+        if (Overlay.IsOpen) return;
 
         _sourcePanel = sourcePanel;
         _expandButton = expandButton;
@@ -434,8 +434,7 @@ public partial class ChartExpandOverlay : UserControl
         // Set up zoom re-bucketing and granularity toggle for CartesianCharts
         SetupFullscreenZoom(contentPanel, sourcePanel.DataContext);
 
-        IsVisible = true;
-        Focus();
+        Overlay.IsOpen = true;
     }
 
     /// <summary>
@@ -443,7 +442,7 @@ public partial class ChartExpandOverlay : UserControl
     /// </summary>
     public void CloseOverlay()
     {
-        if (!IsVisible || _sourcePanel == null) return;
+        if (!Overlay.IsOpen || _sourcePanel == null) return;
 
         var contentPanel = this.FindControl<Panel>("ContentPanel");
         if (contentPanel == null) return;
@@ -526,7 +525,7 @@ public partial class ChartExpandOverlay : UserControl
         _movedChildren.Clear();
         _sourcePanel = null;
         _expandButton = null;
-        IsVisible = false;
+        Overlay.IsOpen = false;
     }
 
     #region Fullscreen Zoom & Granularity
@@ -868,7 +867,7 @@ public partial class ChartExpandOverlay : UserControl
     /// </summary>
     private void OnOverlayPointerPressedTunnel(object? sender, PointerPressedEventArgs e)
     {
-        if (!IsVisible) return;
+        if (!Overlay.IsOpen) return;
 
         var source = e.Source as Control;
         var chart = source?.FindAncestorOfType<CartesianChart>() ?? source as CartesianChart;
@@ -1048,25 +1047,11 @@ public partial class ChartExpandOverlay : UserControl
         CloseOverlay();
     }
 
-    private void OnBackdropClick(object? sender, PointerPressedEventArgs e)
+    /// <summary>Escape and a backdrop click close through CloseOverlay, which puts the chart back on its page.</summary>
+    private void OnOverlayClosing(object? sender, ModalClosingEventArgs e)
     {
+        e.Cancel = true;
         CloseOverlay();
-    }
-
-    private void OnModalContentClick(object? sender, PointerPressedEventArgs e)
-    {
-        e.Handled = true;
-    }
-
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        if (e.Key == Key.Escape && IsVisible)
-        {
-            CloseOverlay();
-            e.Handled = true;
-        }
-
-        base.OnKeyDown(e);
     }
 
     #endregion

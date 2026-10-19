@@ -124,16 +124,16 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
             return;
         }
 
-        Files.Add(new QuickBooksFileRow(System.IO.Path.GetFileName(path), Describe(path), path));
+        Files.Add(new QuickBooksFileRow(Path.GetFileName(path), Describe(path), path));
     }
 
     private void AddZip(string zipPath)
     {
-        if (!_zips.Add(System.IO.Path.GetFullPath(zipPath))) return;
+        if (!_zips.Add(Path.GetFullPath(zipPath))) return;
 
         try
         {
-            var folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ArgoBooks-quickbooks-" + Guid.NewGuid().ToString("N"));
+            var folder = Path.Combine(Path.GetTempPath(), "ArgoBooks-quickbooks-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
             _unpacked.Add(folder);
 
@@ -141,16 +141,16 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
             foreach (var entry in zip.Entries)
             {
                 // Name only, so an entry cannot write outside the folder.
-                var name = System.IO.Path.GetFileName(entry.FullName);
+                var name = Path.GetFileName(entry.FullName);
                 if (!ReportExtensions.Any(e => name.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
                     continue;
 
                 // Two folders in the zip can hold a report of the same name.
-                var target = System.IO.Path.Combine(folder, name);
+                var target = Path.Combine(folder, name);
                 for (var n = 2; File.Exists(target); n++)
                 {
-                    target = System.IO.Path.Combine(folder,
-                        $"{System.IO.Path.GetFileNameWithoutExtension(name)} ({n}){System.IO.Path.GetExtension(name)}");
+                    target = Path.Combine(folder,
+                        $"{Path.GetFileNameWithoutExtension(name)} ({n}){Path.GetExtension(name)}");
                 }
                 entry.ExtractToFile(target);
                 AddFile(target);

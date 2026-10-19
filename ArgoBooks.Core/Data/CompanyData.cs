@@ -69,15 +69,6 @@ public class CompanyData
     public List<Category> Categories { get; init; } = [];
 
     /// <summary>
-    /// Bank categorization rules for automated bank statement matching. Stored in
-    /// <see cref="CompanySettings.BankCategoryRules"/> so they save and cancel with the other
-    /// company settings; this pass-through keeps the existing data.BankCategoryRules call sites
-    /// working (read, Add, Remove all operate on the same underlying list).
-    /// </summary>
-    [JsonIgnore]
-    public List<Models.BankMatching.BankCategoryRule> BankCategoryRules => Settings.BankCategoryRules;
-
-    /// <summary>
     /// All accountants.
     /// </summary>
     [JsonPropertyName("accountants")]
@@ -491,7 +482,7 @@ public class IdCounters
     // Every counter the company file saves, read off its JSON contract so a counter added later is
     // copied, rewound and raised with the rest without being listed here.
     private static readonly (Func<object, object?> Get, Action<object, object?> Set)[] All =
-        System.Text.Json.JsonSerializerOptions.Default.GetTypeInfo(typeof(IdCounters)).Properties
+        JsonSerializerOptions.Default.GetTypeInfo(typeof(IdCounters)).Properties
             .Where(p => p.PropertyType == typeof(int) && p.Get != null && p.Set != null)
             .Select(p => (p.Get!, p.Set!))
             .ToArray();

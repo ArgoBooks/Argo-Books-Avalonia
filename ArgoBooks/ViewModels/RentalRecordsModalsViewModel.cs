@@ -948,7 +948,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
 
         var revenue = new Revenue
         {
-            Id = new Core.Data.IdGenerator(companyData).NextRevenueId(date),
+            Id = new IdGenerator(companyData).NextRevenueId(date),
             Date = date,
             CustomerId = invoice.CustomerId,
             Description = $"Kept security deposit, rental {rental.Id}",
@@ -1611,7 +1611,7 @@ public partial class RentalModalLineItem : ObservableObject
     {
         RentalItemId = SelectedItem?.Id ?? string.Empty,
         Quantity = int.TryParse(Quantity, out var q) ? q : 0,
-        RateType = Enum.TryParse<Core.Enums.RateType>(RateType, out var type) ? type : Core.Enums.RateType.Daily,
+        RateType = Enum.TryParse<RateType>(RateType, out var type) ? type : Core.Enums.RateType.Daily,
         RateAmount = decimal.TryParse(RateAmount, out var r) ? r : 0,
         SecurityDeposit = decimal.TryParse(SecurityDeposit, out var d) ? d : 0
     };

@@ -259,7 +259,7 @@ public class PendingConversionService
         // Price every date the loop below needs in one bulk request, so it converts from the cache.
         var datesToPrice = toProcess
             .Where(e => e.TransactionDate.Date <= DateTime.Today
-                        && !string.Equals(e.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase)
+                        && !UsdConversion.IsUsd(e.OriginalCurrency)
                         && !IsBackingOff(RateKey(e)))
             .Select(e => e.TransactionDate.Date)
             .Distinct()

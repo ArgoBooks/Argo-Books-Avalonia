@@ -15,7 +15,7 @@
     </Design.DataContext>
 
     <Panel>
-        <controls:ModalOverlay IsOpen="{Binding IsOpen}" CloseOnBackdropClick="False">
+        <controls:ModalOverlay IsOpen="{Binding IsOpen}" CloseOnBackdropClick="False" ClosingCommand="{Binding CancelCommand}">
             <controls:ModalOverlay.ModalContent>
                 <!-- Modal Content -->
                 <Border Classes="modal-card"

@@ -25,6 +25,12 @@ public static partial class NumericInputBehavior
     public static readonly AttachedProperty<bool> IsDecimalOnlyProperty =
         AvaloniaProperty.RegisterAttached<TextBox, bool>("IsDecimalOnly", typeof(NumericInputBehavior));
 
+    /// <summary>
+    /// Lets a decimal box take a leading minus, for an amount whose sign means something.
+    /// </summary>
+    public static readonly AttachedProperty<bool> AllowNegativeProperty =
+        AvaloniaProperty.RegisterAttached<TextBox, bool>("AllowNegative", typeof(NumericInputBehavior));
+
     static NumericInputBehavior()
     {
         IsIntegerOnlyProperty.Changed.AddClassHandler<TextBox>(OnIsIntegerOnlyChanged);
@@ -36,6 +42,9 @@ public static partial class NumericInputBehavior
 
     public static bool GetIsDecimalOnly(TextBox element) => element.GetValue(IsDecimalOnlyProperty);
     public static void SetIsDecimalOnly(TextBox element, bool value) => element.SetValue(IsDecimalOnlyProperty, value);
+
+    public static bool GetAllowNegative(TextBox element) => element.GetValue(AllowNegativeProperty);
+    public static void SetAllowNegative(TextBox element, bool value) => element.SetValue(AllowNegativeProperty, value);
 
     private static void OnIsIntegerOnlyChanged(TextBox textBox, AvaloniaPropertyChangedEventArgs e)
     {
@@ -112,6 +121,16 @@ public static partial class NumericInputBehavior
             }
         }
 
+        // A minus is taken only at the very start, and only where there is not one already.
+        if ((e.Key == Key.OemMinus || e.Key == Key.Subtract) && sender is TextBox signedBox && GetAllowNegative(signedBox))
+        {
+            var text = signedBox.Text ?? string.Empty;
+            var start = Math.Min(signedBox.SelectionStart, signedBox.SelectionEnd);
+            var end = Math.Max(signedBox.SelectionStart, signedBox.SelectionEnd);
+            if (start == 0 && (end > 0 || !text.StartsWith('-')))
+                return;
+        }
+
         // Block all other keys
         e.Handled = true;
     }
@@ -175,19 +194,19 @@ public static partial class NumericInputBehavior
         }
 
         // Check if the result would be a valid decimal
-        if (!IsValidDecimalInput(newText))
+        if (!IsValidDecimalInput(newText, GetAllowNegative(textBox)))
         {
             e.Handled = true;
         }
     }
 
-    private static bool IsValidDecimalInput(string text)
+    private static bool IsValidDecimalInput(string text, bool allowNegative)
     {
         if (string.IsNullOrEmpty(text))
             return true;
 
         // Allow digits and at most one decimal point
-        return DecimalInputRegex().IsMatch(text);
+        return (allowNegative ? SignedDecimalInputRegex() : DecimalInputRegex()).IsMatch(text);
     }
 
     // Paste handlers that sanitize clipboard content
@@ -285,6 +304,14 @@ public static partial class NumericInputBehavior
             if (string.IsNullOrEmpty(filteredText))
                 return;
 
+            // A pasted negative keeps its sign when it lands at the start of a box that takes one.
+            var pasteAt = selectionEnd > selectionStart ? selectionStart : textBox.CaretIndex;
+            if (GetAllowNegative(textBox) && pasteAt == 0 && clipboardText.TrimStart().StartsWith('-')
+                && !textWithoutSelection.Contains('-'))
+            {
+                filteredText = "-" + filteredText;
+            }
+
             // Insert the filtered text at the caret position
             string newText;
             if (selectionEnd > selectionStart)
@@ -311,4 +338,7 @@ public static partial class NumericInputBehavior
 
     [GeneratedRegex(@"^[0-9]*\.?[0-9]*$")]
     private static partial Regex DecimalInputRegex();
+
+    [GeneratedRegex(@"^-?[0-9]*\.?[0-9]*$")]
+    private static partial Regex SignedDecimalInputRegex();
 }

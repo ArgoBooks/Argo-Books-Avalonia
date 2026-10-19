@@ -64,11 +64,11 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         new(ReportTemplateFactory.TemplateNames.ARaging, "AR Aging", "Who owes you and for how long",
             Icons.DollarCircleAlt, AppColors.FlatTeal, AppColors.FlatTealLight),
         new(ReportTemplateFactory.TemplateNames.TaxSummary, "Tax Summary", "Tax you collected vs. tax you paid",
-            Icons.BarChart, AppColors.FlatOrange, AppColors.FlatOrangeLight),
+            Icons.Bank, AppColors.FlatOrange, AppColors.FlatOrangeLight),
         new(ReportTemplateFactory.TemplateNames.ProductSales, "Sales by Product", "Units and revenue per product",
             Icons.Products, AppColors.FlatIndigo, AppColors.FlatIndigoLight),
         new(ReportTemplateFactory.TemplateNames.PayrollRemittance, "Payroll Remittance", "What you owe CRA for your payroll",
-            Icons.Payments, AppColors.MdBrown, AppColors.MdBrownLight)
+            Icons.Bank, AppColors.MdBrown, AppColors.MdBrownLight)
     ];
 
     #endregion
@@ -1275,17 +1275,13 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     {
         if (SelectedElement is not ImageReportElement) return;
 
-        var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
+        var topLevel = App.DesktopMainWindow;
 
         if (topLevel?.StorageProvider != null)
         {
             var filters = new[]
             {
-                new FilePickerFileType("Image files") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"
-                    ]
-                },
+                new FilePickerFileType("Image files") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp", "*.gif"] },
                 new FilePickerFileType("All files") { Patterns = ["*.*"] }
             };
 
@@ -1618,18 +1614,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
                 if (OpenAfterExport && File.Exists(ExportFilePath))
                 {
-                    try
-                    {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = ExportFilePath,
-                            UseShellExecute = true
-                        });
-                    }
-                    catch
-                    {
-                        // Ignore if we can't open the file
-                    }
+                    Core.Platform.UrlHelper.SafeOpenUrl(new Uri(ExportFilePath).AbsoluteUri);
                 }
             }
             else
@@ -1656,13 +1641,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             var dir = Path.GetDirectoryName(ExportFilePath) ?? "";
             var name = Path.GetFileNameWithoutExtension(ExportFilePath);
-            var newExt = format switch
-            {
-                ExportFormat.PDF => ".pdf",
-                ExportFormat.PNG => ".png",
-                ExportFormat.JPEG => ".jpg",
-                _ => ".pdf"
-            };
+            var newExt = format.FileExtension();
             ExportFilePath = Path.Combine(dir, $"{name}{newExt}");
         }
     }
@@ -1676,9 +1655,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             ? lastDir
             : Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
 
-        var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
+        var topLevel = App.DesktopMainWindow;
 
         if (topLevel?.StorageProvider != null)
         {
@@ -1694,13 +1671,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             {
                 var selectedDir = result[0].Path.LocalPath;
                 var fileName = string.IsNullOrWhiteSpace(ExportFileName) ? "Report" : ExportFileName;
-                var extension = SelectedExportFormat switch
-                {
-                    ExportFormat.PDF => ".pdf",
-                    ExportFormat.PNG => ".png",
-                    ExportFormat.JPEG => ".jpg",
-                    _ => ".pdf"
-                };
+                var extension = SelectedExportFormat.FileExtension();
                 ExportFilePath = Path.Combine(selectedDir, $"{fileName}{extension}");
             }
         }
@@ -1767,9 +1738,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         new(Enum.GetValues<PageOrientation>());
 
     // Element property enum collections - uses GetDisplayName() extension method for consistent naming
-    // Wrapped with Loc.Tr() for translation support
     public ObservableCollection<ChartDataTypeOption> ChartTypeOptions { get; } =
-        new(Enum.GetValues<ChartDataType>().Select(t => new ChartDataTypeOption(t, Loc.Tr(t.GetDisplayName()))));
+        new(Enum.GetValues<ChartDataType>().Select(t => new ChartDataTypeOption(t, t.GetDisplayName().Translate())));
 
     /// <summary>
     /// Gets or sets the selected chart data type option, syncing with SelectedChartElement.ChartType.
@@ -1794,9 +1764,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
     public ObservableCollection<GeoLevelOption> GeoLevelOptions { get; } =
     [
-        new(GeoLevel.Country, Loc.Tr("Country")),
-        new(GeoLevel.Region, Loc.Tr("Region")),
-        new(GeoLevel.City, Loc.Tr("City"))
+        new(GeoLevel.Country, "Country".Translate()),
+        new(GeoLevel.Region, "Region".Translate()),
+        new(GeoLevel.City, "City".Translate())
     ];
 
     public ObservableCollection<ChartStyleOption> ChartStyleOptions { get; } =
@@ -2299,13 +2269,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
         // Set default export path to Desktop
         var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-        var extension = SelectedExportFormat switch
-        {
-            ExportFormat.PDF => ".pdf",
-            ExportFormat.PNG => ".png",
-            ExportFormat.JPEG => ".jpg",
-            _ => ".pdf"
-        };
+        var extension = SelectedExportFormat.FileExtension();
         var defaultName = string.IsNullOrWhiteSpace(ReportName) ? "Report" : ReportName;
         ExportFilePath = Path.Combine(desktopPath, $"{defaultName}{extension}");
     }
@@ -2338,118 +2302,92 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         AvailableCharts.Clear();
         ChartCategories.Clear();
 
-        // Define category colors and icons
-        const string revenueColor = AppColors.MdBlue;           // Blue
+        const string revenueColor = AppColors.MdBlue;
         const string revenueLight = AppColors.MdBlueLight;
-        const string expenseColor = AppColors.MdRed;            // Red
+        const string expenseColor = AppColors.MdRed;
         const string expenseLight = AppColors.MdRedLight;
-        const string financialColor = AppColors.MdGreen;        // Green
+        const string financialColor = AppColors.MdGreen;
         const string financialLight = AppColors.MdGreenLight;
-        const string transactionColor = AppColors.MdOrange;     // Orange
+        const string transactionColor = AppColors.MdOrange;
         const string transactionLight = AppColors.MdOrangeLight;
-        const string geographicColor = AppColors.MdPurple;      // Purple
+        const string geographicColor = AppColors.MdPurple;
         const string geographicLight = AppColors.MdPurpleLight;
-        const string accountantColor = AppColors.MdCyan;        // Cyan
+        const string accountantColor = AppColors.MdCyan;
         const string accountantLight = AppColors.MdCyanLight;
-        const string returnColor = AppColors.MdPink;            // Pink
+        const string returnColor = AppColors.MdPink;
         const string returnLight = AppColors.MdPinkLight;
-        const string lossColor = AppColors.MdBrown;             // Brown
+        const string lossColor = AppColors.MdBrown;
         const string lossLight = AppColors.MdBrownLight;
-        const string customerColor = AppColors.MdIndigo;        // Indigo
+        const string customerColor = AppColors.MdIndigo;
         const string customerLight = AppColors.MdIndigoLight;
-
-        // Chart type icons: reference centralized Icons class
-        const string lineChartIcon = Icons.LineChart;
-        const string barChartIcon = Icons.RevenueChart;
-        const string pieChartIcon = "M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z";
-        const string trendUpIcon = Icons.TrendUp;
-        const string compareIcon = "M9.5 3H4C2.9 3 2 3.9 2 5v14c0 1.1.9 2 2 2h5.5V3zm5 0v18H20c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-5.5z";
-        const string growthIcon = "M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z";
-        const string transactionIcon = "M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z";
-        const string shippingIcon = "M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z";
-        const string globeIcon = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z";
-        const string locationIcon = Icons.MapPin;
-        const string buildingIcon = "M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z";
-        const string personIcon = "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z";
-        const string returnIcon = Icons.Return;
-        const string reasonIcon = Icons.WarningCircle;
-        const string impactIcon = Icons.DollarSign;
-        const string categoryIcon = "M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z";
-        const string productIcon = "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-7-7l-4 5h8z";
-        const string vsIcon = "M12 3C6.5 3 2 6.58 2 11c0 2.13 1.02 4.05 2.67 5.45v4.05l3.58-2.03c1.2.39 2.48.53 3.75.53 5.5 0 10-3.58 10-8s-4.5-8-10-8z";
-        const string lossIcon = Icons.CircleCheck;
-        const string groupIcon = Icons.Customers;
-        const string paymentIcon = "M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z";
-        const string heartIcon = "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z";
-        const string rentalIcon = Icons.Bookmark;
 
         var revenueCharts = new ObservableCollection<ChartOption>
         {
-            new(ChartDataType.TotalRevenue, ChartDataType.TotalRevenue.GetDisplayName(), "Revenue over time", "Revenue", lineChartIcon, revenueColor, revenueLight),
-            new(ChartDataType.RevenueDistribution, ChartDataType.RevenueDistribution.GetDisplayName(), "Revenue by category", "Revenue", pieChartIcon, revenueColor, revenueLight)
+            new(ChartDataType.TotalRevenue, ChartDataType.TotalRevenue.GetDisplayName(), "Revenue over time", "Revenue", Icons.LineChart, revenueColor, revenueLight),
+            new(ChartDataType.RevenueDistribution, ChartDataType.RevenueDistribution.GetDisplayName(), "Revenue by category", "Revenue", Icons.PieChart, revenueColor, revenueLight)
         };
 
         var expenseCharts = new ObservableCollection<ChartOption>
         {
-            new(ChartDataType.TotalExpenses, ChartDataType.TotalExpenses.GetDisplayName(), "Expenses over time", "Expenses", lineChartIcon, expenseColor, expenseLight),
-            new(ChartDataType.ExpensesDistribution, ChartDataType.ExpensesDistribution.GetDisplayName(), "Expenses by category", "Expenses", pieChartIcon, expenseColor, expenseLight)
+            new(ChartDataType.TotalExpenses, ChartDataType.TotalExpenses.GetDisplayName(), "Expenses over time", "Expenses", Icons.LineChart, expenseColor, expenseLight),
+            new(ChartDataType.ExpensesDistribution, ChartDataType.ExpensesDistribution.GetDisplayName(), "Expenses by category", "Expenses", Icons.PieChart, expenseColor, expenseLight)
         };
 
         var financialCharts = new ObservableCollection<ChartOption>
         {
-            new(ChartDataType.TotalProfits, ChartDataType.TotalProfits.GetDisplayName(), "Profit over time", "Financial", trendUpIcon, financialColor, financialLight),
-            new(ChartDataType.RevenueVsExpenses, ChartDataType.RevenueVsExpenses.GetDisplayName(), "Compare revenue and costs", "Financial", compareIcon, financialColor, financialLight)
+            new(ChartDataType.TotalProfits, ChartDataType.TotalProfits.GetDisplayName(), "Profit over time", "Financial", Icons.TrendUp, financialColor, financialLight),
+            new(ChartDataType.RevenueVsExpenses, ChartDataType.RevenueVsExpenses.GetDisplayName(), "Compare revenue and costs", "Financial", Icons.Compare, financialColor, financialLight)
         };
 
         var transactionCharts = new ObservableCollection<ChartOption>
         {
-            new(ChartDataType.AverageTransactionValue, ChartDataType.AverageTransactionValue.GetDisplayName(), "Average transaction amounts", "Transactions", transactionIcon, transactionColor, transactionLight),
-            new(ChartDataType.TotalTransactions, ChartDataType.TotalTransactions.GetDisplayName(), "Transaction volume", "Transactions", barChartIcon, transactionColor, transactionLight),
-            new(ChartDataType.AverageShippingCosts, ChartDataType.AverageShippingCosts.GetDisplayName(), "Mean shipping cost per period", "Transactions", shippingIcon, transactionColor, transactionLight)
+            new(ChartDataType.AverageTransactionValue, ChartDataType.AverageTransactionValue.GetDisplayName(), "Average transaction amounts", "Transactions", Icons.Payments, transactionColor, transactionLight),
+            new(ChartDataType.TotalTransactions, ChartDataType.TotalTransactions.GetDisplayName(), "Transaction volume", "Transactions", Icons.RevenueChart, transactionColor, transactionLight),
+            new(ChartDataType.AverageShippingCosts, ChartDataType.AverageShippingCosts.GetDisplayName(), "Mean shipping cost per period", "Transactions", Icons.Suppliers, transactionColor, transactionLight)
         };
 
         var geographicCharts = new ObservableCollection<ChartOption>
         {
-            new(ChartDataType.WorldMap, ChartDataType.WorldMap.GetDisplayName(), "Sales distribution on a world map", "Geographic", globeIcon, geographicColor, geographicLight),
-            new(ChartDataType.CountriesOfOrigin, ChartDataType.CountriesOfOrigin.GetDisplayName(), "Sales by origin country", "Geographic", locationIcon, geographicColor, geographicLight),
-            new(ChartDataType.CountriesOfDestination, ChartDataType.CountriesOfDestination.GetDisplayName(), "Sales by destination country", "Geographic", locationIcon, geographicColor, geographicLight),
-            new(ChartDataType.CompaniesOfOrigin, ChartDataType.CompaniesOfOrigin.GetDisplayName(), "Sales by supplier company", "Geographic", buildingIcon, geographicColor, geographicLight),
-            new(ChartDataType.CompaniesOfDestination, ChartDataType.CompaniesOfDestination.GetDisplayName(), "Sales by destination company", "Geographic", buildingIcon, geographicColor, geographicLight)
+            new(ChartDataType.WorldMap, ChartDataType.WorldMap.GetDisplayName(), "Sales distribution on a world map", "Geographic", Icons.Globe, geographicColor, geographicLight),
+            new(ChartDataType.CountriesOfOrigin, ChartDataType.CountriesOfOrigin.GetDisplayName(), "Sales by origin country", "Geographic", Icons.MapPin, geographicColor, geographicLight),
+            new(ChartDataType.CountriesOfDestination, ChartDataType.CountriesOfDestination.GetDisplayName(), "Sales by destination country", "Geographic", Icons.MapPin, geographicColor, geographicLight),
+            new(ChartDataType.CompaniesOfOrigin, ChartDataType.CompaniesOfOrigin.GetDisplayName(), "Sales by supplier company", "Geographic", Icons.Departments, geographicColor, geographicLight),
+            new(ChartDataType.CompaniesOfDestination, ChartDataType.CompaniesOfDestination.GetDisplayName(), "Sales by destination company", "Geographic", Icons.Departments, geographicColor, geographicLight)
         };
 
         var accountantCharts = new ObservableCollection<ChartOption>
         {
-            new(ChartDataType.AccountantsTransactions, ChartDataType.AccountantsTransactions.GetDisplayName(), "Volume of transactions per accountant", "Personnel", personIcon, accountantColor, accountantLight)
+            new(ChartDataType.AccountantsTransactions, ChartDataType.AccountantsTransactions.GetDisplayName(), "Volume of transactions per accountant", "Personnel", Icons.Person, accountantColor, accountantLight)
         };
 
         var customerCharts = new ObservableCollection<ChartOption>
         {
-            new(ChartDataType.TopCustomersByRevenue, ChartDataType.TopCustomersByRevenue.GetDisplayName(), "Highest revenue customers", "Customers", groupIcon, customerColor, customerLight),
-            new(ChartDataType.CustomerPaymentStatus, ChartDataType.CustomerPaymentStatus.GetDisplayName(), "Payment status breakdown", "Customers", paymentIcon, customerColor, customerLight),
-            new(ChartDataType.CustomerGrowth, ChartDataType.CustomerGrowth.GetDisplayName(), "Customer acquisition trends", "Customers", growthIcon, customerColor, customerLight),
-            new(ChartDataType.CustomerLifetimeValue, ChartDataType.CustomerLifetimeValue.GetDisplayName(), "Average customer value", "Customers", heartIcon, customerColor, customerLight),
-            new(ChartDataType.ActiveVsInactiveCustomers, ChartDataType.ActiveVsInactiveCustomers.GetDisplayName(), "Customer activity status", "Customers", groupIcon, customerColor, customerLight),
-            new(ChartDataType.RentalsPerCustomer, ChartDataType.RentalsPerCustomer.GetDisplayName(), "Rental frequency by customer", "Customers", rentalIcon, customerColor, customerLight)
+            new(ChartDataType.TopCustomersByRevenue, ChartDataType.TopCustomersByRevenue.GetDisplayName(), "Highest revenue customers", "Customers", Icons.Customers, customerColor, customerLight),
+            new(ChartDataType.CustomerPaymentStatus, ChartDataType.CustomerPaymentStatus.GetDisplayName(), "Payment status breakdown", "Customers", Icons.Payments, customerColor, customerLight),
+            new(ChartDataType.CustomerGrowth, ChartDataType.CustomerGrowth.GetDisplayName(), "Customer acquisition trends", "Customers", Icons.GrowthChart, customerColor, customerLight),
+            new(ChartDataType.CustomerLifetimeValue, ChartDataType.CustomerLifetimeValue.GetDisplayName(), "Average customer value", "Customers", Icons.Heart, customerColor, customerLight),
+            new(ChartDataType.ActiveVsInactiveCustomers, ChartDataType.ActiveVsInactiveCustomers.GetDisplayName(), "Customer activity status", "Customers", Icons.Customers, customerColor, customerLight),
+            new(ChartDataType.RentalsPerCustomer, ChartDataType.RentalsPerCustomer.GetDisplayName(), "Rental frequency by customer", "Customers", Icons.Key, customerColor, customerLight)
         };
 
         var returnCharts = new ObservableCollection<ChartOption>
         {
-            new(ChartDataType.ReturnsOverTime, ChartDataType.ReturnsOverTime.GetDisplayName(), "Return trends", "Returns", returnIcon, returnColor, returnLight),
-            new(ChartDataType.ReturnReasons, ChartDataType.ReturnReasons.GetDisplayName(), "Why items are returned", "Returns", reasonIcon, returnColor, returnLight),
-            new(ChartDataType.ReturnFinancialImpact, ChartDataType.ReturnFinancialImpact.GetDisplayName(), "Total cost of returns", "Returns", impactIcon, returnColor, returnLight),
-            new(ChartDataType.ReturnsByCategory, ChartDataType.ReturnsByCategory.GetDisplayName(), "Return volume grouped by category", "Returns", categoryIcon, returnColor, returnLight),
-            new(ChartDataType.ReturnsByProduct, ChartDataType.ReturnsByProduct.GetDisplayName(), "Return volume grouped by product", "Returns", productIcon, returnColor, returnLight),
-            new(ChartDataType.ExpenseVsRevenueReturns, ChartDataType.ExpenseVsRevenueReturns.GetDisplayName(), "Compare expense and revenue returns", "Returns", vsIcon, returnColor, returnLight)
+            new(ChartDataType.ReturnsOverTime, ChartDataType.ReturnsOverTime.GetDisplayName(), "Return trends", "Returns", Icons.Return, returnColor, returnLight),
+            new(ChartDataType.ReturnReasons, ChartDataType.ReturnReasons.GetDisplayName(), "Why items are returned", "Returns", Icons.WarningCircle, returnColor, returnLight),
+            new(ChartDataType.ReturnFinancialImpact, ChartDataType.ReturnFinancialImpact.GetDisplayName(), "Total cost of returns", "Returns", Icons.DollarSign, returnColor, returnLight),
+            new(ChartDataType.ReturnsByCategory, ChartDataType.ReturnsByCategory.GetDisplayName(), "Return volume grouped by category", "Returns", Icons.Categories, returnColor, returnLight),
+            new(ChartDataType.ReturnsByProduct, ChartDataType.ReturnsByProduct.GetDisplayName(), "Return volume grouped by product", "Returns", Icons.Products, returnColor, returnLight),
+            new(ChartDataType.ExpenseVsRevenueReturns, ChartDataType.ExpenseVsRevenueReturns.GetDisplayName(), "Compare expense and revenue returns", "Returns", Icons.Compare, returnColor, returnLight)
         };
 
         var lossCharts = new ObservableCollection<ChartOption>
         {
-            new(ChartDataType.LossesOverTime, ChartDataType.LossesOverTime.GetDisplayName(), "Loss trends", "Losses", lossIcon, lossColor, lossLight),
-            new(ChartDataType.LossReasons, ChartDataType.LossReasons.GetDisplayName(), "Why items are lost", "Losses", reasonIcon, lossColor, lossLight),
-            new(ChartDataType.LossFinancialImpact, ChartDataType.LossFinancialImpact.GetDisplayName(), "Total cost of losses", "Losses", impactIcon, lossColor, lossLight),
-            new(ChartDataType.LossesByCategory, ChartDataType.LossesByCategory.GetDisplayName(), "Loss volume grouped by category", "Losses", categoryIcon, lossColor, lossLight),
-            new(ChartDataType.LossesByProduct, ChartDataType.LossesByProduct.GetDisplayName(), "Loss volume grouped by product", "Losses", productIcon, lossColor, lossLight),
-            new(ChartDataType.ExpenseVsRevenueLosses, ChartDataType.ExpenseVsRevenueLosses.GetDisplayName(), "Compare expense and revenue losses", "Losses", vsIcon, lossColor, lossLight)
+            new(ChartDataType.LossesOverTime, ChartDataType.LossesOverTime.GetDisplayName(), "Loss trends", "Losses", Icons.LostDamaged, lossColor, lossLight),
+            new(ChartDataType.LossReasons, ChartDataType.LossReasons.GetDisplayName(), "Why items are lost", "Losses", Icons.WarningCircle, lossColor, lossLight),
+            new(ChartDataType.LossFinancialImpact, ChartDataType.LossFinancialImpact.GetDisplayName(), "Total cost of losses", "Losses", Icons.DollarSign, lossColor, lossLight),
+            new(ChartDataType.LossesByCategory, ChartDataType.LossesByCategory.GetDisplayName(), "Loss volume grouped by category", "Losses", Icons.Categories, lossColor, lossLight),
+            new(ChartDataType.LossesByProduct, ChartDataType.LossesByProduct.GetDisplayName(), "Loss volume grouped by product", "Losses", Icons.Products, lossColor, lossLight),
+            new(ChartDataType.ExpenseVsRevenueLosses, ChartDataType.ExpenseVsRevenueLosses.GetDisplayName(), "Compare expense and revenue losses", "Losses", Icons.Compare, lossColor, lossLight)
         };
 
         // Add all charts to AvailableCharts (flat list for backward compatibility)
@@ -2743,7 +2681,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             int row = i / columns;
             int col = i % columns;
 
-            chartElements[i].X = context.Margin + (col * (cellWidth + spacing));
+            chartElements[i].X = context.MarginLeft + (col * (cellWidth + spacing));
             chartElements[i].Y = context.ContentTop + (row * (cellHeight + spacing));
             chartElements[i].Width = cellWidth;
             chartElements[i].Height = cellHeight;

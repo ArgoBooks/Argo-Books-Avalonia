@@ -11,7 +11,7 @@ public static class DisplayCurrency
 {
     public static string Resolve(string? companyCurrency, IEnumerable<DateTime> dates)
     {
-        if (string.IsNullOrEmpty(companyCurrency) || string.Equals(companyCurrency, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(companyCurrency))
             return "USD";
 
         var rates = ExchangeRateService.Instance;
@@ -33,7 +33,7 @@ public static class DisplayCurrency
     /// </summary>
     public static decimal FromUSD(decimal amountUSD, string displayCurrency, DateTime date)
     {
-        if (string.Equals(displayCurrency, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(displayCurrency))
             return amountUSD;
 
         return ExchangeRateService.Instance != null
@@ -65,10 +65,12 @@ public static class DisplayCurrency
 
     /// <summary>
     /// Every date a report converts at: its revenue, expenses, payments, purchase orders, invoices,
-    /// returns and losses, plus the end date that point-in-time figures such as inventory are valued at.
+    /// returns and losses, the opening bank balance, plus the end date that point-in-time figures
+    /// such as inventory are valued at.
     /// </summary>
     public static IEnumerable<DateTime> ReportDates(CompanyData data, DateTime? endDate)
     {
+        if (data.Settings.OpeningBalance is { } opening) yield return opening.Date;
         foreach (var r in data.Revenues) yield return r.Date;
         foreach (var e in data.Expenses) yield return e.Date;
         foreach (var p in data.Payments) yield return p.Date;

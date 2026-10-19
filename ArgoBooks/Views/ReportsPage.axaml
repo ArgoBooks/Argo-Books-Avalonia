@@ -866,7 +866,7 @@
 
                                 <!-- Horizontal Alignment -->
                                 <Button Classes="toolbar-button" Command="{Binding AlignElementsCommand}" CommandParameter="{x:Static enums:ElementAlignment.Left}" ToolTip.Tip="{loc:Loc 'Align Left'}" IsEnabled="{Binding HasSelectedElements}">
-                                    <PathIcon Data="{x:Static icons:Icons.IndentRight}"
+                                    <PathIcon Data="{x:Static icons:Icons.AlignLeft}"
                                               Width="16" Height="16" />
                                 </Button>
                                 <Button Classes="toolbar-button" Command="{Binding AlignElementsCommand}" CommandParameter="{x:Static enums:ElementAlignment.CenterH}" ToolTip.Tip="{loc:Loc 'Align Center Horizontally'}" IsEnabled="{Binding HasSelectedElements}">
@@ -874,7 +874,7 @@
                                               Width="16" Height="16" />
                                 </Button>
                                 <Button Classes="toolbar-button" Command="{Binding AlignElementsCommand}" CommandParameter="{x:Static enums:ElementAlignment.Right}" ToolTip.Tip="{loc:Loc 'Align Right'}" IsEnabled="{Binding HasSelectedElements}">
-                                    <PathIcon Data="{x:Static icons:Icons.IndentLeft}"
+                                    <PathIcon Data="{x:Static icons:Icons.AlignRight}"
                                               Width="16" Height="16" />
                                 </Button>
 
@@ -890,7 +890,7 @@
                                               Width="16" Height="16" />
                                 </Button>
                                 <Button Classes="toolbar-button" Command="{Binding AlignElementsCommand}" CommandParameter="{x:Static enums:ElementAlignment.Bottom}" ToolTip.Tip="{loc:Loc 'Align Bottom'}" IsEnabled="{Binding HasSelectedElements}">
-                                    <PathIcon Data="{x:Static icons:Icons.DownloadFile}"
+                                    <PathIcon Data="{x:Static icons:Icons.AlignBottom}"
                                               Width="16" Height="16" />
                                 </Button>
 

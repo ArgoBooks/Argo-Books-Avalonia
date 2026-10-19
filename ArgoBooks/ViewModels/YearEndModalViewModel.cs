@@ -707,9 +707,7 @@ public partial class YearEndModalViewModel : ViewModelBase
             return;
         }
 
-        var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
+        var topLevel = App.DesktopMainWindow;
 
         if (topLevel?.StorageProvider == null)
         {
@@ -790,9 +788,7 @@ public partial class YearEndModalViewModel : ViewModelBase
 
     private static async Task<string?> PickFolderAsync(string title)
     {
-        var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
+        var topLevel = App.DesktopMainWindow;
 
         if (topLevel?.StorageProvider == null)
         {

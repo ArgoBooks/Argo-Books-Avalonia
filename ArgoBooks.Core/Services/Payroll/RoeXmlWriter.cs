@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Xml.Linq;
 using ArgoBooks.Core.Models.Payroll;
+using static ArgoBooks.Core.Services.Payroll.PayrollXml;
 
 namespace ArgoBooks.Core.Services.Payroll;
 
@@ -199,7 +200,7 @@ public static partial class RoeXmlWriter
             problems.Add(new("Block 14 needs the expected date of recall.", RoeProblemField.RecallDate));
         }
 
-        if (Name(sheet.ContactFirstName, 20) == null || Name(sheet.ContactLastName, 20) == null)
+        if (Text(sheet.ContactFirstName, 20) == null || Text(sheet.ContactLastName, 20) == null)
         {
             problems.Add(new("Block 16 needs the name of the person Service Canada should contact.",
                 RoeProblemField.ContactName));
@@ -236,7 +237,7 @@ public static partial class RoeXmlWriter
         Add(roe, "B3", Text(sheet.PayrollReferenceNumber, 26));
 
         roe.Add(new XElement("B5", PayrollAccount(sheet.PayrollAccountNumber)));
-        roe.Add(new XElement("B6", RoeCodes.PayPeriodType(sheet.PayPeriodType)));
+        roe.Add(new XElement("B6", RoeCodes.PayPeriodType(sheet.PayFrequency)));
         roe.Add(new XElement("B8", Digits(sheet.Sin, 9)));
         roe.Add(BuildEmployee(sheet));
         roe.Add(new XElement("B10", Date(sheet.FirstDayWorked)));
@@ -310,15 +311,15 @@ public static partial class RoeXmlWriter
             return null;
         }
 
-        string? first = Name(parts[0], FirstNameMax);
-        string? last = Name(parts[^1], LastNameMax);
+        string? first = Text(parts[0], FirstNameMax);
+        string? last = Text(parts[^1], LastNameMax);
 
         if (first == null || last == null)
         {
             return null;
         }
 
-        string? middle = parts.Length > 2 ? Name(string.Join(' ', parts[1..^1]), MiddleNameMax) : null;
+        string? middle = parts.Length > 2 ? Text(string.Join(' ', parts[1..^1]), MiddleNameMax) : null;
 
         return (first, middle, last);
     }
@@ -371,8 +372,8 @@ public static partial class RoeXmlWriter
 
         var reason = new XElement("B16",
             new XElement("CD", RoeCodes.Separation(sheet.Reason!.Value)),
-            new XElement("FN", Name(sheet.ContactFirstName, 20)),
-            new XElement("LN", Name(sheet.ContactLastName, 20)),
+            new XElement("FN", Text(sheet.ContactFirstName, 20)),
+            new XElement("LN", Text(sheet.ContactLastName, 20)),
             new XElement("AC", phone[..3]),
             new XElement("TEL", phone[3..]));
 
@@ -380,16 +381,6 @@ public static partial class RoeXmlWriter
 
         return reason;
     }
-
-    /// <summary>Adds the element only when there is something to put in it.</summary>
-    private static void Add(XElement parent, string element, string? value)
-    {
-        if (!string.IsNullOrEmpty(value))
-        {
-            parent.Add(new XElement(element, value));
-        }
-    }
-
     /// <summary>CCYY-MM-DD, which is the only date format the layout accepts.</summary>
     private static string Date(DateTime? value) =>
         value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
@@ -403,14 +394,6 @@ public static partial class RoeXmlWriter
     private static string Hours(decimal? value) =>
         Math.Clamp(Math.Round(value ?? 0m, 0, MidpointRounding.AwayFromZero), 0m, 9999m)
             .ToString("0", CultureInfo.InvariantCulture);
-
-    private static string? Text(string? value, int max)
-    {
-        string trimmed = (value ?? string.Empty).Trim();
-        return trimmed.Length == 0 ? null : trimmed[..Math.Min(trimmed.Length, max)];
-    }
-
-    private static string? Name(string? value, int max) => Text(value, max);
 
     /// <summary>
     /// Block 5 without its spaces. The T4 accepts the number typed as "123456789 RP 0001", so a
@@ -444,12 +427,6 @@ public static partial class RoeXmlWriter
         }
 
         return digits.Length == 10 ? digits : null;
-    }
-
-    private static string? Digits(string? value, int max)
-    {
-        string digits = new((value ?? string.Empty).Where(char.IsAsciiDigit).ToArray());
-        return digits.Length == 0 ? null : digits[..Math.Min(digits.Length, max)];
     }
 
     /// <summary>Canadian postal codes go up with no space, which is how the layout wants them.</summary>

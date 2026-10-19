@@ -10,7 +10,8 @@
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="300"
              x:Class="ArgoBooks.Controls.SearchableDropdown"
              x:DataType="controls:SearchableDropdown"
-             Focusable="True">
+             Focusable="True"
+             KeyboardNavigation.IsTabStop="False">
 
     <UserControl.Resources>
         <converters:HighlightBrushMultiConverter x:Key="HighlightBrushMultiConverter" />
@@ -166,8 +167,7 @@
            PlacementTarget="{Binding #DropdownBorder}"
            Placement="Bottom"
            PlacementGravity="BottomLeft"
-           IsLightDismissEnabled="True"
-           WindowManagerAddShadowHint="False">
+           IsLightDismissEnabled="True">
 
         <Border Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
@@ -187,6 +187,25 @@
                         Padding="12,10"
                         IsVisible="{Binding $parent[controls:SearchableDropdown].ShowAddNew}"
                         Command="{Binding $parent[controls:SearchableDropdown].AddNewInternalCommand}">
+                    <!-- Highlighted the same way as a list item when the arrow keys reach it. -->
+                    <Button.Background>
+                        <MultiBinding Converter="{StaticResource HighlightBrushMultiConverter}">
+                            <Binding Source="{x:Static controls:SearchableDropdown.AddNewEntry}" />
+                            <Binding Path="$parent[controls:SearchableDropdown].HighlightedItem" />
+                        </MultiBinding>
+                    </Button.Background>
+                    <Button.BorderBrush>
+                        <MultiBinding Converter="{StaticResource HighlightBorderBrushMultiConverter}">
+                            <Binding Source="{x:Static controls:SearchableDropdown.AddNewEntry}" />
+                            <Binding Path="$parent[controls:SearchableDropdown].HighlightedItem" />
+                        </MultiBinding>
+                    </Button.BorderBrush>
+                    <Button.BorderThickness>
+                        <MultiBinding Converter="{StaticResource HighlightBorderThicknessMultiConverter}">
+                            <Binding Source="{x:Static controls:SearchableDropdown.AddNewEntry}" />
+                            <Binding Path="$parent[controls:SearchableDropdown].HighlightedItem" />
+                        </MultiBinding>
+                    </Button.BorderThickness>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <PathIcon Data="{x:Static local:Icons.Add}"
                                   Width="16" Height="16"

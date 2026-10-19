@@ -53,20 +53,7 @@ public class EncryptionService : IEncryptionService
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(nonce);
 
-        // Allocate space for ciphertext + tag
-        var ciphertext = new byte[data.Length];
-        var tag = new byte[KeyDerivation.TagSize];
-
-        // Encrypt using AES-GCM
-        using var aesGcm = new AesGcm(key, KeyDerivation.TagSize);
-        aesGcm.Encrypt(nonce, data, ciphertext, tag);
-
-        // Combine ciphertext and tag
-        var result = new byte[ciphertext.Length + tag.Length];
-        Buffer.BlockCopy(ciphertext, 0, result, 0, ciphertext.Length);
-        Buffer.BlockCopy(tag, 0, result, ciphertext.Length, tag.Length);
-
-        return result;
+        return AesGcmBlob.Encrypt(data, key, nonce);
     }
 
     /// <inheritdoc />
@@ -102,20 +89,7 @@ public class EncryptionService : IEncryptionService
         if (encryptedData.Length < KeyDerivation.TagSize)
             throw new CryptographicException("Invalid encrypted data.");
 
-        // Split ciphertext and tag
-        var ciphertextLength = encryptedData.Length - KeyDerivation.TagSize;
-        var ciphertext = new byte[ciphertextLength];
-        var tag = new byte[KeyDerivation.TagSize];
-
-        Buffer.BlockCopy(encryptedData, 0, ciphertext, 0, ciphertextLength);
-        Buffer.BlockCopy(encryptedData, ciphertextLength, tag, 0, KeyDerivation.TagSize);
-
-        // Decrypt using AES-GCM
-        var plaintext = new byte[ciphertextLength];
-        using var aesGcm = new AesGcm(key, KeyDerivation.TagSize);
-        aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
-
-        return plaintext;
+        return AesGcmBlob.Decrypt(encryptedData, key, nonce);
     }
 
     #endregion
@@ -145,22 +119,7 @@ public class EncryptionService : IEncryptionService
             if (!CryptographicOperations.FixedTimeEquals(hash, expected))
                 throw new UnauthorizedAccessException("Invalid password.");
 
-            var nonce = Convert.FromBase64String(iv);
-
-            // Split ciphertext and tag
-            var ciphertextLength = encryptedData.Length - KeyDerivation.TagSize;
-            var ciphertext = new byte[ciphertextLength];
-            var tag = new byte[KeyDerivation.TagSize];
-
-            Buffer.BlockCopy(encryptedData, 0, ciphertext, 0, ciphertextLength);
-            Buffer.BlockCopy(encryptedData, ciphertextLength, tag, 0, KeyDerivation.TagSize);
-
-            // Decrypt using AES-GCM
-            var plaintext = new byte[ciphertextLength];
-            using var aesGcm = new AesGcm(key, KeyDerivation.TagSize);
-            aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
-
-            return plaintext;
+            return AesGcmBlob.Decrypt(encryptedData, key, Convert.FromBase64String(iv));
         }
         finally
         {

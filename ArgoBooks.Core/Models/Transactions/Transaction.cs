@@ -1,5 +1,6 @@
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Services;
 
 namespace ArgoBooks.Core.Models.Transactions;
 
@@ -211,7 +212,7 @@ public abstract class Transaction : IRecord
     /// Whether this transaction's original currency is USD (including legacy data which defaults to USD).
     /// </summary>
     [JsonIgnore]
-    private bool IsUSD => string.Equals(OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase);
+    private bool IsUSD => UsdConversion.IsUsd(OriginalCurrency);
 
     /// <summary>
     /// Gets the effective total in USD. For USD transactions (including legacy data), returns Total directly.

@@ -81,6 +81,13 @@ public class CompanySettings
 
     [JsonPropertyName("company")]
     public CompanyInfo Company { get; set; } = new();
+
+    /// <summary>
+    /// The business bank balance at the start of the day the company began recording, so the
+    /// Balance Sheet's cash starts from it rather than from zero. Null until one is entered.
+    /// </summary>
+    [JsonPropertyName("openingBalance")]
+    public OpeningBalance? OpeningBalance { get; set; }
     [JsonPropertyName("features")]
     public FeatureSettings Features { get; set; } = new();
     [JsonPropertyName("localization")]
@@ -126,6 +133,23 @@ public class FeatureSettings
     public bool? ShowRentals { get; set; }
     [JsonPropertyName("showPayroll")]
     public bool? ShowPayroll { get; set; }
+}
+
+/// <summary>
+/// A bank balance at the start of a day, kept in the currency it was entered in, so changing the
+/// company's currency later converts it at that day's rate rather than changing its value.
+/// It already includes every transaction dated before <see cref="Date"/>.
+/// </summary>
+public sealed record OpeningBalance
+{
+    [JsonPropertyName("amount")]
+    public decimal Amount { get; init; }
+
+    [JsonPropertyName("currency")]
+    public string Currency { get; init; } = "USD";
+
+    [JsonPropertyName("date")]
+    public DateTime Date { get; init; }
 }
 
 public class CompanyInfo
@@ -228,7 +252,7 @@ public class LocalizationSettings
     [JsonPropertyName("currency")]
     public string Currency { get; set; } = "USD";
     [JsonPropertyName("dateFormat")]
-    public string DateFormat { get; set; } = "MM/DD/YYYY";
+    public string DateFormat { get; set; } = Data.DateFormats.Default;
 }
 
 public class NotificationSettings

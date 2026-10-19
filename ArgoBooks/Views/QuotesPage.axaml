@@ -37,19 +37,19 @@
                 <controls:StatCardsRow Grid.Row="0" Margin="0,0,0,24">
                     <controls:StatCard Label="{loc:Loc 'Open Quotes'}"
                                        Value="{Binding OpenQuotes}"
-                                       Icon="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"
+                                       Icon="{x:Static icons:Icons.Quotes}"
                                        IconColor="Primary" />
                     <controls:StatCard Label="{loc:Loc 'Accepted'}"
                                        Value="{Binding AcceptedQuotes}"
-                                       Icon="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                                       Icon="{x:Static icons:Icons.Check}"
                                        IconColor="Success" />
                     <controls:StatCard Label="{loc:Loc 'Declined'}"
                                        Value="{Binding DeclinedQuotes}"
-                                       Icon="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                                       Icon="{x:Static icons:Icons.Close}"
                                        IconColor="Danger" />
                     <controls:StatCard Label="{loc:Loc 'Expiring Soon'}"
                                        Value="{Binding ExpiringSoonQuotes}"
-                                       Icon="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
+                                       Icon="{x:Static icons:Icons.Clock}"
                                        IconColor="Warning" />
                 </controls:StatCardsRow>
 

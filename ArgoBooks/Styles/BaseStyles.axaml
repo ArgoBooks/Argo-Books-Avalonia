@@ -109,6 +109,10 @@
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
         <Setter Property="BorderThickness" Value="2" />
     </Style>
+    <!-- Keyboard focus shows the same accent border as a click, without the accent fill the theme adds, to match the text box. -->
+    <Style Selector="ComboBox:focus-visible /template/ Border#HighlightBackground">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
     <Style Selector="ComboBox:pressed /template/ Border#Background">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />

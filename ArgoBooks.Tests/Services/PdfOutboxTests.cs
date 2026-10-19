@@ -20,7 +20,7 @@ public class PdfOutboxTests
     [Fact]
     public void ParseOutbox_WithBareJsonArray_ReadsEveryMessage()
     {
-        var messages = PdfThumbnailService.ParseOutbox(
+        var messages = WebViewOutbox.Parse(
             """["pdfjs-ready","render-page:0:data:image/jpeg;base64,AAAA","render-done:1"]""");
 
         Assert.Equal(
@@ -32,7 +32,7 @@ public class PdfOutboxTests
     public void ParseOutbox_WithArrayWrappedInAJsonString_ReadsEveryMessage()
     {
         // The same payload one level deeper, as a platform quoting the return value gives it.
-        var messages = PdfThumbnailService.ParseOutbox("\"[\\\"pdfjs-ready\\\",\\\"render-done:2\\\"]\"");
+        var messages = WebViewOutbox.Parse("\"[\\\"pdfjs-ready\\\",\\\"render-done:2\\\"]\"");
 
         Assert.Equal(["pdfjs-ready", "render-done:2"], messages);
     }
@@ -40,8 +40,8 @@ public class PdfOutboxTests
     [Fact]
     public void ParseOutbox_WithEmptyQueue_ReturnsNothing()
     {
-        Assert.Empty(PdfThumbnailService.ParseOutbox("[]"));
-        Assert.Empty(PdfThumbnailService.ParseOutbox("\"[]\""));
+        Assert.Empty(WebViewOutbox.Parse("[]"));
+        Assert.Empty(WebViewOutbox.Parse("\"[]\""));
     }
 
     [Theory]
@@ -55,13 +55,13 @@ public class PdfOutboxTests
     {
         // A drain runs on a timer while a render is in flight. Throwing here would take out
         // the render that was about to succeed, so anything unreadable counts as "no messages".
-        Assert.Empty(PdfThumbnailService.ParseOutbox(raw));
+        Assert.Empty(WebViewOutbox.Parse(raw));
     }
 
     [Fact]
     public void ParseOutbox_WithMixedElementTypes_KeepsOnlyTheStrings()
     {
-        Assert.Equal(["render-done:0"], PdfThumbnailService.ParseOutbox("""[null, 7, "render-done:0", {}]"""));
+        Assert.Equal(["render-done:0"], WebViewOutbox.Parse("""[null, 7, "render-done:0", {}]"""));
     }
 
     [Fact]

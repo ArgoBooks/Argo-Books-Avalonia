@@ -628,7 +628,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                     InvoiceNumber = invoice.InvoiceNumber,
                     CustomerId = invoice.CustomerId,
                     CustomerName = customer?.Name ?? "Unknown Customer",
-                    CustomerInitials = Helpers.InitialsHelper.From(customer?.Name),
+                    CustomerInitials = InitialsHelper.From(customer?.Name),
                     IssueDate = invoice.IssueDate,
                     DueDate = invoice.DueDate,
                     Total = invoice.Total,
@@ -809,7 +809,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                 AccountantName = accountant?.Name ?? "System",
                 CustomerId = invoice.CustomerId,
                 CustomerName = row.CustomerName,
-                CustomerInitials = Helpers.InitialsHelper.From(row.Customer?.Name),
+                CustomerInitials = InitialsHelper.From(row.Customer?.Name),
                 CustomerAvatarBitmap = avatarBitmap,
                 HasCustomerAvatar = avatarBitmap != null,
                 IssueDate = invoice.IssueDate,
@@ -966,7 +966,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                     AmountFormatted = CurrencyService.FormatWithOriginal(
                         s.Amount, currency, s.Template?.TotalUSD ?? s.Amount, s.NextInvoiceDate),
                     FrequencyDisplay = s.Frequency.ToString(),
-                    NextInvoiceFormatted = s.NextInvoiceDate.ToString("MMM d, yyyy"),
+                    NextInvoiceFormatted = s.NextInvoiceDate.ToString(Core.Data.DateFormats.Short),
                     StatusDisplay = s.Status.ToString(),
                     IsPaused = s.Status == RecurringInvoiceStatus.Paused,
                     InvoiceId = latestInvoice?.Id ?? string.Empty
@@ -1420,7 +1420,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         }
         if (template == null) return;
 
-        string currencySymbol = CurrencyService.GetSymbol(invoice.OriginalCurrency);
+        string currencySymbol = CurrencyInfo.GetSymbol(invoice.OriginalCurrency);
         string failure = string.Empty;
 
         try
@@ -1562,8 +1562,8 @@ public partial class InvoiceDisplayItem : ObservableObject
     [ObservableProperty]
     private string _originalCurrency = "USD";
 
-    public string IssueDateFormatted => IssueDate.ToString("MMM d, yyyy");
-    public string DueDateFormatted => DueDate.ToString("MMM d, yyyy");
+    public string IssueDateFormatted => IssueDate.ToString(Core.Data.DateFormats.Short);
+    public string DueDateFormatted => DueDate.ToString(Core.Data.DateFormats.Short);
     public string TotalFormatted => CurrencyService.FormatWithOriginal(
         Total + ProcessorFeesPaid,
         OriginalCurrency,

@@ -113,12 +113,5 @@ public partial class ActiveRentalsWidgetViewModel : WidgetViewModelBase
 
     #region Helper Methods
 
-    private static string GetCustomerName(CompanyData data, string? customerId)
-    {
-        if (string.IsNullOrEmpty(customerId)) return "Unknown";
-        var customer = data.GetCustomer(customerId);
-        return customer?.Name ?? "Unknown";
-    }
-
     #endregion
 }

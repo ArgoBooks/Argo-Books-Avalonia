@@ -6,6 +6,7 @@
              xmlns:loc="using:ArgoBooks.Localization"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:icons="using:ArgoBooks"
+             xmlns:behaviors="using:ArgoBooks.Behaviors"
              mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="600"
              x:Class="ArgoBooks.Modals.CreateCompanyWizard"
              x:DataType="vm:CreateCompanyViewModel">
@@ -23,7 +24,6 @@
             <Setter Property="Padding" Value="12,10" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-            <!-- PasswordChar is bound per field, not set here, so revealing can clear it. -->
         </Style>
         <Style Selector="TextBox.password-field /template/ Border#PART_BorderElement">
             <Setter Property="Background" Value="Transparent" />
@@ -200,10 +200,32 @@
                                 </StackPanel>
                             </Grid>
 
-                            <TextBlock Text="{loc:Loc 'Your address, phone and email are asked when you send your first invoice, and can be set any time under Edit Company.'}"
-                                       FontSize="12"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <!-- Bank balance today, kept to the left column like the fields above it -->
+                            <StackPanel Spacing="6">
+                                <Grid ColumnDefinitions="*,16,*">
+                                    <StackPanel Grid.Column="0" Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'Bank balance today'}"
+                                                   FontSize="13"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBox Classes="form-input"
+                                                 Text="{Binding OpeningBalanceText, Mode=TwoWay}"
+                                                 PlaceholderText="{loc:Loc 'Optional'}"
+                                                 behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                 behaviors:NumericInputBehavior.AllowNegative="True"
+                                                 MaxLength="16" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{loc:Loc 'Your business bank balance at the start of today. The Balance Sheet starts its cash from it. Leave it empty if you are not sure.'}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                <TextBlock Text="{Binding OpeningBalanceError}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource ErrorBrush}"
+                                           IsVisible="{Binding OpeningBalanceError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- Step 2: Security & Logo -->
@@ -218,25 +240,21 @@
                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                             </StackPanel>
 
-                            <!-- Logo Upload -->
-                            <StackPanel Spacing="12">
-                                <TextBlock Text="{loc:Loc 'Company Logo'}"
-                                           FontSize="13"
-                                           FontWeight="Medium"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
-
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <!-- Logo Preview -->
+                            <!-- Company logo -->
+                            <Border Background="{DynamicResource SurfaceAltBrush}"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
                                     <Border Grid.Column="0"
                                             Width="100" Height="100"
                                             CornerRadius="8"
-                                            Background="{DynamicResource SurfaceAltBrush}"
+                                            Background="{DynamicResource SurfaceBrush}"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="1"
                                             ClipToBounds="True"
-                                            Margin="0,0,16,0">
+                                            VerticalAlignment="Center">
                                         <Panel>
-                                            <PathIcon Data="{x:Static icons:Icons.GridDetailed}"
+                                            <PathIcon Data="{x:Static icons:Icons.Image}"
                                                       Width="40" Height="40"
                                                       Foreground="{DynamicResource TextTertiaryBrush}"
                                                       IsVisible="{Binding !HasLogo}" />
@@ -246,35 +264,20 @@
                                         </Panel>
                                     </Border>
 
-                                    <!-- Upload Buttons -->
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="8">
-                                        <Button Classes="secondary-button"
-                                                Command="{Binding BrowseLogoCommand}">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <PathIcon Data="{x:Static icons:Icons.ImportData}"
-                                                          Width="16" Height="16" />
-                                                <TextBlock Text="{loc:Loc 'Upload Logo'}" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="text-button"
-                                                Command="{Binding RemoveLogoCommand}"
-                                                IsVisible="{Binding HasLogo}">
-                                            <TextBlock Text="{loc:Loc Remove}" Foreground="{DynamicResource DangerBrush}" />
-                                        </Button>
-                                        <TextBlock Text="{loc:Loc 'PNG, JPG up to 5MB'}"
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    </StackPanel>
-                                </Grid>
-                            </StackPanel>
-
-                            <!-- Password Protection -->
+                            <!-- Password protection -->
                             <Border Background="{DynamicResource SurfaceAltBrush}"
                                     CornerRadius="8"
                                     Padding="16">
                                 <StackPanel Spacing="16">
-                                    <CheckBox IsChecked="{Binding EnablePassword}"
-                                              Content="{loc:Loc 'Password protect this company file'}" />
+                                    <StackPanel Spacing="4">
+                                        <CheckBox IsChecked="{Binding EnablePassword}"
+                                                  Content="{loc:Loc 'Password protect this company file'}" />
+                                        <TextBlock Text="{loc:Loc 'You will be asked for it each time this company is opened.'}"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   Margin="28,0,0,0"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
 
                                     <StackPanel IsVisible="{Binding EnablePassword}" Spacing="16">
                                         <StackPanel Spacing="6">
@@ -289,7 +292,8 @@
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <TextBox Grid.Column="0"
                                                              Text="{Binding Password, Mode=TwoWay}"
-                                                             PasswordChar="{Binding PasswordMaskChar}"
+                                                             PasswordChar="*"
+                                                             RevealPassword="{Binding IsPasswordVisible}"
                                                              Classes="password-field"
                                                              PlaceholderText="{loc:Loc 'Enter password'}"
                                                              MaxLength="128" />
@@ -341,7 +345,8 @@
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <TextBox Grid.Column="0"
                                                              Text="{Binding ConfirmPassword, Mode=TwoWay}"
-                                                             PasswordChar="{Binding ConfirmPasswordMaskChar}"
+                                                             PasswordChar="*"
+                                                             RevealPassword="{Binding IsConfirmPasswordVisible}"
                                                              Classes="password-field"
                                                              PlaceholderText="{loc:Loc 'Confirm password'}"
                                                              MaxLength="128" />
@@ -359,6 +364,39 @@
                                         </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
+                            </Border>
+
+                                    <StackPanel Grid.Column="1" Spacing="4" Margin="16,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:Loc 'Company Logo'}"
+                                                   FontSize="13"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Shown on your invoices and reports.'}"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'PNG, JPG up to 5MB'}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                                        <Button Classes="secondary-button"
+                                                Command="{Binding BrowseLogoCommand}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <PathIcon Data="{x:Static icons:Icons.ImportData}"
+                                                          Width="16" Height="16" />
+                                                <TextBlock Text="{loc:Loc 'Upload Logo'}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="text-button"
+                                                HorizontalAlignment="Center"
+                                                Command="{Binding RemoveLogoCommand}"
+                                                IsVisible="{Binding HasLogo}">
+                                            <TextBlock Text="{loc:Loc Remove}" Foreground="{DynamicResource DangerBrush}" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
                             </Border>
                         </StackPanel>
                     </StackPanel>

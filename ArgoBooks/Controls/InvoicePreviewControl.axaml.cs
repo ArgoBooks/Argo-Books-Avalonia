@@ -9,8 +9,8 @@ namespace ArgoBooks.Controls;
 
 /// <summary>
 /// Cross-platform invoice preview control.
-/// On Windows/macOS: Uses NativeWebView for high-quality HTML rendering with zoom/pan.
-/// On Linux: Shows a fallback with option to view in browser (NativeWebView doesn't embed inline on Linux).
+/// Renders the invoice HTML in a NativeWebView with zoom and pan on Windows, macOS and Linux.
+/// Shows a fallback with an option to view it in the browser when the web view cannot start.
 /// </summary>
 public partial class InvoicePreviewControl : UserControl
 {
@@ -154,7 +154,9 @@ public partial class InvoicePreviewControl : UserControl
         return EditingScriptTemplate
             .Replace("__PRODUCTS_JSON__", products)
             .Replace("__CUSTOMERS_JSON__", customers)
-            .Replace("__TOTALS_CONFIG__", totalsConfig);
+            .Replace("__TOTALS_CONFIG__", totalsConfig)
+            .Replace("__FEE_PERCENT__", Core.Services.InvoiceTemplates.ProcessingFee.Percent.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .Replace("__FEE_FIXED__", Core.Services.InvoiceTemplates.ProcessingFee.Fixed.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private const string EditingScriptTemplate = @"
@@ -529,7 +531,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             // Less whatever has already been paid. Floored at zero so an overpayment does not
             // render a negative.
             var balance = Math.max(0, total - paid);
-            var procFee = (portal && passFee && balance > 0) ? Math.round((balance * 2.9 / 100 + 0.30) * 100) / 100 : 0;
+            var procFee = (portal && passFee && balance > 0) ? Math.round((balance * __FEE_PERCENT__ / 100 + __FEE_FIXED__) * 100) / 100 : 0;
 
             // The (x%) suffix on the tax label is server-rendered, so it has to be rewritten here or it keeps showing the rate the paper loaded with.
             setOut('taxRateLabel', taxMode === 'fixed' ? '' : ' (' + String(parseFloat(tax.toFixed(2))) + '%)');
@@ -628,7 +630,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
     private void InitializePlatformPreview()
     {
-        // A web view that already failed to start fails the same way silently, so the exception never arrives here and the check stands in for it.
+        // A web view that already failed to start fails the same way silently, so the exception never arrives here and the check stands in for it (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
         if (PlatformSupportsInlineWebView && !WebViewEnvironment.HasFailed)
         {
             ActivateWebView();
@@ -641,7 +643,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
     /// <summary>
     /// The web view died after this control activated it, so the preview is showing nothing.
-    /// Swap it for the fallback the Linux path already uses.
+    /// Swap it for the fallback the Linux path already uses (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
     /// </summary>
     private void OnWebViewFailed(object? sender, EventArgs e)
     {
@@ -674,6 +676,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         if (_webView == null)
         {
             _webView = new NativeWebView { IsVisible = false };
+            // Tab cannot leave a web view on Avalonia once the page has the keyboard (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/76).
             // Configured before it is added: attaching it is what builds the environment.
             WebViewEnvironment.Configure(_webView, WebViewEnvironment.PaperDrawsInsideAvalonia);
             _rootPanel.Children.Insert(0, _webView);
@@ -744,7 +747,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         bool usesNativeBridge;
         try
         {
-            var answer = await _webView.InvokeScript(Services.WebViewOutbox.NativeProbe);
+            var answer = await _webView.InvokeScript(WebViewOutbox.NativeProbe);
             usesNativeBridge = answer != null && answer.Contains("true", StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception)
@@ -779,8 +782,8 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         _draining = true;
         try
         {
-            var raw = await _webView.InvokeScript(Services.WebViewOutbox.Drain);
-            foreach (var message in Services.WebViewOutbox.Parse(raw))
+            var raw = await _webView.InvokeScript(WebViewOutbox.Drain);
+            foreach (var message in WebViewOutbox.Parse(raw))
                 DispatchMessage(message);
         }
         catch (Exception)
@@ -833,7 +836,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             {
                 _currentZoom = zoomElement.GetDouble();
                 _userZoomed = !(root.TryGetProperty("fit", out var fitElement) && fitElement.ValueKind == System.Text.Json.JsonValueKind.True);
-                Avalonia.Threading.Dispatcher.UIThread.Post(UpdateZoomDisplay);
+                Dispatcher.UIThread.Post(UpdateZoomDisplay);
             }
             else if (messageType == "invoiceEdit")
             {
@@ -845,7 +848,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
                     index = idx.GetInt32();
                 var value = root.TryGetProperty("value", out var v) ? v.GetString() ?? string.Empty : string.Empty;
                 var args = new InvoiceEditEventArgs(field, index, value);
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => InvoiceEdited?.Invoke(this, args));
+                Dispatcher.UIThread.Post(() => InvoiceEdited?.Invoke(this, args));
             }
             else if (messageType == "productSelected")
             {
@@ -854,7 +857,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
                 {
                     var lineIndex = pi.GetInt32();
                     var productId = pid.GetString() ?? string.Empty;
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() => ProductPicked?.Invoke(this, new ProductPickEventArgs(lineIndex, productId)));
+                    Dispatcher.UIThread.Post(() => ProductPicked?.Invoke(this, new ProductPickEventArgs(lineIndex, productId)));
                 }
             }
             else if (messageType == "createProduct")
@@ -862,19 +865,19 @@ window.__totalsConfig = __TOTALS_CONFIG__;
                 if (root.TryGetProperty("index", out var ci) && ci.ValueKind == System.Text.Json.JsonValueKind.Number)
                 {
                     var lineIndex = ci.GetInt32();
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() => CreateProductRequested?.Invoke(this, lineIndex));
+                    Dispatcher.UIThread.Post(() => CreateProductRequested?.Invoke(this, lineIndex));
                 }
             }
             else if (messageType == "addLine")
             {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => AddLineRequested?.Invoke(this, EventArgs.Empty));
+                Dispatcher.UIThread.Post(() => AddLineRequested?.Invoke(this, EventArgs.Empty));
             }
             else if (messageType == "removeLine")
             {
                 if (root.TryGetProperty("index", out var ri) && ri.ValueKind == System.Text.Json.JsonValueKind.Number)
                 {
                     var lineIndex = ri.GetInt32();
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() => RemoveLineRequested?.Invoke(this, lineIndex));
+                    Dispatcher.UIThread.Post(() => RemoveLineRequested?.Invoke(this, lineIndex));
                 }
             }
             else if (messageType == "customerSelected")
@@ -882,33 +885,33 @@ window.__totalsConfig = __TOTALS_CONFIG__;
                 if (root.TryGetProperty("id", out var cid))
                 {
                     var customerId = cid.GetString() ?? string.Empty;
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() => CustomerPicked?.Invoke(this, customerId));
+                    Dispatcher.UIThread.Post(() => CustomerPicked?.Invoke(this, customerId));
                 }
             }
             else if (messageType == "createCustomer")
             {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => CreateCustomerRequested?.Invoke(this, EventArgs.Empty));
+                Dispatcher.UIThread.Post(() => CreateCustomerRequested?.Invoke(this, EventArgs.Empty));
             }
             else if (messageType == "dateEdit")
             {
                 var dField = root.TryGetProperty("field", out var df) ? df.GetString() ?? string.Empty : string.Empty;
                 var dValue = root.TryGetProperty("value", out var dv) ? dv.GetString() ?? string.Empty : string.Empty;
                 if (!string.IsNullOrEmpty(dField) && !string.IsNullOrEmpty(dValue))
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() => DateEdited?.Invoke(this, (dField, dValue)));
+                    Dispatcher.UIThread.Post(() => DateEdited?.Invoke(this, (dField, dValue)));
             }
             else if (messageType == "pickLogo")
             {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => PickLogoRequested?.Invoke(this, EventArgs.Empty));
+                Dispatcher.UIThread.Post(() => PickLogoRequested?.Invoke(this, EventArgs.Empty));
             }
             else if (messageType == "deleteLogo")
             {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => DeleteLogoRequested?.Invoke(this, EventArgs.Empty));
+                Dispatcher.UIThread.Post(() => DeleteLogoRequested?.Invoke(this, EventArgs.Empty));
             }
             else if (messageType == "totalsToggle")
             {
                 var which = root.TryGetProperty("which", out var we) ? we.GetString() ?? string.Empty : string.Empty;
                 if (!string.IsNullOrEmpty(which))
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() => TotalsModeToggled?.Invoke(this, which));
+                    Dispatcher.UIThread.Post(() => TotalsModeToggled?.Invoke(this, which));
             }
         }
         catch (Exception ex)
@@ -1184,7 +1187,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
         // Editing mode adds contenteditable + the edit->postMessage bridge on top of the interaction script.
         // Ahead of everything else: both scripts below post through window.__argoPost.
-        var injected = "<script>" + Services.WebViewOutbox.Script + "</script>"
+        var injected = "<script>" + WebViewOutbox.Script + "</script>"
                        + restoreScript
                        + (IsEditable ? interactionScript + BuildEditingScript() : interactionScript);
 
@@ -1267,18 +1270,19 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 })()";
 
             var result = await _webView.InvokeScript(captureScript);
-            if (!string.IsNullOrEmpty(result) && result.StartsWith("data:image/png;base64,"))
+            const string pngPrefix = "data:image/png;base64,";
+            if (!string.IsNullOrEmpty(result) && result.StartsWith(pngPrefix))
             {
-                return result.Substring("data:image/png;base64,".Length);
+                return result[pngPrefix.Length..];
             }
 
             // Strip surrounding quotes if the result is a JSON string
             if (result != null && result.StartsWith('"') && result.EndsWith('"'))
             {
                 result = result[1..^1].Replace("\\\"", "\"");
-                if (result.StartsWith("data:image/png;base64,"))
+                if (result.StartsWith(pngPrefix))
                 {
-                    return result.Substring("data:image/png;base64,".Length);
+                    return result[pngPrefix.Length..];
                 }
             }
 
@@ -1313,7 +1317,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     /// Renders what the web view is showing to a PDF stream, for saving the invoice as a file.
     /// Returns null when there is no web view, which is the case on Linux and before the first render.
     /// </summary>
-    public async Task<System.IO.Stream?> RenderPdfAsync()
+    public async Task<Stream?> RenderPdfAsync()
     {
         if (_webView == null || !_webViewReady)
             return null;

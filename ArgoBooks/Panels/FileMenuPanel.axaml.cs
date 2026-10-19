@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+using ArgoBooks.Utilities;
 using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Panels;
@@ -14,8 +16,7 @@ public partial class FileMenuPanel : UserControl
 {
     private int _focusedIndex = -1;
     private readonly int _menuItemCount = 10; // Total menu items (0-9)
-    private readonly int _submenuItemCount = 4; // Submenu items (0-3)
-    private int _submenuFocusedIndex = -1;
+    private IInputElement? _opener;
     private bool _isInSubmenu;
     private bool _isOverSubmenu;
     private bool _isOverRecentButton;
@@ -44,13 +45,13 @@ public partial class FileMenuPanel : UserControl
                     {
                         if (vm.IsOpen)
                         {
+                            _opener = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
                             // Animate in
                             Dispatcher.UIThread.Post(() =>
                             {
                                 FileMenuBorder.Opacity = 1;
                                 FileMenuBorder.RenderTransform = new TranslateTransform(0, 0);
                                 _focusedIndex = -1;
-                                _submenuFocusedIndex = -1;
                                 _isInSubmenu = false;
                                 FileMenuBorder.Focus();
                             }, DispatcherPriority.Render);
@@ -155,6 +156,8 @@ public partial class FileMenuPanel : UserControl
     {
         if (DataContext is not FileMenuPanelViewModel vm) return;
 
+        SyncWithFocus();
+
         switch (e.Key)
         {
             case Key.Up:
@@ -176,7 +179,7 @@ public partial class FileMenuPanel : UserControl
                 if (_isInSubmenu)
                     ActivateCurrentSubmenuItem();
                 else
-                    ActivateCurrentItem();
+                    Helpers.MenuItemNavigation.Activate(this, _focusedIndex);
                 e.Handled = true;
                 break;
             case Key.Escape:
@@ -205,57 +208,56 @@ public partial class FileMenuPanel : UserControl
                 }
                 e.Handled = true;
                 break;
+            case Key.Tab:
+                ModalHelper.LeavePanelOnTab(e, _opener, () =>
+                {
+                    vm.IsRecentSubmenuOpen = false;
+                    vm.CloseCommand.Execute(null);
+                });
+                break;
         }
+    }
+
+    /// <summary>Picks up the item that has focus, since Tab and the mouse move it without the arrow keys knowing.</summary>
+    private void SyncWithFocus()
+    {
+        var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+        _isInSubmenu = focused is Avalonia.Visual visual && RecentSubmenu.IsVisualAncestorOf(visual);
+        if (focused is Button { Name: { } name } && name.StartsWith("MenuItem") && int.TryParse(name["MenuItem".Length..], out var index))
+            _focusedIndex = index;
     }
 
     private void EnterSubmenu()
     {
-        if (DataContext is FileMenuPanelViewModel vm)
+        if (DataContext is not FileMenuPanelViewModel vm)
+            return;
+
+        vm.IsRecentSubmenuOpen = true;
+        // Posted, because the list has only just been shown and its buttons cannot take focus before they are laid out.
+        Dispatcher.UIThread.Post(() =>
         {
-            vm.IsRecentSubmenuOpen = true;
-            _isInSubmenu = true;
-            _submenuFocusedIndex = 0;
-            FocusSubmenuItem(0);
-        }
+            if (ModalHelper.VisibleButtons(RecentSubmenu).FirstOrDefault() is { } first && first.Focus(NavigationMethod.Directional))
+                _isInSubmenu = true;
+        }, DispatcherPriority.Loaded);
     }
 
     private void ExitSubmenu()
     {
         _isInSubmenu = false;
-        _submenuFocusedIndex = -1;
-        FocusMenuItem(_focusedIndex);
+        _focusedIndex = 2; // Open Recent
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
     }
 
-    private void NavigateSubmenuUp()
-    {
-        if (_submenuFocusedIndex <= 0)
-            _submenuFocusedIndex = _submenuItemCount - 1;
-        else
-            _submenuFocusedIndex--;
-        FocusSubmenuItem(_submenuFocusedIndex);
-    }
+    private void NavigateSubmenuUp() => ModalHelper.StepThroughButtons(RecentSubmenu, -1);
 
-    private void NavigateSubmenuDown()
-    {
-        if (_submenuFocusedIndex >= _submenuItemCount - 1)
-            _submenuFocusedIndex = 0;
-        else
-            _submenuFocusedIndex++;
-        FocusSubmenuItem(_submenuFocusedIndex);
-    }
-
-    private void FocusSubmenuItem(int index)
-    {
-        var menuItem = this.FindControl<Button>($"SubmenuItem{index}");
-        menuItem?.Focus();
-    }
+    private void NavigateSubmenuDown() => ModalHelper.StepThroughButtons(RecentSubmenu, 1);
 
     private void ActivateCurrentSubmenuItem()
     {
-        var menuItem = this.FindControl<Button>($"SubmenuItem{_submenuFocusedIndex}");
-        if (menuItem?.Command != null && menuItem.Command.CanExecute(menuItem.CommandParameter))
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Button { Command: { } command } button
+            && command.CanExecute(button.CommandParameter))
         {
-            menuItem.Command.Execute(menuItem.CommandParameter);
+            command.Execute(button.CommandParameter);
         }
     }
 
@@ -265,7 +267,7 @@ public partial class FileMenuPanel : UserControl
             _focusedIndex = _menuItemCount - 1;
         else
             _focusedIndex--;
-        FocusMenuItem(_focusedIndex);
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
         CheckOpenRecentSubmenu();
     }
 
@@ -275,7 +277,7 @@ public partial class FileMenuPanel : UserControl
             _focusedIndex = 0;
         else
             _focusedIndex++;
-        FocusMenuItem(_focusedIndex);
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
         CheckOpenRecentSubmenu();
     }
 
@@ -285,21 +287,6 @@ public partial class FileMenuPanel : UserControl
         {
             // Auto-open submenu when navigating to Open Recent (index 2)
             vm.IsRecentSubmenuOpen = _focusedIndex == 2;
-        }
-    }
-
-    private void FocusMenuItem(int index)
-    {
-        var menuItem = this.FindControl<Button>($"MenuItem{index}");
-        menuItem?.Focus();
-    }
-
-    private void ActivateCurrentItem()
-    {
-        var menuItem = this.FindControl<Button>($"MenuItem{_focusedIndex}");
-        if (menuItem?.Command != null && menuItem.Command.CanExecute(menuItem.CommandParameter))
-        {
-            menuItem.Command.Execute(menuItem.CommandParameter);
         }
     }
 }

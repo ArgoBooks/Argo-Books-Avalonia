@@ -24,6 +24,10 @@ public static class CraFormat
     public static readonly IReadOnlyList<string> ProvinceCodes =
         ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"];
 
+    /// <summary>Whether a province code is Quebec, which runs its own pension plan, parental insurance and income tax.</summary>
+    public static bool IsQuebec(string? province) =>
+        string.Equals(province?.Trim(), "QC", StringComparison.OrdinalIgnoreCase);
+
     private const string FrenchLower = "éàâçèêëîïôùüû";
     private const string FrenchUpper = "ÉÀÂÇÈÊËÎÏÔÙÜÛ";
 

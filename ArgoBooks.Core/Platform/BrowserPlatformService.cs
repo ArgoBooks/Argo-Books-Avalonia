@@ -19,13 +19,6 @@ public class BrowserPlatformService : BasePlatformService
     }
 
     /// <inheritdoc />
-    public override string GetTempPath()
-    {
-        // Virtual temp storage
-        return CombinePaths(VirtualRoot, "temp");
-    }
-
-    /// <inheritdoc />
     public override string GetCachePath()
     {
         // Browser cache storage

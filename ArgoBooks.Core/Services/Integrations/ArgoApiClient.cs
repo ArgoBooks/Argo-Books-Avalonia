@@ -262,10 +262,7 @@ public class ArgoApiClient
 
         // Premium sends the licence key, free sends the device id. The server
         // accepts either, matching how api/sync identifies a desktop.
-        if (!string.IsNullOrWhiteSpace(licenseKey))
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", licenseKey);
-        if (!string.IsNullOrWhiteSpace(deviceId))
-            req.Headers.TryAddWithoutValidation("X-Device-Id", deviceId);
+        LicenseAuthHelper.AddAuthHeaders(req, licenseKey, deviceId);
 
         if (body != null)
             req.Content = JsonContent.Create(body);

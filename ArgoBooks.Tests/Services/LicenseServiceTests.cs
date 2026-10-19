@@ -365,7 +365,6 @@ public class LicenseServiceTests
         public int MaxRecentCompanies => 10;
 
         public string GetAppDataPath() => "/mock/appdata";
-        public string GetTempPath() => "/mock/temp";
         public string GetCachePath() => "/mock/cache";
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => string.Join("/", paths);

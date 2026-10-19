@@ -120,7 +120,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private CancellationTokenSource? _loadingCts;
     private Func<Task<bool>>? _cancelConfirmation;
-    private CancellationTokenSource? _savedFeedbackCts;
 
     public bool IsLoadingIndeterminate => LoadingProgress < 0;
 
@@ -222,18 +221,6 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasUnsavedChanges;
 
-    /// <summary>
-    /// Whether to show the "Saved" indicator.
-    /// </summary>
-    [ObservableProperty]
-    private bool _showSavedIndicator;
-
-    /// <summary>
-    /// Opacity for the saved indicator (for fade animation).
-    /// </summary>
-    [ObservableProperty]
-    private double _savedIndicatorOpacity;
-
     #endregion
 
     /// <summary>
@@ -282,52 +269,6 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var asterisk = HasUnsavedChanges ? "*" : "";
             WindowTitle = $"{asterisk}{CurrentCompanyName} - Argo Books";
-        }
-    }
-
-    /// <summary>
-    /// Marks that there are unsaved changes.
-    /// </summary>
-    public void MarkUnsavedChanges()
-    {
-        HasUnsavedChanges = true;
-    }
-
-    /// <summary>
-    /// Shows the saved indicator and hides it after 3 seconds.
-    /// </summary>
-    public async void ShowSavedFeedback()
-    {
-        try
-        {
-            // Cancel any previous feedback animation
-            _savedFeedbackCts?.Cancel();
-            _savedFeedbackCts?.Dispose();
-            var cts = new CancellationTokenSource();
-            _savedFeedbackCts = cts;
-
-            HasUnsavedChanges = false;
-            ShowSavedIndicator = true;
-            SavedIndicatorOpacity = 1.0;
-
-            // Wait 3 seconds then fade out
-            await Task.Delay(3000, cts.Token);
-
-            // Fade out by setting opacity to 0 (animation handled in XAML)
-            SavedIndicatorOpacity = 0;
-
-            // Wait for fade animation
-            await Task.Delay(300, cts.Token);
-
-            ShowSavedIndicator = false;
-        }
-        catch (TaskCanceledException)
-        {
-            // Superseded by a newer call, do nothing
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "ShowSavedFeedback");
         }
     }
 

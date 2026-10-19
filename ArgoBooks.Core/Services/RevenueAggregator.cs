@@ -62,6 +62,10 @@ public static class RevenueAggregator
     /// OWN date via <paramref name="toDisplay"/> before summing (docs/Calculations.md Rule 4).
     /// Pass <c>CurrencyService.GetDisplayAmount</c>. Equals the USD sum for a USD display currency.
     /// </summary>
+    /// <summary>Whether a paid sale in the range is still waiting for its rate, which a display total counts as 0 and so must show as Pending.</summary>
+    public static bool AnyCollectedWaiting(IEnumerable<Revenue> revenues, DateTime start, DateTime end) =>
+        revenues.Any(s => s.IsPendingConversion && s.Date >= start && s.Date <= end && IsCollected(s));
+
     public static decimal SumCollectedRevenueDisplay(
         IEnumerable<Revenue> revenues, DateTime start, DateTime end, Func<decimal, DateTime, decimal> toDisplay)
     {

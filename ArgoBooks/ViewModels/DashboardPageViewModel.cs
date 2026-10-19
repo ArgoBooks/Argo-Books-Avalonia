@@ -19,210 +19,22 @@ namespace ArgoBooks.ViewModels;
 /// Provides an overview of key business metrics, recent transactions, and quick actions.
 /// Widget data loading is delegated to <see cref="DashboardLayoutViewModel"/>.
 /// </summary>
-public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICleanupViewModel
+public partial class DashboardPageViewModel : ChartPageViewModelBase, ICleanupViewModel
 {
+    protected override void ReloadForChartSettings(bool styleChangeOnly) => LoadDashboardData();
+
+    protected override ChartLoaderService ChartLoaderFor(ChartDataType? chartDataType) => GetChartLoaderForType(chartDataType);
+
     [ObservableProperty]
     private bool _hasPremium;
 
     #region Date Range
 
-    /// <summary>
-    /// Gets the shared chart settings service.
-    /// </summary>
-    private ChartSettingsService ChartSettings => ChartSettingsService.Instance;
-
     // Flag to prevent duplicate data loading when changing settings locally
-    private bool _isLocalSettingChange;
-
-    /// <summary>
-    /// Available date range options.
-    /// </summary>
-    public ObservableCollection<string> DateRangeOptions { get; } = new(DatePresetNames.StandardDateRangeOptions);
-
-    /// <summary>
-    /// Gets or sets the selected date range (delegates to shared service).
-    /// </summary>
-    public string SelectedDateRange
-    {
-        get => ChartSettings.SelectedDateRange;
-        set
-        {
-            if (ChartSettings.SelectedDateRange != value)
-            {
-                var oldValue = ChartSettings.SelectedDateRange;
-                _isLocalSettingChange = true;
-                try
-                {
-                    ChartSettings.SelectedDateRange = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(IsCustomDateRange));
-                    OnPropertyChanged(nameof(ComparisonPeriodLabel));
-                    OnPropertyChanged(nameof(DateRangeDisplayText));
-
-                    if (value == DateRangePreset.CustomRange.GetDisplayName())
-                    {
-                        OpenCustomDateRangeModal();
-                    }
-                    else if (oldValue != value)
-                    {
-                        // Explicitly notify even if value unchanged (service may have set it first)
-                        ChartSettings.HasAppliedCustomRange = false;
-                        OnPropertyChanged(nameof(HasAppliedCustomRange));
-                        OnPropertyChanged(nameof(AppliedDateRangeText));
-                        LoadDashboardData();
-                    }
-                }
-                finally
-                {
-                    _isLocalSettingChange = false;
-                }
-            }
-        }
-    }
-
     // Stores the previous selection before opening custom range modal
-    private string _previousDateRange = DateRangePreset.ThisMonth.GetDisplayName();
-
-    /// <summary>
-    /// Gets or sets the start date (delegates to shared service).
-    /// </summary>
-    public DateTime StartDate
-    {
-        get => ChartSettings.StartDate;
-        set
-        {
-            if (ChartSettings.StartDate != value)
-            {
-                ChartSettings.StartDate = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the end date (delegates to shared service).
-    /// </summary>
-    public DateTime EndDate
-    {
-        get => ChartSettings.EndDate;
-        set
-        {
-            if (ChartSettings.EndDate != value)
-            {
-                ChartSettings.EndDate = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets whether a custom date range has been applied (delegates to shared service).
-    /// </summary>
-    public bool HasAppliedCustomRange
-    {
-        get => ChartSettings.HasAppliedCustomRange;
-        set
-        {
-            if (ChartSettings.HasAppliedCustomRange != value)
-            {
-                ChartSettings.HasAppliedCustomRange = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(AppliedDateRangeText));
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets the formatted text showing the applied custom date range.
-    /// </summary>
-    public string AppliedDateRangeText => ChartSettings.AppliedDateRangeText;
-
-    /// <summary>
-    /// Gets the formatted text showing the currently selected date range span.
-    /// </summary>
-    public string DateRangeDisplayText => ChartSettings.DateRangeDisplayText;
-
-    /// <summary>
-    /// Gets whether the custom date range option is selected.
-    /// </summary>
-    public bool IsCustomDateRange => SelectedDateRange == DateRangePreset.CustomRange.GetDisplayName();
-
-    /// <summary>
-    /// Gets the label for comparison period based on selected date range (delegates to shared service).
-    /// </summary>
-    public string ComparisonPeriodLabel => ChartSettings.ComparisonPeriodLabel;
-
-    /// <summary>
-    /// Opens the custom date range modal.
-    /// </summary>
-    private void OpenCustomDateRangeModal()
-    {
-        // Store the previous selection before opening the modal
-        // so we can restore it if the user cancels
-        if (SelectedDateRange != DateRangePreset.CustomRange.GetDisplayName())
-        {
-            _previousDateRange = SelectedDateRange;
-        }
-
-        var earliestDate = _companyManager?.CompanyData?.GetEarliestDate() ?? StartDate;
-        var modalStartDate = HasAppliedCustomRange ? StartDate : earliestDate;
-
-        App.CustomDateRangeModal?.Open(modalStartDate, EndDate,
-            onApply: (start, end) =>
-            {
-                StartDate = start.Date;
-                // Inclusive end-of-day so transactions stored later in the user's day (or with a UTC timestamp ahead of local time) aren't filtered out of stat-card aggregations.
-                EndDate = end.Date.AddDays(1).AddTicks(-1);
-                HasAppliedCustomRange = true;
-                OnPropertyChanged(nameof(AppliedDateRangeText));
-                OnPropertyChanged(nameof(DateRangeDisplayText));
-                LoadDashboardData();
-            },
-            onCancel: () =>
-            {
-                // If no custom range was previously applied, revert to the previous selection
-                if (!HasAppliedCustomRange)
-                {
-                    ChartSettings.SelectedDateRange = _previousDateRange;
-                    OnPropertyChanged(nameof(SelectedDateRange));
-                    OnPropertyChanged(nameof(DateRangeDisplayText));
-                }
-            });
-    }
-
     #endregion
 
     #region Chart Type
-
-    /// <summary>
-    /// Available chart type options for the selector.
-    /// </summary>
-    public string[] ChartTypeOptions { get; } = ["Area", "Column", "Line", "Step Line", "Scatter"];
-
-    /// <summary>
-    /// Gets or sets the selected chart type (delegates to shared service).
-    /// </summary>
-    public string SelectedChartType
-    {
-        get => ChartSettings.SelectedChartType;
-        set
-        {
-            if (ChartSettings.SelectedChartType != value)
-            {
-                _isLocalSettingChange = true;
-                try
-                {
-                    ChartSettings.SelectedChartType = value;
-                    OnPropertyChanged();
-                    LoadDashboardData();
-                }
-                finally
-                {
-                    _isLocalSettingChange = false;
-                }
-            }
-        }
-    }
 
     #endregion
 
@@ -275,7 +87,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
 
     #region Company Data Reference
 
-    private CompanyManager? _companyManager;
 
     #endregion
 
@@ -499,33 +310,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         LoadDashboardData();
     }
 
-    private void OnChartSettingsChartTypeChanged(object? sender, string chartType)
-    {
-        // Only reload if the change came from another page
-        if (!_isLocalSettingChange)
-        {
-            OnPropertyChanged(nameof(SelectedChartType));
-            LoadDashboardData();
-        }
-    }
-
-    private void OnChartSettingsDateRangeChanged(object? sender, string dateRange)
-    {
-        // Only reload if the change came from another page
-        if (!_isLocalSettingChange)
-        {
-            OnPropertyChanged(nameof(SelectedDateRange));
-            OnPropertyChanged(nameof(StartDate));
-            OnPropertyChanged(nameof(EndDate));
-            OnPropertyChanged(nameof(HasAppliedCustomRange));
-            OnPropertyChanged(nameof(AppliedDateRangeText));
-            OnPropertyChanged(nameof(DateRangeDisplayText));
-            OnPropertyChanged(nameof(IsCustomDateRange));
-            OnPropertyChanged(nameof(ComparisonPeriodLabel));
-            LoadDashboardData();
-        }
-    }
-
     #endregion
 
     #region Data Loading
@@ -643,8 +427,7 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         var data = _companyManager?.CompanyData;
         if (data == null || !IsOnScreen) return;
 
-        // A preset's dates are worked out when it is picked.
-        ChartSettings.UpdateDateRangeFromSelection();
+        RefreshPresetDates();
 
         // Correct rental statuses before displaying
         CorrectRentalStatuses(data);
@@ -688,157 +471,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     #endregion
 
     #region Chart Context Menu Overrides
-
-    /// <summary>
-    /// Event raised when a chart image should be saved.
-    /// The View should subscribe to this and handle the actual save dialog.
-    /// </summary>
-    public event EventHandler<SaveChartImageEventArgs>? SaveChartImageRequested;
-
-    /// <inheritdoc />
-    protected override void OnSaveChartAsImage()
-    {
-        SaveChartImageRequested?.Invoke(this, new SaveChartImageEventArgs { ChartId = SelectedChartDataType?.GetDisplayName() ?? "" });
-    }
-
-    /// <summary>
-    /// Event raised when exporting to Google Sheets starts or completes.
-    /// </summary>
-    public event EventHandler<GoogleSheetsExportEventArgs>? GoogleSheetsExportStatusChanged;
-
-    /// <inheritdoc />
-    protected override void OnExportToGoogleSheets()
-    {
-        // Fire and forget the async operation
-        _ = ExportToGoogleSheetsAsync();
-    }
-
-    /// <summary>
-    /// Exports the chart data to Google Sheets asynchronously.
-    /// </summary>
-    private async Task ExportToGoogleSheetsAsync()
-    {
-        var loader = GetChartLoaderForType(SelectedChartDataType);
-        var exportData = loader.GetGoogleSheetsExportData(SelectedChartDataType);
-        if (exportData.Count == 0)
-        {
-            GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-            {
-                IsSuccess = false,
-                ErrorMessage = "No chart data to export."
-            });
-            return;
-        }
-
-        // Notify that export is starting (with cancellation support)
-        var cts = new CancellationTokenSource();
-        GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-        {
-            IsExporting = true,
-            CancellationTokenSource = cts
-        });
-
-        try
-        {
-            // Ensure Google is authorized (auto-initiates OAuth if needed)
-            var isAuthenticated = await GoogleCredentialsManager.EnsureAuthenticatedAsync(cts.Token);
-            if (!isAuthenticated)
-            {
-                GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-                {
-                    IsSuccess = false,
-                    ErrorMessage = "Google Sheets authorization was not completed. Please try again."
-                });
-                return;
-            }
-
-            var companyName = App.CompanyManager?.CurrentCompanyName ?? "Argo Books";
-            var chartExportData = loader.GetExportDataForChart(SelectedChartDataType);
-            var chartTitle = SelectedChartDataType?.GetDisplayName() ?? chartExportData?.ChartTitle ?? "Chart";
-
-            // Use Pie chart type for distribution charts, match chart style for time-based charts
-            ArgoBooks.Core.Services.GoogleSheetsService.ChartType chartType;
-            if (chartExportData?.ChartType == ChartType.Distribution)
-            {
-                chartType = GoogleSheetsService.ChartType.Pie;
-            }
-            else
-            {
-                chartType = loader.SelectedChartStyle switch
-                {
-                    ChartStyle.Line => GoogleSheetsService.ChartType.Line,
-                    ChartStyle.Area => GoogleSheetsService.ChartType.Area,
-                    ChartStyle.StepLine => GoogleSheetsService.ChartType.StepLine,
-                    ChartStyle.Scatter => GoogleSheetsService.ChartType.Scatter,
-                    _ => GoogleSheetsService.ChartType.Column
-                };
-            }
-
-            cts.Token.ThrowIfCancellationRequested();
-
-            var googleSheetsService = new GoogleSheetsService(App.ErrorLogger);
-            var url = await googleSheetsService.ExportFormattedDataToGoogleSheetsAsync(
-                exportData,
-                chartTitle,
-                chartType,
-                companyName,
-                cts.Token
-            );
-
-            if (!string.IsNullOrEmpty(url))
-            {
-                // Open the spreadsheet in the browser
-                var browserOpened = GoogleSheetsService.OpenInBrowser(url);
-
-                GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-                {
-                    IsSuccess = true,
-                    SpreadsheetUrl = url
-                });
-
-                if (!browserOpened)
-                {
-                    await App.ShowWarningDialogAsync(
-                        "Browser Error".Translate(),
-                        "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url));
-                }
-            }
-            else
-            {
-                GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-                {
-                    IsSuccess = false,
-                    ErrorMessage = "Failed to create spreadsheet."
-                });
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-            {
-                IsSuccess = false,
-                ErrorMessage = null // Cancelled by user, no error message needed
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Google Sheets export failed - invalid operation");
-            GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-            {
-                IsSuccess = false,
-                ErrorMessage = ex.Message
-            });
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Google Sheets export failed");
-            GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-            {
-                IsSuccess = false,
-                ErrorMessage = $"Failed to export to Google Sheets: {ex.Message}"
-            });
-        }
-    }
 
     /// <summary>
     /// Event raised when exporting to Excel is requested.
@@ -892,11 +524,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     }
 
     /// <summary>
-    /// Gets the chart loader service. Falls back to a shared instance for non-widget operations.
-    /// </summary>
-    public ChartLoaderService ChartLoaderService { get; } = new();
-
-    /// <summary>
     /// Finds the ChartLoaderService for the widget matching the given chart type,
     /// falling back to the dashboard-level instance.
     /// </summary>
@@ -917,48 +544,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         }
 
         return ChartLoaderService;
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    /// <summary>
-    /// Checks if there is sufficient data coverage for the prior comparison period.
-    /// Returns false if the earliest transaction date is after the prior period start,
-    /// which would make the comparison misleading.
-    /// </summary>
-    internal static bool HasSufficientPriorData(CompanyData data, DateTime prevStartDate)
-    {
-        var earliestRevenue = data.Revenues.Count > 0 ? data.Revenues.Min(r => r.Date) : DateTime.MaxValue;
-        var earliestExpense = data.Expenses.Count > 0 ? data.Expenses.Min(e => e.Date) : DateTime.MaxValue;
-        var earliestDate = earliestRevenue < earliestExpense ? earliestRevenue : earliestExpense;
-
-        // If no data at all, no meaningful comparison
-        if (earliestDate == DateTime.MaxValue)
-            return false;
-
-        return earliestDate <= prevStartDate;
-    }
-
-    internal static double? CalculatePercentageChange(decimal previous, decimal current)
-    {
-        // Return null when there's no previous period data to compare against
-        if (previous == 0)
-        {
-            return null;
-        }
-        return (double)((current - previous) / previous * 100);
-    }
-
-    internal static string? FormatPercentageChange(double? change)
-    {
-        if (!change.HasValue)
-        {
-            return null;
-        }
-        // Use absolute value since the arrow indicates direction
-        return $"{Math.Abs(change.Value):F1}%";
     }
 
     #endregion

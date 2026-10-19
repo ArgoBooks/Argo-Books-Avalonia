@@ -94,7 +94,7 @@ public class Rl1Service(PayrollRateService? rates = null)
     }
 
     private static bool IsQuebec(PayRunLine line, Employee employee) =>
-        T4Service.ProvinceOf(line, employee) == "QC";
+        CraFormat.IsQuebec(T4Service.ProvinceOf(line, employee));
 
     private static Rl1Slip BuildSlip(Employee employee, List<PayRunLine> lines, EarningsCeilings ceilings)
     {

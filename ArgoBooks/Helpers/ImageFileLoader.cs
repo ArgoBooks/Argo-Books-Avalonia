@@ -21,8 +21,7 @@ public static class ImageFileLoader
     /// Where a converted copy is staged before the caller copies it into the company. The
     /// caller keeps its own copy, so nothing here outlives the pick that produced it.
     /// </summary>
-    private static string ConvertedDirectory { get; } = Path.Combine(
-        Path.GetTempPath(), "ArgoBooks", "PickedImages");
+    private static string ConvertedDirectory { get; } = Path.Combine(Core.Services.AppPaths.Temp, "PickedImages");
 
     /// <summary>
     /// Clears the staging directory. Called at startup rather than after each pick, because
