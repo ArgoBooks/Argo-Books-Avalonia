@@ -128,7 +128,7 @@ foreach ($file in $toSign) { Copy-Item -LiteralPath ($file.FullName + '.sig') -D
 if (-not $Sandbox) {
     $release = [ordered]@{
         version   = $version
-        date      = [DateTime]::UtcNow.ToString('yyyy-MM-dd')
+        date      = (Get-Date).ToString('yyyy-MM-dd')
         downloads = $downloads
     }
     [System.IO.File]::WriteAllText((Join-Path $updatesDir 'release.json'), ($release | ConvertTo-Json -Depth 3), (New-Object System.Text.UTF8Encoding($false)))
