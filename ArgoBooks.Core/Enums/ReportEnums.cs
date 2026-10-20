@@ -272,7 +272,11 @@ public enum AccountingReportType
     TaxSummary,
     ProductSales,
     PayrollRemittance,
-    CustomerStatement
+    CustomerStatement,
+    SalesByCustomer,
+    ExpensesBySupplier,
+    PayrollSummary,
+    Rentals
 }
 
 /// <summary>
@@ -455,6 +459,10 @@ public static class ReportEnumExtensions
             AccountingReportType.ProductSales => "Sales by Product",
             AccountingReportType.PayrollRemittance => "Payroll Remittance",
             AccountingReportType.CustomerStatement => "Customer Statement",
+            AccountingReportType.SalesByCustomer => "Sales by Customer",
+            AccountingReportType.ExpensesBySupplier => "Expenses by Supplier",
+            AccountingReportType.PayrollSummary => "Payroll Summary",
+            AccountingReportType.Rentals => "Rentals",
             _ => reportType.ToString()
         };
     }

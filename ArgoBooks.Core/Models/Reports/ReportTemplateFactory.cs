@@ -31,6 +31,10 @@ public static class ReportTemplateFactory
         public const string ProductSales = "Sales by Product";
         public const string PayrollRemittance = "Payroll Remittance";
         public const string CustomerStatement = "Customer Statement";
+        public const string SalesByCustomer = "Sales by Customer";
+        public const string ExpensesBySupplier = "Expenses by Supplier";
+        public const string PayrollSummary = "Payroll Summary";
+        public const string Rentals = "Rentals";
     }
 
     /// <summary>
@@ -58,7 +62,11 @@ public static class ReportTemplateFactory
                templateName == TemplateNames.TaxSummary ||
                templateName == TemplateNames.ProductSales ||
                templateName == TemplateNames.PayrollRemittance ||
-               templateName == TemplateNames.CustomerStatement;
+               templateName == TemplateNames.CustomerStatement ||
+               templateName == TemplateNames.SalesByCustomer ||
+               templateName == TemplateNames.ExpensesBySupplier ||
+               templateName == TemplateNames.PayrollSummary ||
+               templateName == TemplateNames.Rentals;
     }
 
     /// <summary>
@@ -85,6 +93,10 @@ public static class ReportTemplateFactory
             TemplateNames.ProductSales => CreateAccountingTemplate(AccountingReportType.ProductSales, "Sales by Product", DatePresetNames.YearToDate),
             TemplateNames.PayrollRemittance => CreateAccountingTemplate(AccountingReportType.PayrollRemittance, "Payroll Remittance", DatePresetNames.ThisMonth),
             TemplateNames.CustomerStatement => CreateAccountingTemplate(AccountingReportType.CustomerStatement, "Customer Statement", DatePresetNames.LastMonth),
+            TemplateNames.SalesByCustomer => CreateAccountingTemplate(AccountingReportType.SalesByCustomer, "Sales by Customer", DatePresetNames.YearToDate),
+            TemplateNames.ExpensesBySupplier => CreateAccountingTemplate(AccountingReportType.ExpensesBySupplier, "Expenses by Supplier", DatePresetNames.YearToDate),
+            TemplateNames.PayrollSummary => CreateAccountingTemplate(AccountingReportType.PayrollSummary, "Payroll Summary", DatePresetNames.YearToDate),
+            TemplateNames.Rentals => CreateAccountingTemplate(AccountingReportType.Rentals, "Rentals", DatePresetNames.ThisMonth),
             _ => new ReportConfiguration()
         };
     }

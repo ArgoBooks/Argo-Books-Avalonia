@@ -181,6 +181,10 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             AccountingReportType.PayrollRemittance => GetPayrollRemittanceData(),
             AccountingReportType.ProductSales => GetProductSalesData(),
             AccountingReportType.CustomerStatement => GetCustomerStatementData(),
+            AccountingReportType.SalesByCustomer => GetSalesByCustomerData(),
+            AccountingReportType.ExpensesBySupplier => GetExpensesBySupplierData(),
+            AccountingReportType.PayrollSummary => GetPayrollSummaryData(),
+            AccountingReportType.Rentals => GetRentalsData(),
             _ => new AccountingTableData { Title = "Unknown Report" }
         };
     }
@@ -1466,6 +1470,309 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         }
 
         data.Footnote = $"This statement covers {FormatStatementDate(start)} to {FormatStatementDate(end)} only. Invoices from other dates are not listed.";
+        return data;
+    }
+
+    #endregion
+
+    #region Sales by Customer and Expenses by Supplier
+
+    /// <summary>Each customer's sales before tax in the period, less refunds, adding up to the Income Statement's revenue.</summary>
+    private AccountingTableData GetSalesByCustomerData()
+    {
+        var data = new AccountingTableData
+        {
+            Title = "Sales by Customer",
+            Subtitle = GetCurrencySubtitle(),
+            ColumnHeaders = ["Customer", "Sales", "Refunds", "Net Sales", "Share"],
+            ColumnWidthRatios = [0.36, 0.16, 0.16, 0.16, 0.16]
+        };
+
+        var sales = new Dictionary<string, decimal>();
+        var refunds = new Dictionary<string, decimal>();
+        if (companyData != null)
+        {
+            foreach (var revenue in companyData.Revenues.Where(r => IsInDateRange(r.Date)))
+            {
+                var key = revenue.CustomerId ?? "";
+                sales[key] = sales.GetValueOrDefault(key) + ToDisplay(revenue.EffectiveSubtotalUSD, revenue.Date);
+            }
+
+            foreach (var refund in companyData.Payments.Where(p => p.IsRefund && p.Date >= RangeStart && p.Date <= RangeEnd))
+            {
+                var key = !string.IsNullOrEmpty(refund.CustomerId)
+                    ? refund.CustomerId
+                    : InvoicesById.TryGetValue(refund.InvoiceId ?? "", out var invoice) ? invoice.CustomerId : "";
+                refunds[key] = refunds.GetValueOrDefault(key) + ToDisplay(RefundAggregator.PreTaxPortionUSD(refund, InvoicesById), refund.Date);
+            }
+        }
+
+        var rows = sales.Keys.Union(refunds.Keys)
+            .Select(id => (Name: CustomerName(id), Sales: sales.GetValueOrDefault(id), Refunds: refunds.GetValueOrDefault(id)))
+            .Select(c => (c.Name, c.Sales, c.Refunds, Net: c.Sales - c.Refunds))
+            .OrderByDescending(c => c.Net)
+            .ThenBy(c => c.Name)
+            .ToList();
+
+        var totalNet = rows.Sum(c => c.Net);
+        foreach (var c in rows)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = c.Name,
+                Values =
+                [
+                    FormatCurrency(c.Sales),
+                    c.Refunds != 0 ? FormatCurrencyWithSign(-c.Refunds) : "",
+                    FormatCurrencyWithSign(c.Net),
+                    totalNet > 0 ? $"{c.Net / totalNet * 100:0.0}%" : ""
+                ]
+            });
+        }
+
+        if (rows.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No sales in this period", Values = ["", "", "", ""] });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Total",
+            Values =
+            [
+                FormatCurrency(rows.Sum(c => c.Sales)),
+                FormatCurrencyWithSign(-rows.Sum(c => c.Refunds)),
+                FormatCurrencyWithSign(totalNet),
+                totalNet > 0 ? "100.0%" : ""
+            ],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        data.Footnote = "Sales are before tax, the same figures the Income Statement's revenue adds up.";
+        return data;
+    }
+
+    private string CustomerName(string id) =>
+        string.IsNullOrEmpty(id) ? "No customer" : companyData?.GetCustomer(id)?.Name ?? "Unknown customer";
+
+    /// <summary>What was spent with each supplier in the period, before and after tax, stock bought for resale included.</summary>
+    private AccountingTableData GetExpensesBySupplierData()
+    {
+        var data = new AccountingTableData
+        {
+            Title = "Expenses by Supplier",
+            Subtitle = GetCurrencySubtitle(),
+            ColumnHeaders = ["Supplier", "Expenses", "Before Tax", "Tax", "Total"],
+            ColumnWidthRatios = [0.36, 0.13, 0.17, 0.17, 0.17]
+        };
+
+        var rows = (companyData?.Expenses ?? [])
+            .Where(e => IsInDateRange(e.Date))
+            .GroupBy(e => e.SupplierId ?? "")
+            .Select(g => (
+                Name: string.IsNullOrEmpty(g.Key) ? "No supplier" : companyData!.GetSupplier(g.Key)?.Name ?? "Unknown supplier",
+                Count: g.Count(),
+                BeforeTax: g.Sum(e => ToDisplay(e.EffectiveSubtotalUSD, e.Date)),
+                Total: g.Sum(e => ToDisplay(e.EffectiveTotalUSD, e.Date))))
+            .OrderByDescending(s => s.Total)
+            .ThenBy(s => s.Name)
+            .ToList();
+
+        foreach (var s in rows)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = s.Name,
+                Values = [s.Count.ToString(), FormatCurrency(s.BeforeTax), FormatCurrency(s.Total - s.BeforeTax), FormatCurrency(s.Total)]
+            });
+        }
+
+        if (rows.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No expenses in this period", Values = ["", "", "", ""] });
+
+        var beforeTax = rows.Sum(s => s.BeforeTax);
+        var total = rows.Sum(s => s.Total);
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Total",
+            Values = [rows.Sum(s => s.Count).ToString(), FormatCurrency(beforeTax), FormatCurrency(total - beforeTax), FormatCurrency(total)],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        data.Footnote = "Includes stock bought for resale, which the Income Statement counts as cost of goods sold once it sells.";
+        return data;
+    }
+
+    #endregion
+
+    #region Payroll Summary
+
+    /// <summary>What each employee was paid and had withheld, from the same pay runs as the Payroll Remittance, so a voided run and its reversal cancel out.</summary>
+    private AccountingTableData GetPayrollSummaryData()
+    {
+        var data = new AccountingTableData
+        {
+            Title = "Payroll Summary",
+            Subtitle = GetCurrencySubtitle(),
+            ColumnHeaders = ["Employee", "Gross Pay", "CPP/QPP", "EI/QPIP", "Income Tax", "Net Pay"],
+            ColumnWidthRatios = [0.25, 0.15, 0.15, 0.15, 0.15, 0.15]
+        };
+
+        var runs = (companyData?.PayRuns ?? [])
+            .Where(r => r.Status != Models.Payroll.PayRunStatus.Draft && IsInDateRange(r.PayDate))
+            .OrderBy(r => r.PayDate)
+            .ToList();
+
+        var employees = runs
+            .SelectMany(r => r.Lines)
+            .GroupBy(l => l.EmployeeId)
+            .Select(g => (
+                Name: companyData!.Employees.FirstOrDefault(e => e.Id == g.Key)?.Name ?? g.Last().EmployeeName,
+                Gross: g.Sum(l => l.GrossPay),
+                Pension: g.Sum(l => l.CppEmployee + l.Cpp2Employee),
+                Insurance: g.Sum(l => l.EiEmployee + l.QpipEmployee),
+                Tax: g.Sum(l => l.FederalTax + l.ProvincialTax),
+                Net: g.Sum(l => l.NetPay),
+                PensionEmployer: g.Sum(l => l.CppEmployer + l.Cpp2Employer),
+                InsuranceEmployer: g.Sum(l => l.EiEmployer + l.QpipEmployer)))
+            .OrderBy(e => e.Name)
+            .ToList();
+
+        foreach (var e in employees)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = e.Name,
+                Values = [FormatCurrency(e.Gross), FormatCurrency(e.Pension), FormatCurrency(e.Insurance), FormatCurrency(e.Tax), FormatCurrency(e.Net)]
+            });
+        }
+
+        if (employees.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No payroll in this period", Values = ["", "", "", "", ""] });
+
+        var gross = employees.Sum(e => e.Gross);
+        var pensionEmployer = employees.Sum(e => e.PensionEmployer);
+        var insuranceEmployer = employees.Sum(e => e.InsuranceEmployer);
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Total",
+            Values =
+            [
+                FormatCurrency(gross),
+                FormatCurrency(employees.Sum(e => e.Pension)),
+                FormatCurrency(employees.Sum(e => e.Insurance)),
+                FormatCurrency(employees.Sum(e => e.Tax)),
+                FormatCurrency(employees.Sum(e => e.Net))
+            ],
+            RowType = AccountingRowType.TotalRow
+        });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Employer contributions",
+            Values = ["", FormatCurrency(pensionEmployer), FormatCurrency(insuranceEmployer), "", ""]
+        });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Total payroll cost",
+            Values = [FormatCurrency(gross + pensionEmployer + insuranceEmployer), "", "", "", ""],
+            RowType = AccountingRowType.SubtotalRow
+        });
+
+        data.Footnote = runs.Count == 1 ? "From 1 pay run." : $"From {runs.Count} pay runs.";
+        return data;
+    }
+
+    #endregion
+
+    #region Rentals
+
+    /// <summary>What is rented out today and what came back in the period, in the company's currency because rentals are recorded in it.</summary>
+    private AccountingTableData GetRentalsData()
+    {
+        var currency = GetCurrencyCode();
+        string Money(decimal amount) => CurrencyInfo.FormatAmount(amount, currency);
+
+        var data = new AccountingTableData
+        {
+            Title = "Rentals",
+            Subtitle = $"Amounts in {currency}",
+            ColumnHeaders = ["Rental", "Customer", "Due / Returned", "Earned", "Deposit Held"],
+            ColumnWidthRatios = [0.3, 0.22, 0.16, 0.16, 0.16]
+        };
+
+        var today = DateTime.Today;
+        var rentals = companyData?.Rentals ?? [];
+
+        string Items(Models.Rentals.RentalRecord rental) => string.Join(", ", rental.EffectiveLineItems()
+            .Select(li => li.Quantity > 1
+                ? $"{RentalBookings.ItemName(companyData, li.RentalItemId)} x{li.Quantity}"
+                : RentalBookings.ItemName(companyData, li.RentalItemId)));
+
+        decimal Kept(Models.Rentals.RentalRecord rental) =>
+            Math.Max(0m, rental.SecurityDeposit - (rental.DepositRefunded ?? rental.SecurityDeposit));
+
+        decimal Held(Models.Rentals.RentalRecord rental) => rental.Status switch
+        {
+            RentalStatus.Active or RentalStatus.Overdue => rental.SecurityDeposit,
+            RentalStatus.Returned when RentalBookings.DepositRefundPending(companyData, rental) => rental.DepositRefunded ?? 0m,
+            _ => 0m
+        };
+
+        var outNow = rentals
+            .Where(r => r.Status is RentalStatus.Active or RentalStatus.Overdue)
+            .OrderBy(r => r.DueDate)
+            .ToList();
+
+        data.Rows.Add(new AccountingRow { Label = $"RENTED OUT ON {FormatStatementDate(today).ToUpperInvariant()}", RowType = AccountingRowType.SectionHeader, Values = ["", "", "", ""] });
+        foreach (var rental in outNow)
+        {
+            var due = FormatStatementDate(rental.DueDate);
+            data.Rows.Add(new AccountingRow
+            {
+                Label = Items(rental),
+                IndentLevel = 1,
+                Values = [CustomerName(rental.CustomerId), rental.DueDate.Date < today ? $"{due}, overdue" : due, "", Money(Held(rental))]
+            });
+        }
+        if (outNow.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "Nothing is rented out", IndentLevel = 1, Values = ["", "", "", ""] });
+
+        var returned = rentals
+            .Where(r => r.Status == RentalStatus.Returned && r.ReturnDate is { } back && IsInDateRange(back))
+            .OrderBy(r => r.ReturnDate)
+            .ToList();
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = ["", "", "", ""] });
+        data.Rows.Add(new AccountingRow { Label = "RETURNED IN THIS PERIOD", RowType = AccountingRowType.SectionHeader, Values = ["", "", "", ""] });
+        foreach (var rental in returned)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = Items(rental),
+                IndentLevel = 1,
+                Values = [CustomerName(rental.CustomerId), FormatStatementDate(rental.ReturnDate!.Value), Money((rental.TotalCost ?? 0m) + Kept(rental)), Money(Held(rental))]
+            });
+        }
+        if (returned.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "Nothing came back in this period", IndentLevel = 1, Values = ["", "", "", ""] });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Earned from rentals returned in this period",
+            Values = ["", "", Money(returned.Sum(r => (r.TotalCost ?? 0m) + Kept(r))), ""],
+            RowType = AccountingRowType.SubtotalRow
+        });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Deposits held today",
+            Values = ["", "", "", Money(rentals.Sum(Held))],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        data.Footnote = "Earned is the rental charges plus any deposit kept. Reserved and cancelled rentals are not listed.";
         return data;
     }
 

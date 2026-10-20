@@ -26,7 +26,11 @@ See [Calculations](Calculations.md) for the rules governing how the numbers in e
 - Customer Statement
 - Tax Summary
 - Sales by Product
+- Sales by Customer
+- Expenses by Supplier
 - Payroll Remittance
+- Payroll Summary
+- Rentals
 
 ## Creating a report
 
