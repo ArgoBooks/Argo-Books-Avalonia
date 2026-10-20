@@ -41,7 +41,8 @@ public class ReportRenderer : IDisposable
 
     // Axes/grid stay local; series colors come from ArgoBooks.Core.ChartColors
     // so dashboard, Analytics page, and PDF reports share the same mapping.
-    private static readonly SKColor ChartAxisColor = SKColor.Parse(AppColors.ChartAxis);
+    // Report text is black rather than grey, so it stays readable on a dim screen or a page printed with low ink.
+    private static readonly SKColor ChartAxisColor = SKColors.Black;
     private static readonly SKColor ChartGridColor = SKColor.Parse(AppColors.ChartGrid);
 
     /// <summary>
@@ -1116,7 +1117,7 @@ public class ReportRenderer : IDisposable
         // Just show text, no background rectangle
         using var noDataFont = new SKFont(_defaultTypeface, 12 * _renderScale);
         using var noDataPaint = new SKPaint();
-        noDataPaint.Color = SKColors.Gray;
+        noDataPaint.Color = SKColors.Black;
         noDataPaint.IsAntialias = true;
         canvas.DrawText(Tr("No data available"), chartArea.MidX, chartArea.MidY, SKTextAlign.Center, noDataFont, noDataPaint);
     }
@@ -1686,7 +1687,7 @@ public class ReportRenderer : IDisposable
                 var legendY = chartArea.MidY - totalLegendHeight / 2;
                 var circleRadius = 5 * _renderScale;
 
-                using var percentPaint = new SKPaint { Color = new SKColor(160, 160, 160), IsAntialias = true };
+                using var percentPaint = new SKPaint { Color = SKColors.Black, IsAntialias = true };
 
                 foreach (var slice in slices)
                 {
@@ -3701,7 +3702,6 @@ public class ReportRenderer : IDisposable
         {
             currentY += dataRowHeight * 0.3f;
             using var footnotePaint = new SKPaint { Color = ParseColor(element.DataRowTextColor), IsAntialias = true };
-            footnotePaint.Color = footnotePaint.Color.WithAlpha(150);
             canvas.DrawText(tableData.Footnote, rect.MidX, currentY + dataFontSize, SKTextAlign.Center, italicFont, footnotePaint);
         }
 
@@ -3759,7 +3759,6 @@ public class ReportRenderer : IDisposable
         using var titleFont = new SKFont(_boldTypeface, titleFontSize);
 
         using var blackPaint = new SKPaint { Color = SKColors.Black, IsAntialias = true };
-        using var grayPaint = new SKPaint { Color = SKColor.Parse(AppColors.GrayDark), IsAntialias = true };
 
         var logoSize = 40f * _renderScale;
         var logoPadding = 10f * _renderScale;
@@ -3813,7 +3812,7 @@ public class ReportRenderer : IDisposable
 
         if (addressParts.Count > 0)
         {
-            canvas.DrawText(string.Join(", ", addressParts), textStartX, currentY, SKTextAlign.Left, detailFont, grayPaint);
+            canvas.DrawText(string.Join(", ", addressParts), textStartX, currentY, SKTextAlign.Left, detailFont, blackPaint);
             currentY += detailFontSize + 1 * _renderScale;
         }
 
@@ -3826,7 +3825,7 @@ public class ReportRenderer : IDisposable
 
         if (contactParts.Count > 0)
         {
-            canvas.DrawText(string.Join("  |  ", contactParts), textStartX, currentY, SKTextAlign.Left, detailFont, grayPaint);
+            canvas.DrawText(string.Join("  |  ", contactParts), textStartX, currentY, SKTextAlign.Left, detailFont, blackPaint);
             currentY += detailFontSize + 2 * _renderScale;
         }
 
@@ -3860,7 +3859,7 @@ public class ReportRenderer : IDisposable
         // Draw timestamp
         using var footerFont = new SKFont(_defaultTypeface, 10 * _renderScale);
         using var footerPaint = new SKPaint();
-        footerPaint.Color = SKColors.Gray;
+        footerPaint.Color = SKColors.Black;
         footerPaint.IsAntialias = true;
 
         var timeFormat = _config.Use24HourFormat ? "HH:mm" : "h:mm tt";
@@ -4103,7 +4102,7 @@ public class ReportRenderer : IDisposable
 
         using var font = new SKFont(_defaultTypeface, 10 * _renderScale);
         using var textPaint = new SKPaint();
-        textPaint.Color = SKColors.Gray;
+        textPaint.Color = SKColors.Black;
         textPaint.IsAntialias = true;
         canvas.DrawText(message, rect.MidX, rect.MidY, SKTextAlign.Center, font, textPaint);
 

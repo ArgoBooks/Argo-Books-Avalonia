@@ -1157,7 +1157,7 @@ public class AccountingTableReportElement : ReportElementBase
     {
         get;
         set => SetField(ref field, value);
-    } = AppColors.ReportSlate;
+    } = AppColors.Black;
 
     [JsonPropertyName("subtotalBackgroundColor")]
     public string SubtotalBackgroundColor
@@ -1185,7 +1185,7 @@ public class AccountingTableReportElement : ReportElementBase
     {
         get;
         set => SetField(ref field, value);
-    } = AppColors.ReportSlate;
+    } = AppColors.Black;
 
     [JsonPropertyName("gridLineColor")]
     public string GridLineColor
