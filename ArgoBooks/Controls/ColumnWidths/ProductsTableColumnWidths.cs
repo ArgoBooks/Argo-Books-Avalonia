@@ -14,6 +14,9 @@ public partial class ProductsTableColumnWidths : TableColumnWidthsBase
     private bool _isExpensesTab = true;
 
     [ObservableProperty]
+    private double _selectColumnWidth = TableColumnWidths.SelectWidth;
+
+    [ObservableProperty]
     private double _nameColumnWidth = 150;
 
     [ObservableProperty]
@@ -42,8 +45,10 @@ public partial class ProductsTableColumnWidths : TableColumnWidthsBase
 
     public ProductsTableColumnWidths()
     {
-        ColumnOrder = ["Name", "Type", "Description", "Category", "Supplier", "Reorder", "Overstock", "TrackInventory", "Actions"];
+        ColumnOrder = ["Select", "Name", "Type", "Description", "Category", "Supplier", "Reorder", "Overstock", "TrackInventory", "Actions"];
 
+        // Shown only in select mode, as a column of its own so the others shrink to make room for the checkboxes.
+        RegisterColumn("Select", new ColumnDef { IsFixed = true, FixedWidth = TableColumnWidths.SelectWidth, MinWidth = TableColumnWidths.SelectWidth, IsVisible = false }, w => SelectColumnWidth = w);
         RegisterColumn("Name", new TabColumnDef { ExpensesStar = 1.2, RevenueStar = 1.5, MinWidth = 120, PreferredWidth = 150 }, w => NameColumnWidth = w);
         RegisterColumn("Type", new TabColumnDef { ExpensesStar = 0.6, RevenueStar = 0.8, MinWidth = 60, PreferredWidth = 80 }, w => TypeColumnWidth = w);
         RegisterColumn("Description", new TabColumnDef { ExpensesStar = 1.2, RevenueStar = 2.0, MinWidth = 84, PreferredWidth = 150 }, w => DescriptionColumnWidth = w);

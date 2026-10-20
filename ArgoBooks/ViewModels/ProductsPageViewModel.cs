@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Enums;
@@ -8,6 +9,7 @@ using ArgoBooks.Utilities;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ArgoBooks.Helpers;
+using ArgoBooks.Localization;
 
 namespace ArgoBooks.ViewModels;
 
@@ -88,6 +90,10 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
         OnPropertyChanged(nameof(IsRevenueTabSelected));
         OnPropertyChanged(nameof(CanAddProduct));
         ColumnWidths.SetTabMode(IsExpensesTabSelected);
+
+        // The two sides have different categories, so a selection does not carry over.
+        if (Selection.IsActive)
+            Selection.IsActive = false;
         FilterProducts();
     }
 
@@ -166,6 +172,11 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
     /// </summary>
     public ProductsPageViewModel()
     {
+        // The column widths outlive the page, so a page left in select mode must not leave room for checkboxes.
+        ColumnWidths.SetColumnVisibility("Select", false);
+        Selection = new TableSelection(() => CurrentProducts);
+        Selection.ActiveChanged += OnSelectionActiveChanged;
+
         LoadProducts();
 
         EnableDeferredUndoRefresh(IsThisPage, LoadProducts);
@@ -187,6 +198,8 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
+        ColumnWidths.SetColumnVisibility("Select", false);
+        Selection.Detach();
         if (App.ProductModalsViewModel != null)
         {
             App.ProductModalsViewModel.ProductSaved -= OnProductSaved;
@@ -352,12 +365,79 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
 
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
+        Selection.UpdateShown(displayItems.Select(d => d.Id), _allProducts.Select(p => p.Id));
+
         var pagedProducts = Paginate(displayItems, "product");
 
         targetCollection.ReplaceAll(pagedProducts);
+        Selection.MarkRows();
 
         OnPropertyChanged(nameof(CurrentProducts));
     }
+
+    #endregion
+
+    #region Bulk Edit
+
+    public TableSelection Selection { get; }
+
+    public ObservableCollection<NamedOption> BulkCategoryOptions { get; } = [];
+
+    [ObservableProperty]
+    private NamedOption? _bulkCategory;
+
+    private void OnSelectionActiveChanged(bool active)
+    {
+        ColumnWidths.SetColumnVisibility("Select", active);
+        if (active)
+            LoadBulkOptions();
+    }
+
+    private void LoadBulkOptions()
+    {
+        var data = App.CompanyManager?.CompanyData;
+        var type = IsExpensesTabSelected ? CategoryType.Expense : CategoryType.Revenue;
+        OptionLoader.Fill(BulkCategoryOptions,
+            OptionLoader.Categories(data, type).AsOptions<NamedOption>(),
+            new NamedOption { Id = string.Empty, Name = "(No category)".Translate() });
+    }
+
+    partial void OnBulkCategoryChanged(NamedOption? value)
+    {
+        if (value == null || App.ProductModalsViewModel is not { } modals) return;
+        var categoryId = string.IsNullOrEmpty(value.Id) ? null : value.Id;
+        var result = modals.SetCategory(Selection.SelectedIds.ToList(), categoryId);
+        var text = categoryId == null
+            ? result.Changed == 1
+                ? "Removed the category from 1 product.".Translate()
+                : "Removed the category from {0} products.".TranslateFormat(result.Changed)
+            : result.Changed == 1
+                ? "Moved 1 product to {0}.".TranslateFormat(value.Name)
+                : "Moved {0} products to {1}.".TranslateFormat(result.Changed, value.Name);
+        Selection.ShowResult(result, text, "The selected products already had that.".Translate(), InUseText);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => BulkCategory = null);
+    }
+
+    [RelayCommand]
+    private async Task DeleteSelected()
+    {
+        var count = Selection.SelectedIds.Count;
+        if (count == 0 || App.ProductModalsViewModel is not { } modals) return;
+
+        if (!await ConfirmDeleteAsync(
+                count == 1 ? "Delete Product".Translate() : "Delete Products".Translate(),
+                count == 1
+                    ? "Delete the selected product? You can undo this.".Translate()
+                    : "Delete the {0} selected products? You can undo this.\n\nProducts still used by a transaction, invoice, order or stock are kept.".TranslateFormat(count)))
+            return;
+
+        var result = modals.DeleteMany(Selection.SelectedIds.ToList());
+        Selection.ShowResult(result,
+            result.Changed == 1 ? "Deleted 1 product.".Translate() : "Deleted {0} products.".TranslateFormat(result.Changed),
+            string.Empty, InUseText);
+    }
+
+    private static string InUseText(int count) => "{0} still in use".TranslateFormat(count);
 
     #endregion
 
@@ -417,8 +497,12 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
 /// <summary>
 /// Display model for products in the UI.
 /// </summary>
-public partial class ProductDisplayItem : ObservableObject
+public partial class ProductDisplayItem : ObservableObject, ISelectableRow
 {
+    /// <summary>Ticked in select mode.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
+
     [ObservableProperty]
     private string _id = string.Empty;
 
