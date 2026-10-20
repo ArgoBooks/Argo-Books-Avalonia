@@ -147,6 +147,22 @@ public class SummaryReportsTests
         Assert.Equal(["Paper Mill", "(Expenses with no supplier)", "(Supplier no longer on file)"], DataRows(result).Select(r => r.Label));
     }
 
+    [Fact]
+    public void ExpensesBySupplier_GivesPayrollWagesARowOfTheirOwn()
+    {
+        var data = new CompanyData();
+        data.Suppliers.Add(new Supplier { Id = "S1", Name = "Paper Mill" });
+        data.Expenses.Add(Purchase("E1", "S1", 50m, 0m, new DateTime(2024, 2, 1)));
+        data.Expenses.Add(Purchase("E2", null, 2000m, 0m, new DateTime(2024, 2, 15)));
+        data.Expenses.Add(Purchase("E3", null, 30m, 0m, new DateTime(2024, 2, 20)));
+        data.PayRuns.Add(Run("PR1", new DateTime(2024, 2, 15), PayRunStatus.Approved, Line("EMP1", "Avery Lee", 2500m)));
+        data.PayRuns[0].Lines[0].ExpenseId = "E2";
+
+        var result = Report(data, AccountingReportType.ExpensesBySupplier);
+
+        Assert.Equal(["Paper Mill", "(Payroll wages)", "(Expenses with no supplier)"], DataRows(result).Select(r => r.Label));
+    }
+
     #endregion
 
     #region Payroll Summary

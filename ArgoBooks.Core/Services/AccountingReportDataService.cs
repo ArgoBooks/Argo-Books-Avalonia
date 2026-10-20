@@ -1571,14 +1571,24 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             ColumnWidthRatios = [0.36, 0.13, 0.17, 0.17, 0.17]
         };
 
+        // Wages are paid to employees, not to a supplier, so they get a row of their own rather than counting as missing one.
+        const string payrollKey = "\0payroll";
+        var wageIds = (companyData?.PayRuns ?? [])
+            .SelectMany(r => r.Lines)
+            .Select(l => l.ExpenseId)
+            .Where(id => !string.IsNullOrEmpty(id))
+            .ToHashSet();
+
         var rows = (companyData?.Expenses ?? [])
             .Where(e => IsInDateRange(e.Date))
-            .GroupBy(e => e.SupplierId ?? "")
+            .GroupBy(e => wageIds.Contains(e.Id) ? payrollKey : e.SupplierId ?? "")
             .Select(g => (
-                Name: string.IsNullOrEmpty(g.Key)
-                    ? "(Expenses with no supplier)"
-                    : companyData!.GetSupplier(g.Key)?.Name ?? "(Supplier no longer on file)",
-                Known: !string.IsNullOrEmpty(g.Key) && companyData!.GetSupplier(g.Key) != null,
+                Name: g.Key == payrollKey
+                    ? "(Payroll wages)"
+                    : string.IsNullOrEmpty(g.Key)
+                        ? "(Expenses with no supplier)"
+                        : companyData!.GetSupplier(g.Key)?.Name ?? "(Supplier no longer on file)",
+                Known: g.Key != payrollKey && !string.IsNullOrEmpty(g.Key) && companyData!.GetSupplier(g.Key) != null,
                 Count: g.Count(),
                 BeforeTax: g.Sum(e => ToDisplay(e.EffectiveSubtotalUSD, e.Date)),
                 Total: g.Sum(e => ToDisplay(e.EffectiveTotalUSD, e.Date))))
