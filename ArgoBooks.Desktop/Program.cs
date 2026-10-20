@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Desktop.Services;
 using Avalonia;
@@ -12,13 +13,12 @@ sealed class Program
     public static void Main(string[] args)
     {
         // Velopack starts this executable to run each install, update and uninstall step, and Run handles that and exits before anything else starts.
-        VelopackApp.Build()
+        var velopack = VelopackApp.Build()
             // An update installs only when the user clicks Update, so a downloaded one they have not accepted stays uninstalled.
-            .SetAutoApplyOnStartup(false)
-            .OnAfterInstallFastCallback(_ => { if (OperatingSystem.IsWindows()) WindowsInstallHooks.AfterInstall(); })
-            .OnAfterUpdateFastCallback(_ => { if (OperatingSystem.IsWindows()) WindowsInstallHooks.AfterUpdate(); })
-            .OnBeforeUninstallFastCallback(version => { if (OperatingSystem.IsWindows()) WindowsInstallHooks.BeforeUninstall(version.ToString()); })
-            .Run();
+            .SetAutoApplyOnStartup(false);
+        if (OperatingSystem.IsWindows())
+            AddWindowsInstallHooks(velopack);
+        velopack.Run();
 
         StartupTimeline.MarkMain();
 
@@ -31,6 +31,14 @@ sealed class Program
         BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
     }
+
+    // Velopack only runs install hooks on Windows, and a method marked for Windows covers the calls inside its callbacks too.
+    [SupportedOSPlatform("windows")]
+    private static void AddWindowsInstallHooks(VelopackApp velopack) =>
+        velopack
+            .OnAfterInstallFastCallback(_ => WindowsInstallHooks.AfterInstall())
+            .OnAfterUpdateFastCallback(_ => WindowsInstallHooks.AfterUpdate())
+            .OnBeforeUninstallFastCallback(version => WindowsInstallHooks.BeforeUninstall(version.ToString()));
 
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
