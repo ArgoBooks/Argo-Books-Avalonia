@@ -593,6 +593,17 @@
                                                             ShowAddNew="False" />
                             </StackPanel>
 
+                            <!-- Product -->
+                            <StackPanel Spacing="6">
+                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                           Text="{loc:Loc 'Product'}" />
+                                <controls:SearchableDropdown ItemsSource="{Binding ProductOptions}"
+                                                            SelectedItem="{Binding FilterSelectedProduct}"
+                                                            DisplayMemberPath="Name"
+                                                            Placeholder="{loc:Loc 'Select product...'}"
+                                                            ShowAddNew="False" />
+                            </StackPanel>
+
                             <!-- Date Range - Stacked -->
                             <StackPanel Spacing="6">
                                 <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"

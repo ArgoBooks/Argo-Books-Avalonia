@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Enums;
@@ -57,6 +58,9 @@ public partial class ExpensesPageViewModel : SortablePageViewModelBase
 
     [ObservableProperty]
     private string? _filterCategoryId;
+
+    [ObservableProperty]
+    private string? _filterProductId;
 
     [ObservableProperty]
     private string? _filterAmountMin;
@@ -270,6 +274,11 @@ public ExpensesPageViewModel()
     {
         WireRecurringBanner();
 
+        // The column widths outlive the page, so a page left in select mode must not leave room for checkboxes.
+        ColumnWidths.SetColumnVisibility("Select", false);
+        Selection = new TableSelection(() => Expenses);
+        Selection.ActiveChanged += OnSelectionActiveChanged;
+
         // Set default sort values for expenses
         SortColumn = "Date";
         SortDirection = SortDirection.Descending;
@@ -304,8 +313,10 @@ public ExpensesPageViewModel()
     public override void Cleanup()
     {
         base.Cleanup();
+        ColumnWidths.SetColumnVisibility("Select", false);
         RecurringTransactionService.ExpensesGenerated -= OnRecurringGenerated;
         RecurringSchedules.Cleanup();
+        Selection.Detach();
         if (App.ExpenseModalsViewModel != null)
         {
             App.ExpenseModalsViewModel.ExpenseSaved -= OnExpenseSaved;
@@ -335,6 +346,7 @@ public ExpensesPageViewModel()
             FilterStatus = modals.FilterStatus;
             FilterSupplierId = modals.FilterSupplierId;
             FilterCategoryId = modals.FilterCategoryId;
+            FilterProductId = modals.FilterProductId;
             FilterAmountMin = modals.FilterAmountMin;
             FilterAmountMax = modals.FilterAmountMax;
             FilterDateFrom = modals.FilterDateFrom;
@@ -354,6 +366,7 @@ public ExpensesPageViewModel()
         FilterStatus = "All";
         FilterSupplierId = null;
         FilterCategoryId = null;
+        FilterProductId = null;
         FilterAmountMin = null;
         FilterAmountMax = null;
         FilterDateFrom = null;
@@ -441,6 +454,12 @@ public ExpensesPageViewModel()
         if (!string.IsNullOrEmpty(FilterSupplierId))
         {
             filtered = filtered.Where(p => p.SupplierId == FilterSupplierId);
+        }
+
+        // Any line with the product counts, so an expense or sale of several items is found by each of them.
+        if (!string.IsNullOrEmpty(FilterProductId))
+        {
+            filtered = filtered.Where(p => p.LineItems.Any(li => li.ProductId == FilterProductId));
         }
 
         // Apply category filter (via line item product category)
@@ -562,9 +581,12 @@ public ExpensesPageViewModel()
         // Navigate to highlighted item if set (from dashboard click)
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
+        Selection.UpdateShown(displayItems.Select(d => d.Id), _allExpenses.Select(e => e.Id));
+
         var pagedExpenses = Paginate(displayItems, "expense");
 
         Expenses.ReplaceAll(pagedExpenses);
+        Selection.MarkRows();
     }
 
     private static string GetStatusDisplay(Expense purchase, HashSet<string> lostDamagedIds, HashSet<string> returnedIds)
@@ -573,6 +595,97 @@ public ExpensesPageViewModel()
         if (returnedIds.Contains(purchase.Id)) return "Returned";
         return "Completed";
     }
+
+    #endregion
+
+    #region Bulk Edit
+
+    public TableSelection Selection { get; }
+
+    public ObservableCollection<NamedOption> BulkProductOptions { get; } = [];
+
+    public ObservableCollection<NamedOption> BulkCounterpartyOptions { get; } = [];
+
+    [ObservableProperty]
+    private NamedOption? _bulkProduct;
+
+    [ObservableProperty]
+    private NamedOption? _bulkCounterparty;
+
+    private void OnSelectionActiveChanged(bool active)
+    {
+        ColumnWidths.SetColumnVisibility("Select", active);
+        if (active)
+            LoadBulkOptions();
+    }
+
+    private void LoadBulkOptions()
+    {
+        var data = App.CompanyManager?.CompanyData;
+        OptionLoader.Fill(BulkCounterpartyOptions,
+            OptionLoader.Suppliers(data).AsOptions<NamedOption>(),
+            new NamedOption { Id = string.Empty, Name = "(No supplier)".Translate() });
+
+        // A product that tracks stock is left out: swapping it would move stock between products.
+        BulkProductOptions.Clear();
+        if (data == null) return;
+        foreach (var product in data.Products.Where(p => !p.TrackInventory).OrderBy(p => p.Name))
+        {
+            var category = product.CategoryId != null ? data.GetCategory(product.CategoryId) : null;
+            if (category?.Type == CategoryType.Revenue)
+                continue;
+            BulkProductOptions.Add(new NamedOption { Id = product.Id, Name = product.Name });
+        }
+    }
+
+    partial void OnBulkProductChanged(NamedOption? value)
+    {
+        if (value?.Id is not { Length: > 0 } productId || App.ExpenseModalsViewModel is not { } modals) return;
+        var result = modals.SetProduct(Selection.SelectedIds.ToList(), productId);
+        Selection.ShowResult(result,
+            result.Changed == 1
+                ? "Changed the product of 1 expense to {0}.".TranslateFormat(value.Name)
+                : "Changed the product of {0} expenses to {1}.".TranslateFormat(result.Changed, value.Name),
+            "The selected expenses already had that.".Translate(), MadeElsewhereText);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => BulkProduct = null);
+    }
+
+    partial void OnBulkCounterpartyChanged(NamedOption? value)
+    {
+        if (value == null || App.ExpenseModalsViewModel is not { } modals) return;
+        var counterpartyId = string.IsNullOrEmpty(value.Id) ? null : value.Id;
+        var result = modals.SetCounterparty(Selection.SelectedIds.ToList(), counterpartyId);
+        var text = counterpartyId == null
+            ? result.Changed == 1
+                ? "Removed the supplier from 1 expense.".Translate()
+                : "Removed the supplier from {0} expenses.".TranslateFormat(result.Changed)
+            : result.Changed == 1
+                ? "Changed the supplier of 1 expense to {0}.".TranslateFormat(value.Name)
+                : "Changed the supplier of {0} expenses to {1}.".TranslateFormat(result.Changed, value.Name);
+        Selection.ShowResult(result, text, "The selected expenses already had that.".Translate(), MadeElsewhereText);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => BulkCounterparty = null);
+    }
+
+    [RelayCommand]
+    private async Task DeleteSelected()
+    {
+        var count = Selection.SelectedIds.Count;
+        if (count == 0 || App.ExpenseModalsViewModel is not { } modals) return;
+
+        if (!await ConfirmDeleteAsync(
+                count == 1 ? "Delete Expense".Translate() : "Delete Expenses".Translate(),
+                count == 1
+                    ? "Delete the selected expense? You can undo this.".Translate()
+                    : "Delete the {0} selected expenses? You can undo this.".TranslateFormat(count)))
+            return;
+
+        var result = modals.DeleteMany(Selection.SelectedIds.ToList());
+        Selection.ShowResult(result,
+            result.Changed == 1 ? "Deleted 1 expense.".Translate() : "Deleted {0} expenses.".TranslateFormat(result.Changed),
+            string.Empty, MadeElsewhereText);
+    }
+
+    private static string MadeElsewhereText(int count) => "{0} from payroll".TranslateFormat(count);
 
     #endregion
 
@@ -662,8 +775,12 @@ public ExpensesPageViewModel()
 /// <summary>
 /// Display model for expenses in the UI.
 /// </summary>
-public partial class ExpenseDisplayItem : ObservableObject
+public partial class ExpenseDisplayItem : ObservableObject, ISelectableRow
 {
+    /// <summary>Ticked in select mode.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
+
     /// <summary>Set on entries a recurring schedule produced, until the user accepts them.</summary>
     [ObservableProperty]
     private bool _needsReview;

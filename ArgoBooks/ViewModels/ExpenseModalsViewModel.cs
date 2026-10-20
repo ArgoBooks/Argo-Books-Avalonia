@@ -185,6 +185,32 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
     #endregion
 
+    #region Bulk Edit
+
+    protected override string BulkNoun(int count) => count == 1 ? "expense" : "expenses";
+
+    protected override IEnumerable<Transaction> BulkRecords(CompanyData data) => data.Expenses;
+
+    protected override void BulkRemove(CompanyData data, Transaction record) => data.Expenses.RemoveRecord((Expense)record);
+
+    protected override void BulkRestore(CompanyData data, Transaction record) => data.Expenses.RestoreRecord((Expense)record);
+
+    protected override string? CounterpartyIdOf(Transaction record) => ((Expense)record).SupplierId;
+
+    protected override void SetCounterpartyId(Transaction record, string? id) => ((Expense)record).SupplierId = id;
+
+    // Payroll wages stay as the pay run that made them recorded them.
+    protected override Func<Transaction, bool> MadeElsewhere(CompanyData data)
+    {
+        var payrollIds = data.PayRuns.SelectMany(r => r.Lines)
+            .Select(l => l.ExpenseId)
+            .Where(id => !string.IsNullOrEmpty(id))
+            .ToHashSet();
+        return record => payrollIds.Contains(record.Id);
+    }
+
+    #endregion
+
     #region Item Status Modal
 
     public void OpenMarkAsLostDamagedModal(ExpenseDisplayItem? item)

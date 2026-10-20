@@ -538,6 +538,12 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     private string? _filterCategoryId;
 
     [ObservableProperty]
+    private ProductOption? _filterSelectedProduct;
+
+    [ObservableProperty]
+    private string? _filterProductId;
+
+    [ObservableProperty]
     private string? _filterAmountMin;
 
     [ObservableProperty]
@@ -550,22 +556,23 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     private DateTimeOffset? _filterDateTo;
 
     private sealed record FilterValues(
-        string Status, string? CounterpartyId, string? CategoryId, string? AmountMin, string? AmountMax,
+        string Status, string? CounterpartyId, string? CategoryId, string? ProductId, string? AmountMin, string? AmountMax,
         DateTimeOffset? DateFrom, DateTimeOffset? DateTo, string ReceiptStatus)
     {
-        public static readonly FilterValues Default = new("All", null, null, null, null, null, null, "All");
+        public static readonly FilterValues Default = new("All", null, null, null, null, null, null, null, "All");
     }
 
     private FilterSnapshot<FilterValues>? _filters;
 
     private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
-        () => new(FilterStatus, FilterSelectedCounterparty?.Id, FilterSelectedCategory?.Id,
+        () => new(FilterStatus, FilterSelectedCounterparty?.Id, FilterSelectedCategory?.Id, FilterSelectedProduct?.Id,
             FilterAmountMin, FilterAmountMax, FilterDateFrom, FilterDateTo, FilterReceiptStatus),
         v =>
         {
             FilterStatus = v.Status;
             FilterSelectedCounterparty = v.CounterpartyId == null ? null : CounterpartyOptions.FirstOrDefault(c => c.Id == v.CounterpartyId);
             FilterSelectedCategory = v.CategoryId == null ? null : CategoryOptions.FirstOrDefault(c => c.Id == v.CategoryId);
+            FilterSelectedProduct = v.ProductId == null ? null : ProductOptions.FirstOrDefault(p => p.Id == v.ProductId);
             FilterAmountMin = v.AmountMin;
             FilterAmountMax = v.AmountMax;
             FilterDateFrom = v.DateFrom;
@@ -834,6 +841,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var current = Filters.Current;
         LoadCounterpartyOptionsForFilter();
         LoadCategoryOptionsForFilter();
+        LoadProductOptions();
         // The reload replaced the option objects, so point the selections at the new ones.
         Filters.Set(current);
         Filters.Capture();
@@ -860,6 +868,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     {
         FilterCounterpartyId = FilterSelectedCounterparty?.Id;
         FilterCategoryId = FilterSelectedCategory?.Id;
+        FilterProductId = FilterSelectedProduct?.Id;
         ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
@@ -871,6 +880,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         Filters.Reset();
         FilterCounterpartyId = null;
         FilterCategoryId = null;
+        FilterProductId = null;
         ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
@@ -1871,6 +1881,187 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 App.CheckAndNotifyStockStatus(changes[i].Item, stockBefore[i]);
         }
     }
+
+    #region Bulk Edit
+
+    /// <summary>"expense" or "expenses", "sale" or "sales", for the undo step's description.</summary>
+    protected abstract string BulkNoun(int count);
+
+    protected abstract IEnumerable<Transaction> BulkRecords(CompanyData data);
+
+    protected abstract void BulkRemove(CompanyData data, Transaction record);
+
+    protected abstract void BulkRestore(CompanyData data, Transaction record);
+
+    protected abstract string? CounterpartyIdOf(Transaction record);
+
+    protected abstract void SetCounterpartyId(Transaction record, string? id);
+
+    /// <summary>Which records another one made and keeps in step, such as payroll wages or an invoice's sale, so bulk changes leave them alone.</summary>
+    protected abstract Func<Transaction, bool> MadeElsewhere(CompanyData data);
+
+    private string DocumentType => CategoryTypeFilter == CategoryType.Expense ? "Expense" : "Revenue";
+
+    private bool IsExpenseForm => CategoryTypeFilter == CategoryType.Expense;
+
+    /// <summary>Whether a line moves stock, so swapping its product would move stock between products.</summary>
+    private static bool MovesStock(CompanyData data, LineItem line) =>
+        line.IsStockPurchase || (line.ProductId != null && data.GetProduct(line.ProductId)?.TrackInventory == true);
+
+    private (List<Transaction> Targets, int MadeElsewhere) BulkTargets(CompanyData data, IReadOnlyCollection<string> ids)
+    {
+        var madeElsewhere = MadeElsewhere(data);
+        var selected = BulkRecords(data).Where(r => ids.Contains(r.Id)).ToList();
+        var targets = selected.Where(r => !madeElsewhere(r)).ToList();
+        return (targets, selected.Count - targets.Count);
+    }
+
+    /// <summary>Gives each one-line record the product, as editing its line in the form would; a line that moves stock keeps its product.</summary>
+    public BulkEditResult SetProduct(IReadOnlyCollection<string> ids, string productId)
+    {
+        var data = App.CompanyManager?.CompanyData;
+        var product = data?.GetProduct(productId);
+        if (data == null || product == null || product.TrackInventory) return BulkEditResult.Nothing;
+
+        var (targets, madeElsewhere) = BulkTargets(data, ids);
+        var notOneLine = 0;
+        var movesStock = 0;
+        var unchanged = 0;
+        var edits = new List<(Transaction Record, List<LineItem> OldLines, string OldDescription, List<LineItem> NewLines, string NewDescription)>();
+
+        foreach (var record in targets)
+        {
+            if (record.LineItems.Count != 1) { notOneLine++; continue; }
+            var line = record.LineItems[0];
+            if (MovesStock(data, line)) { movesStock++; continue; }
+            if (line.ProductId == productId) { unchanged++; continue; }
+
+            var oldProductName = line.ProductId != null ? data.GetProduct(line.ProductId)?.Name : null;
+            var newLine = line.Clone();
+            newLine.ProductId = productId;
+            if (string.IsNullOrWhiteSpace(line.Description) || line.Description == oldProductName)
+                newLine.Description = product.Name;
+            var newDescription = record.Description == line.Description ? newLine.Description : record.Description;
+            edits.Add((record, record.LineItems, record.Description, [newLine], newDescription));
+        }
+
+        if (edits.Count == 0)
+            return new BulkEditResult(0, unchanged, madeElsewhere, notOneLine, movesStock, null);
+
+        void Apply(bool toNew)
+        {
+            foreach (var edit in edits)
+            {
+                edit.Record.LineItems = toNew ? edit.NewLines : edit.OldLines;
+                edit.Record.Description = toNew ? edit.NewDescription : edit.OldDescription;
+                edit.Record.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        Apply(toNew: true);
+        var action = new DelegateAction(
+            $"Change the product of {edits.Count} {BulkNoun(edits.Count)}",
+            () => { Apply(toNew: false); RaiseTransactionSaved(); },
+            () => { Apply(toNew: true); RaiseTransactionSaved(); });
+
+        App.UndoRedoManager.RecordAction(action);
+        App.CompanyManager?.MarkAsChanged();
+        RaiseTransactionSaved();
+        return new BulkEditResult(edits.Count, unchanged, madeElsewhere, notOneLine, movesStock, action);
+    }
+
+    /// <summary>Gives each record the supplier or customer, or none when <paramref name="counterpartyId"/> is null, and its receipts follow.</summary>
+    public BulkEditResult SetCounterparty(IReadOnlyCollection<string> ids, string? counterpartyId)
+    {
+        var data = App.CompanyManager?.CompanyData;
+        if (data == null) return BulkEditResult.Nothing;
+
+        var (targets, madeElsewhere) = BulkTargets(data, ids);
+        var changed = targets.Where(r => CounterpartyIdOf(r) != counterpartyId).ToList();
+        var unchanged = targets.Count - changed.Count;
+        if (changed.Count == 0)
+            return new BulkEditResult(0, unchanged, madeElsewhere, 0, 0, null);
+
+        var before = changed.Select(CounterpartyIdOf).ToList();
+
+        void Apply(Func<int, string?> counterpartyOf)
+        {
+            for (var i = 0; i < changed.Count; i++)
+            {
+                SetCounterpartyId(changed[i], counterpartyOf(i));
+                changed[i].UpdatedAt = DateTime.UtcNow;
+                SyncDocumentsToRecord(data, changed[i], DocumentType);
+            }
+        }
+
+        Apply(_ => counterpartyId);
+        var action = new DelegateAction(
+            $"Change the {CounterpartyName.ToLowerInvariant()} of {changed.Count} {BulkNoun(changed.Count)}",
+            () => { Apply(i => before[i]); RaiseTransactionSaved(); },
+            () => { Apply(_ => counterpartyId); RaiseTransactionSaved(); });
+
+        App.UndoRedoManager.RecordAction(action);
+        App.CompanyManager?.MarkAsChanged();
+        RaiseTransactionSaved();
+        return new BulkEditResult(changed.Count, unchanged, madeElsewhere, 0, 0, action);
+    }
+
+    /// <summary>Deletes each record the way deleting it alone would, as one undo step.</summary>
+    public BulkEditResult DeleteMany(IReadOnlyCollection<string> ids)
+    {
+        var data = App.CompanyManager?.CompanyData;
+        if (data == null) return BulkEditResult.Nothing;
+
+        var (targets, madeElsewhere) = BulkTargets(data, ids);
+        if (targets.Count == 0)
+            return new BulkEditResult(0, 0, madeElsewhere, 0, 0, null);
+
+        var receipts = targets.Select(r => data.Receipts.Where(x => x.TransactionId == r.Id).ToList()).ToList();
+        var keys = targets.Select(UsdConversion.KeyOf).ToList();
+        var queued = new List<PendingConversion>[targets.Count];
+        var stockChanges = new List<StockChange>[targets.Count];
+        var reason = IsExpenseForm ? "Expense deleted" : "Revenue deleted";
+
+        void Remove()
+        {
+            for (var i = 0; i < targets.Count; i++)
+            {
+                BulkRemove(data, targets[i]);
+                foreach (var receipt in receipts[i])
+                    data.Receipts.RemoveRecord(receipt);
+                queued[i] = UsdConversion.Snapshot(data, [keys[i]]);
+                UsdConversion.Set(data, keys[i], null);
+                stockChanges[i] = AdjustInventoryForEdit(data, targets[i], targets[i].LineItems, [], IsExpenseForm, reason);
+            }
+            data.MarkAsModified();
+        }
+
+        void Restore()
+        {
+            for (var i = targets.Count - 1; i >= 0; i--)
+            {
+                BulkRestore(data, targets[i]);
+                foreach (var receipt in receipts[i])
+                    data.Receipts.RestoreRecord(receipt);
+                UsdConversion.Restore(data, [keys[i]], queued[i]);
+                RevertInventoryAdjustments(data, stockChanges[i]);
+            }
+            data.MarkAsModified();
+        }
+
+        Remove();
+        var action = new DelegateAction(
+            $"Delete {targets.Count} {BulkNoun(targets.Count)}",
+            () => { Restore(); RaiseTransactionDeleted(); },
+            () => { Remove(); RaiseTransactionDeleted(); });
+
+        App.UndoRedoManager.RecordAction(action);
+        App.CompanyManager?.MarkAsChanged();
+        RaiseTransactionDeleted();
+        return new BulkEditResult(targets.Count, 0, madeElsewhere, 0, 0, action);
+    }
+
+    #endregion
 
     /// <summary>
     /// Deletes an expense or revenue with its receipt, taking back the stock it moved the way

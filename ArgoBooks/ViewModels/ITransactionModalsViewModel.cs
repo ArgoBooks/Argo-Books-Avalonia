@@ -90,6 +90,7 @@ public interface ITransactionModalsViewModel
     string FilterStatus { get; set; }
     CounterpartyOption? FilterSelectedCounterparty { get; set; }
     CategoryOption? FilterSelectedCategory { get; set; }
+    ProductOption? FilterSelectedProduct { get; set; }
     DateTimeOffset? FilterDateFrom { get; set; }
     DateTimeOffset? FilterDateTo { get; set; }
     string? FilterAmountMin { get; set; }

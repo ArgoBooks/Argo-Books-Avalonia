@@ -7,6 +7,11 @@ namespace ArgoBooks.Controls.ColumnWidths;
 /// </summary>
 public partial class TableColumnWidths : TableColumnWidthsBase
 {
+    public const double SelectWidth = 44;
+
+    [ObservableProperty]
+    private double _selectColumnWidth = SelectWidth;
+
     [ObservableProperty]
     private double _idColumnWidth = 100;
 
@@ -56,10 +61,12 @@ public partial class TableColumnWidths : TableColumnWidthsBase
     {
         ColumnOrder =
         [
-            "Id", "Accountant", "Product", "Supplier", "Date", "Quantity",
+            "Select", "Id", "Accountant", "Product", "Supplier", "Date", "Quantity",
             "Amount", "Tax", "Shipping", "Discount", "Fee", "Total", "Receipt", "Status", "Actions"
         ];
 
+        // Shown only in select mode, as a column of its own so the others shrink to make room for the checkboxes.
+        RegisterColumn("Select", new ColumnDef { IsFixed = true, FixedWidth = SelectWidth, MinWidth = SelectWidth, IsVisible = false }, w => SelectColumnWidth = w);
         RegisterColumn("Id", new ColumnDef { StarValue = 1.2, MinWidth = 60, PreferredWidth = 100 }, w => IdColumnWidth = w);
         RegisterColumn("Accountant", new ColumnDef { StarValue = 1.0, MinWidth = 70, PreferredWidth = 120 }, w => AccountantColumnWidth = w);
         RegisterColumn("Product", new ColumnDef { StarValue = 1.5, MinWidth = 100, PreferredWidth = 200 }, w => ProductColumnWidth = w);

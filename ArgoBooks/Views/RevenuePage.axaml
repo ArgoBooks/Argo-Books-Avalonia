@@ -33,7 +33,7 @@
 
         <Panel Grid.Row="1">
             <!-- Main Content -->
-            <Grid RowDefinitions="Auto,Auto,*" Margin="24" IsVisible="{Binding !IsRecurringTab}">
+            <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="24" IsVisible="{Binding !IsRecurringTab}">
             <!-- Statistics Cards Row -->
             <controls:StatCardsRow Grid.Row="0" Margin="0,0,0,24">
                 <controls:StatCard Label="{loc:Loc 'Monthly Revenue'}"
@@ -76,7 +76,75 @@
                 </Grid>
             </Border>
 
-            <table:ArgoTable Grid.Row="2"
+            <!-- Select mode: what is ticked, what to change on it, and the last change with its Undo -->
+            <Border Grid.Row="2"
+                    Classes="selection-mode"
+                    IsVisible="{Binding Selection.IsActive}"
+                    CornerRadius="8"
+                    Padding="16,10"
+                    Margin="0,0,0,12">
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <Button Classes="icon-button"
+                                Command="{Binding Selection.ExitCommand}"
+                                ToolTip.Tip="{loc:Loc 'Exit Selection'}">
+                            <PathIcon Data="{x:Static icons:Icons.Close}" Width="14" Height="14" />
+                        </Button>
+                        <TextBlock Text="{Binding Selection.CountText}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="2"
+                               Text="{loc:Loc 'Tick the sales to change or delete.'}"
+                               IsVisible="{Binding !Selection.HasSelection}"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" IsVisible="{Binding Selection.HasSelection}">
+                        <controls:SearchableDropdown Width="200"
+                                                     ItemsSource="{Binding BulkProductOptions}"
+                                                     SelectedItem="{Binding BulkProduct}"
+                                                     DisplayMemberPath="Name"
+                                                     Placeholder="{loc:Loc 'Set product'}"
+                                                     ShowAddNew="False" />
+                        <controls:SearchableDropdown Width="200"
+                                                     ItemsSource="{Binding BulkCounterpartyOptions}"
+                                                     SelectedItem="{Binding BulkCounterparty}"
+                                                     DisplayMemberPath="Name"
+                                                     Placeholder="{loc:Loc 'Set customer'}"
+                                                     ShowAddNew="False" />
+                        <Button Classes="danger-button"
+                                Command="{Binding DeleteSelectedCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Data="{x:Static icons:Icons.Delete}" Width="14" Height="14" />
+                                <TextBlock Text="{loc:Loc 'Delete'}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.ColumnSpan="3"
+                                Orientation="Horizontal"
+                                Spacing="12"
+                                Margin="38,8,0,0"
+                                IsVisible="{Binding Selection.HasResult}">
+                        <TextBlock Text="{Binding Selection.ResultText}"
+                                   FontSize="13"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Button Classes="secondary-button"
+                                Content="{loc:Loc Undo}"
+                                Command="{Binding Selection.UndoCommand}"
+                                IsEnabled="{Binding Selection.CanUndo}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <table:ArgoTable Grid.Row="3"
                                 Title="{loc:Loc Revenue}"
                                 ItemsSource="{Binding Revenue}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
@@ -212,6 +280,18 @@
 
                 <!-- Extra Buttons (Import menu) -->
                 <table:ArgoTable.ExtraButtonsContent>
+                    <StackPanel Orientation="Horizontal" Spacing="{Binding $parent[table:ArgoTable].HeaderSpacing}">
+                    <Button Classes="secondary-button"
+                            Classes.compact="{Binding $parent[table:ArgoTable].IsCompactMode}"
+                            Classes.medium="{Binding $parent[table:ArgoTable].IsMediumMode}"
+                            Command="{Binding Selection.EnterCommand}"
+                            IsVisible="{Binding !Selection.IsActive}"
+                            ToolTip.Tip="{loc:Loc 'Select sales to change or delete together'}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <PathIcon Data="{x:Static icons:Icons.Check}" Width="16" Height="16" />
+                            <TextBlock Text="{loc:Loc 'Select'}" IsVisible="{Binding $parent[table:ArgoTable].ShowButtonText}" />
+                        </StackPanel>
+                    </Button>
                     <Button x:Name="ImportMenuButton"
                             Classes="primary-button"
                             Classes.compact="{Binding $parent[table:ArgoTable].IsCompactMode}"
@@ -258,11 +338,18 @@
                             <TextBlock Text="{loc:Loc 'Import'}" IsVisible="{Binding $parent[table:ArgoTable].ShowButtonText}" />
                         </StackPanel>
                     </Button>
+                    </StackPanel>
                 </table:ArgoTable.ExtraButtonsContent>
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>
                     <StackPanel Orientation="Horizontal">
+                        <Panel Width="{Binding ColumnWidths.SelectColumnWidth}" IsVisible="{Binding Selection.IsActive}">
+                            <CheckBox IsChecked="{Binding Selection.IsAllSelected}"
+                                      HorizontalAlignment="Left"
+                                      VerticalAlignment="Center"
+                                      ToolTip.Tip="{loc:Loc 'Select every sale the filter shows'}" />
+                        </Panel>
                         <table:ArgoTableHeader Header="{loc:Loc 'ID'}" ColumnName="Id" SortProperty="Id"
                                                    ColumnWidth="{Binding ColumnWidths.IdColumnWidth}"
                                                    IsColumnVisible="{Binding ShowIdColumn}"
@@ -358,6 +445,13 @@
                                         MinHeight="52"
                                         Classes.highlighted-row="{Binding IsHighlighted}">
                                     <StackPanel Orientation="Horizontal">
+                                        <Panel Width="{Binding $parent[ItemsControl].((vm:RevenuePageViewModel)DataContext).ColumnWidths.SelectColumnWidth}"
+                                               IsVisible="{Binding $parent[ItemsControl].((vm:RevenuePageViewModel)DataContext).Selection.IsActive}">
+                                            <CheckBox IsChecked="{Binding IsSelected}"
+                                                      Click="OnRowCheckBoxClick"
+                                                      HorizontalAlignment="Left"
+                                                      VerticalAlignment="Center" />
+                                        </Panel>
                                         <!-- ID -->
                                         <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:RevenuePageViewModel)DataContext).ColumnWidths.IdColumnWidth}"
                                                                  IsColumnVisible="{Binding $parent[ItemsControl].((vm:RevenuePageViewModel)DataContext).ShowIdColumn}">
@@ -687,4 +781,18 @@
     </controls:ColumnVisibilityMenu>
     </Panel>
 
+    <UserControl.Styles>
+        <!-- The same select-mode bar as the Receipts page. -->
+        <Style Selector="Border.selection-mode">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+            <Setter Property="BorderThickness" Value="3,0,0,0" />
+        </Style>
+        <Style Selector="Border.selection-mode Button.icon-button PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style Selector="Border.selection-mode Button.icon-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PrimaryHoverLightBrush}" />
+        </Style>
+    </UserControl.Styles>
 </UserControl>
