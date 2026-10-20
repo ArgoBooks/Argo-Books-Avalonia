@@ -30,6 +30,7 @@ public static class ReportTemplateFactory
         public const string TaxSummary = "Tax Summary";
         public const string ProductSales = "Sales by Product";
         public const string PayrollRemittance = "Payroll Remittance";
+        public const string CustomerStatement = "Customer Statement";
     }
 
     /// <summary>
@@ -56,7 +57,8 @@ public static class ReportTemplateFactory
                templateName == TemplateNames.ARaging ||
                templateName == TemplateNames.TaxSummary ||
                templateName == TemplateNames.ProductSales ||
-               templateName == TemplateNames.PayrollRemittance;
+               templateName == TemplateNames.PayrollRemittance ||
+               templateName == TemplateNames.CustomerStatement;
     }
 
     /// <summary>
@@ -82,6 +84,7 @@ public static class ReportTemplateFactory
             TemplateNames.TaxSummary => CreateAccountingTemplate(AccountingReportType.TaxSummary, "Tax Summary", DatePresetNames.YearToDate),
             TemplateNames.ProductSales => CreateAccountingTemplate(AccountingReportType.ProductSales, "Sales by Product", DatePresetNames.YearToDate),
             TemplateNames.PayrollRemittance => CreateAccountingTemplate(AccountingReportType.PayrollRemittance, "Payroll Remittance", DatePresetNames.ThisMonth),
+            TemplateNames.CustomerStatement => CreateAccountingTemplate(AccountingReportType.CustomerStatement, "Customer Statement", DatePresetNames.LastMonth),
             _ => new ReportConfiguration()
         };
     }
@@ -789,11 +792,10 @@ public static class ReportTemplateFactory
 
         var context = new LayoutContext(config);
 
-        // Skip period date range for aging reports (they show "As of [date]" in the table subtitle).
-        // Balance Sheet gets an "As of [date]" label instead of "Period: X to Y".
-        var isAgingReport = reportType == AccountingReportType.AccountsReceivableAging;
+        // AR Aging and the Customer Statement give their own dates in the table, and the Balance Sheet gets an "As of" date.
+        var datesInTable = reportType is AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement;
 
-        if (!isAgingReport)
+        if (!datesInTable)
         {
             var dateRangeBounds = GetDateRangeBounds(context);
             config.AddElement(new DateRangeReportElement

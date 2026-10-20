@@ -63,6 +63,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Icons.DocumentStackAdd, AppColors.ReportSlate, AppColors.FlatSlateLight),
         new(ReportTemplateFactory.TemplateNames.ARaging, "AR Aging", "Who owes you and for how long",
             Icons.DollarCircleAlt, AppColors.FlatTeal, AppColors.FlatTealLight),
+        new(ReportTemplateFactory.TemplateNames.CustomerStatement, "Customer Statement", "What one customer owes you",
+            Icons.Receipts, AppColors.Violet, AppColors.VioletLight),
         new(ReportTemplateFactory.TemplateNames.TaxSummary, "Tax Summary", "Tax you collected vs. tax you paid",
             Icons.Bank, AppColors.FlatOrange, AppColors.FlatOrangeLight),
         new(ReportTemplateFactory.TemplateNames.ProductSales, "Sales by Product", "Units and revenue per product",
@@ -326,9 +328,46 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     // Chart categories for grouped display
     public ObservableCollection<ChartCategoryGroup> ChartCategories { get; } = [];
 
+    /// <summary>Whether the chosen template is the Customer Statement, which asks for a customer.</summary>
+    public bool IsCustomerStatement => SelectedTemplateName == ReportTemplateFactory.TemplateNames.CustomerStatement;
+
+    public ObservableCollection<CustomerOption> StatementCustomerOptions { get; } = [];
+
+    [ObservableProperty]
+    private CustomerOption? _selectedStatementCustomer;
+
+    [ObservableProperty]
+    private bool _showStatementActivity;
+
+    partial void OnShowStatementActivityChanged(bool value)
+    {
+        if (!IsCustomerStatement)
+            return;
+
+        IsDateRangeEnabled = value;
+        if (value && !DatePresets.Any(o => o.IsSelected))
+            SelectDatePreset(DatePresets.FirstOrDefault(o => o.Name == DatePresetNames.LastMonth));
+    }
+
+    private void LoadStatementCustomers()
+    {
+        var selectedId = SelectedStatementCustomer?.Id;
+        OptionLoader.Fill(StatementCustomerOptions,
+            OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>());
+        SelectedStatementCustomer = StatementCustomerOptions.FirstOrDefault(c => c.Id == selectedId);
+    }
+
     partial void OnSelectedTemplateNameChanged(string value)
     {
-        IsDateRangeEnabled = value != ReportTemplateFactory.TemplateNames.BalanceSheet;
+        IsDateRangeEnabled = value switch
+        {
+            ReportTemplateFactory.TemplateNames.BalanceSheet => false,
+            ReportTemplateFactory.TemplateNames.CustomerStatement => ShowStatementActivity,
+            _ => true
+        };
+        OnPropertyChanged(nameof(IsCustomerStatement));
+        if (IsCustomerStatement)
+            LoadStatementCustomers();
         LoadTemplate(value);
 
         // Clear radio button selection for point-in-time reports where date range is disabled
@@ -592,13 +631,13 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// Whether the selected accounting table's report type produces section header rows.
     /// </summary>
     public bool ShowSectionHeaderColors => SelectedAccountingTableElement.ReportType
-        is not AccountingReportType.AccountsReceivableAging;
+        is not (AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement);
 
     /// <summary>
     /// Whether the selected accounting table's report type produces total/grand total rows.
     /// </summary>
     public bool ShowTotalColors => SelectedAccountingTableElement.ReportType
-        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging;
+        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement;
 
     /// <summary>
     /// Gets or sets the selected chart style as a ChartStyleOption for the ComboBox binding.
@@ -2556,6 +2595,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
         Configuration.Title = ReportName;
         Configuration.Filters.TransactionType = SelectedTransactionType;
+
+        if (IsCustomerStatement)
+        {
+            Configuration.Filters.CustomerId = SelectedStatementCustomer?.Id;
+            Configuration.Filters.StatementShowsActivity = ShowStatementActivity;
+        }
 
         // Set date format from DateFormatService for consistent X-axis labeling
         Configuration.Filters.DateFormat = DateFormatService.GetCurrentDotNetFormat();

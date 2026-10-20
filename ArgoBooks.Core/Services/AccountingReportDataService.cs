@@ -180,6 +180,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             AccountingReportType.TaxSummary => GetTaxSummaryData(),
             AccountingReportType.PayrollRemittance => GetPayrollRemittanceData(),
             AccountingReportType.ProductSales => GetProductSalesData(),
+            AccountingReportType.CustomerStatement => GetCustomerStatementData(),
             _ => new AccountingTableData { Title = "Unknown Report" }
         };
     }
@@ -1227,6 +1228,244 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             RowType = AccountingRowType.TotalRow
         });
 
+        return data;
+    }
+
+    #endregion
+
+    #region Customer Statement
+
+    /// <summary>One of the customer's invoices, with its total and each payment on it in the display currency.</summary>
+    private sealed record StatementInvoice(Invoice Invoice, decimal Total, List<StatementPayment> Payments)
+    {
+        public decimal PaidOnOrBefore(DateTime date) => Payments.Where(p => p.Date.Date <= date.Date).Sum(p => p.Amount);
+
+        public decimal PaidBefore(DateTime date) => Payments.Where(p => p.Date.Date < date.Date).Sum(p => p.Amount);
+    }
+
+    /// <summary>A payment on a statement invoice. DateKnown is false for a paid amount imported without its payments.</summary>
+    private sealed record StatementPayment(DateTime Date, decimal Amount, bool DateKnown);
+
+    /// <summary>A statement for one customer: what they owe today, or what was invoiced and paid between the dates.</summary>
+    private AccountingTableData GetCustomerStatementData()
+    {
+        var customer = companyData != null && !string.IsNullOrEmpty(filters.CustomerId)
+            ? companyData.GetCustomer(filters.CustomerId)
+            : null;
+
+        if (customer == null)
+        {
+            return new AccountingTableData
+            {
+                Title = "Customer Statement",
+                Subtitle = "Choose a customer in Report Settings",
+                ColumnHeaders = ["Invoice", "Balance Due"],
+                ColumnWidthRatios = [0.7, 0.3],
+                Rows = [new AccountingRow { Label = "Amount due", Values = [FormatCurrency(0)], RowType = AccountingRowType.TotalRow }]
+            };
+        }
+
+        var title = string.IsNullOrWhiteSpace(customer.CompanyName) || customer.CompanyName == customer.Name
+            ? $"Statement for {customer.Name}"
+            : $"Statement for {customer.Name}, {customer.CompanyName}";
+        var invoices = GetStatementInvoices(customer.Id);
+
+        return filters.StatementShowsActivity
+            ? GetStatementActivityData(title, invoices)
+            : GetStatementOpenInvoicesData(title, invoices);
+    }
+
+    /// <summary>The customer's issued invoices, with payments converted at the invoice's date so a paid invoice comes to exactly zero.</summary>
+    private List<StatementInvoice> GetStatementInvoices(string customerId)
+    {
+        var paymentsByInvoice = companyData!.Payments
+            .Where(p => !p.IsRefund && p.Amount > 0 && !string.IsNullOrEmpty(p.InvoiceId))
+            .ToLookup(p => p.InvoiceId);
+
+        var result = new List<StatementInvoice>();
+        foreach (var invoice in companyData.Invoices.Where(i => i.CustomerId == customerId
+                                                                && i.Status != InvoiceStatus.Cancelled
+                                                                && i.Status != InvoiceStatus.Draft))
+        {
+            var total = Math.Round(ToDisplay(invoice.EffectiveTotalUSD, invoice.IssueDate), 2, MidpointRounding.AwayFromZero);
+            var payments = new List<StatementPayment>();
+            var remaining = total;
+
+            var recorded = paymentsByInvoice[invoice.Id].OrderBy(p => p.Date).ToList();
+            if (recorded.Count == 0)
+            {
+                var paid = invoice.Status == InvoiceStatus.Paid
+                    ? total
+                    : total - Math.Round(ToDisplay(invoice.EffectiveBalanceUSD, invoice.IssueDate), 2, MidpointRounding.AwayFromZero);
+                if (paid > 0)
+                    payments.Add(new StatementPayment(invoice.IssueDate, Math.Min(paid, total), false));
+            }
+
+            foreach (var payment in recorded)
+            {
+                if (remaining <= 0)
+                    break;
+
+                var amount = invoice.Total > 0 && string.Equals(payment.OriginalCurrency, invoice.OriginalCurrency, StringComparison.OrdinalIgnoreCase)
+                    ? total * payment.Amount / invoice.Total
+                    : ToDisplay(payment.EffectiveAmountUSD, invoice.IssueDate);
+                amount = Math.Min(Math.Round(amount, 2, MidpointRounding.AwayFromZero), remaining);
+                remaining -= amount;
+
+                // A payment taken before the invoice was issued is shown on the issue date, so it never lands outside the invoice's own period.
+                var date = payment.Date.Date < invoice.IssueDate.Date ? invoice.IssueDate : payment.Date;
+                payments.Add(new StatementPayment(date, amount, true));
+            }
+
+            result.Add(new StatementInvoice(invoice, total, payments));
+        }
+        return result;
+    }
+
+    private string FormatStatementDate(DateTime date) =>
+        DateFormats.Format(date, companyData?.Settings.Localization.DateFormat);
+
+    /// <summary>The invoices the customer still owes today, oldest due first.</summary>
+    private AccountingTableData GetStatementOpenInvoicesData(string title, List<StatementInvoice> invoices)
+    {
+        var today = DateTime.Today;
+        var data = new AccountingTableData
+        {
+            Title = title,
+            Subtitle = $"Unpaid invoices as of {FormatStatementDate(today)} · {GetCurrencySubtitle()}",
+            ColumnHeaders = ["Invoice", "Issued", "Due", "Amount", "Paid", "Balance Due"],
+            ColumnWidthRatios = [0.2, 0.16, 0.16, 0.16, 0.16, 0.16]
+        };
+
+        var open = invoices
+            .Where(i => i.Invoice.IssueDate.Date <= today)
+            .Select(i => (Item: i, Paid: i.PaidOnOrBefore(today)))
+            .Where(x => x.Item.Total - x.Paid > 0)
+            .OrderBy(x => x.Item.Invoice.DueDate)
+            .ThenBy(x => x.Item.Invoice.IssueDate)
+            .ToList();
+
+        var amountDue = 0m;
+        var overdue = 0m;
+        foreach (var (item, paid) in open)
+        {
+            var balance = item.Total - paid;
+            var isOverdue = item.Invoice.DueDate.Date < today;
+            amountDue += balance;
+            if (isOverdue)
+                overdue += balance;
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = isOverdue ? $"{item.Invoice.InvoiceNumber}, overdue" : item.Invoice.InvoiceNumber,
+                Values =
+                [
+                    FormatStatementDate(item.Invoice.IssueDate),
+                    FormatStatementDate(item.Invoice.DueDate),
+                    FormatCurrency(item.Total),
+                    paid > 0 ? FormatCurrency(paid) : "",
+                    FormatCurrency(balance)
+                ]
+            });
+        }
+
+        if (open.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No unpaid invoices", Values = ["", "", "", "", ""] });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", "", ""] });
+        if (overdue > 0 && overdue < amountDue)
+            data.Rows.Add(new AccountingRow { Label = "Overdue", Values = ["", "", "", "", FormatCurrency(overdue)], RowType = AccountingRowType.SubtotalRow });
+        data.Rows.Add(new AccountingRow { Label = "Amount due", Values = ["", "", "", "", FormatCurrency(amountDue)], RowType = AccountingRowType.TotalRow });
+
+        if (open.Any(x => x.Paid > 0))
+            data.Footnote = "Paid is what has already been received on each invoice.";
+        return data;
+    }
+
+    /// <summary>What was invoiced and paid between the dates, ending with what has been paid since so an old statement does not read as still owed.</summary>
+    private AccountingTableData GetStatementActivityData(string title, List<StatementInvoice> invoices)
+    {
+        var today = DateTime.Today;
+        var start = (filters.StartDate ?? invoices.Select(i => i.Invoice.IssueDate).DefaultIfEmpty(today).Min()).Date;
+        var end = (filters.EndDate ?? today).Date;
+        if (end > today)
+            end = today;
+        if (start > end)
+            start = end;
+
+        var data = new AccountingTableData
+        {
+            Title = title,
+            Subtitle = $"Account activity from {FormatStatementDate(start)} to {FormatStatementDate(end)} · {GetCurrencySubtitle()}",
+            ColumnHeaders = ["Details", "Date", "Charges", "Payments", "Balance"],
+            ColumnWidthRatios = [0.36, 0.16, 0.16, 0.16, 0.16]
+        };
+
+        var forward = invoices
+            .Where(i => i.Invoice.IssueDate.Date < start)
+            .Sum(i => i.Total - i.PaidBefore(start));
+
+        var entries = new List<(DateTime Date, int Order, string Details, decimal Charge, decimal Payment)>();
+        foreach (var item in invoices)
+        {
+            var number = item.Invoice.InvoiceNumber;
+            if (item.Invoice.IssueDate.Date >= start && item.Invoice.IssueDate.Date <= end)
+            {
+                var paidInFullToday = item.PaidOnOrBefore(today) >= item.Total;
+                entries.Add((item.Invoice.IssueDate, 0, paidInFullToday ? $"Invoice {number} (now paid)" : $"Invoice {number}", item.Total, 0m));
+            }
+
+            foreach (var payment in item.Payments.Where(p => p.Date.Date >= start && p.Date.Date <= end))
+                entries.Add((payment.Date, 1, payment.DateKnown ? $"Payment for {number}" : $"Payment for {number} (date not recorded)", 0m, payment.Amount));
+        }
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = $"Balance before {FormatStatementDate(start)}",
+            Values = ["", "", "", FormatCurrency(forward)]
+        });
+
+        var balance = forward;
+        var charges = 0m;
+        var paymentsInPeriod = 0m;
+        foreach (var entry in entries.OrderBy(e => e.Date.Date).ThenBy(e => e.Order))
+        {
+            balance += entry.Charge - entry.Payment;
+            charges += entry.Charge;
+            paymentsInPeriod += entry.Payment;
+            data.Rows.Add(new AccountingRow
+            {
+                Label = entry.Details,
+                Values =
+                [
+                    FormatStatementDate(entry.Date),
+                    entry.Charge > 0 ? FormatCurrency(entry.Charge) : "",
+                    entry.Payment > 0 ? FormatCurrency(entry.Payment) : "",
+                    FormatCurrency(balance)
+                ]
+            });
+        }
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", ""] });
+        data.Rows.Add(new AccountingRow { Label = "Invoiced in this period", Values = ["", FormatCurrency(charges), "", ""], RowType = AccountingRowType.SubtotalRow });
+        data.Rows.Add(new AccountingRow { Label = "Paid in this period", Values = ["", "", FormatCurrency(paymentsInPeriod), ""], RowType = AccountingRowType.SubtotalRow });
+        data.Rows.Add(new AccountingRow { Label = $"Balance due on {FormatStatementDate(end)}", Values = ["", "", "", FormatCurrency(balance)], RowType = AccountingRowType.TotalRow });
+
+        var paidSince = invoices
+            .Where(i => i.Invoice.IssueDate.Date <= end)
+            .Sum(i => i.PaidOnOrBefore(today) - i.PaidOnOrBefore(end));
+        if (paidSince > 0)
+        {
+            data.Rows.Add(new AccountingRow { Label = $"Paid since {FormatStatementDate(end)}", Values = ["", "", FormatCurrency(paidSince), ""] });
+            data.Rows.Add(new AccountingRow
+            {
+                Label = $"Still owed from this statement on {FormatStatementDate(today)}",
+                Values = ["", "", "", FormatCurrency(balance - paidSince)],
+                RowType = AccountingRowType.GrandTotalRow
+            });
+        }
+
+        data.Footnote = $"This statement covers {FormatStatementDate(start)} to {FormatStatementDate(end)} only. Invoices from other dates are not listed.";
         return data;
     }
 

@@ -629,6 +629,34 @@
                                          Padding="12,10" />
                             </StackPanel>
 
+                            <!-- Customer (Customer Statement only) -->
+                            <StackPanel Spacing="8"
+                                        IsVisible="{Binding IsCustomerStatement}">
+                                <TextBlock Text="{loc:Loc Customer}"
+                                           FontSize="14"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <controls:SearchableDropdown ItemsSource="{Binding StatementCustomerOptions}"
+                                                             SelectedItem="{Binding SelectedStatementCustomer}"
+                                                             DisplayMemberPath="Name"
+                                                             SearchMemberPath="Id"
+                                                             Placeholder="{loc:Loc 'Choose a customer'}"
+                                                             ShowAddNew="False" />
+                                <TextBlock Text="{loc:Loc 'Lists the invoices this customer still owes today.'}"
+                                           IsVisible="{Binding !ShowStatementActivity}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                <TextBlock Text="{loc:Loc 'Lists what was invoiced and paid between the dates below.'}"
+                                           IsVisible="{Binding ShowStatementActivity}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                <CheckBox Content="{loc:Loc 'Show activity between two dates instead'}"
+                                          IsChecked="{Binding ShowStatementActivity}"
+                                          FontSize="13" />
+                            </StackPanel>
+
                             <!-- Date Range (hidden for point-in-time reports like Balance Sheet) -->
                             <StackPanel Spacing="8"
                                         IsVisible="{Binding IsDateRangeEnabled}">

@@ -209,7 +209,9 @@ public class ReportConfiguration
                 IncludeReturns = Filters.IncludeReturns,
                 IncludeLosses = Filters.IncludeLosses,
                 DatePresetName = Filters.DatePresetName,
-                SelectedChartTypes = [.. Filters.SelectedChartTypes]
+                SelectedChartTypes = [.. Filters.SelectedChartTypes],
+                CustomerId = Filters.CustomerId,
+                StatementShowsActivity = Filters.StatementShowsActivity
             },
             HasManualChartLayout = HasManualChartLayout,
             Use24HourFormat = Use24HourFormat,
@@ -305,6 +307,18 @@ public class ReportFilters
     /// </summary>
     [JsonPropertyName("dateFormat")]
     public string DateFormat { get; set; } = "MMM yyyy";
+
+    /// <summary>
+    /// The customer a Customer Statement is for.
+    /// </summary>
+    [JsonPropertyName("customerId")]
+    public string? CustomerId { get; set; }
+
+    /// <summary>
+    /// Whether a Customer Statement lists what happened between the dates instead of what is owed today.
+    /// </summary>
+    [JsonPropertyName("statementShowsActivity")]
+    public bool StatementShowsActivity { get; set; }
 
     /// <summary>
     /// Checks if the preset name indicates a custom range.
