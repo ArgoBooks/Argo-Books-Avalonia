@@ -237,7 +237,7 @@
                                     <TextBlock Text="{loc:Loc 'Visual / Analytical'}"
                                                FontSize="14"
                                                FontWeight="SemiBold"
-                                               Opacity="0.7"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                HorizontalAlignment="Center"
                                                Margin="0,0,0,4" />
 
@@ -316,7 +316,7 @@
                                     <TextBlock Text="{loc:Loc 'Accounting'}"
                                                FontSize="14"
                                                FontWeight="SemiBold"
-                                               Opacity="0.7"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                HorizontalAlignment="Center"
                                                Margin="0,8,0,4" />
 
