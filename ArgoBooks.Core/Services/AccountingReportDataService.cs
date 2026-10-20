@@ -1507,10 +1507,13 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             }
         }
 
+        // Sales without a customer on file go last, so their row reads as the rest rather than as a customer called that.
         var rows = sales.Keys.Union(refunds.Keys)
-            .Select(id => (Name: CustomerName(id), Sales: sales.GetValueOrDefault(id), Refunds: refunds.GetValueOrDefault(id)))
-            .Select(c => (c.Name, c.Sales, c.Refunds, Net: c.Sales - c.Refunds))
-            .OrderByDescending(c => c.Net)
+            .Select(id => (Name: CustomerName(id, "(Sales with no customer)"), Known: IsKnownCustomer(id),
+                Sales: sales.GetValueOrDefault(id), Refunds: refunds.GetValueOrDefault(id)))
+            .Select(c => (c.Name, c.Known, c.Sales, c.Refunds, Net: c.Sales - c.Refunds))
+            .OrderBy(c => c.Known ? 0 : 1)
+            .ThenByDescending(c => c.Net)
             .ThenBy(c => c.Name)
             .ToList();
 
@@ -1551,8 +1554,11 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         return data;
     }
 
-    private string CustomerName(string id) =>
-        string.IsNullOrEmpty(id) ? "No customer" : companyData?.GetCustomer(id)?.Name ?? "Unknown customer";
+    // The brackets mark these as descriptions, so nobody takes them for a customer's name.
+    private string CustomerName(string id, string noneLabel) =>
+        string.IsNullOrEmpty(id) ? noneLabel : companyData?.GetCustomer(id)?.Name ?? "(Customer no longer on file)";
+
+    private bool IsKnownCustomer(string id) => !string.IsNullOrEmpty(id) && companyData?.GetCustomer(id) != null;
 
     /// <summary>What was spent with each supplier in the period, before and after tax, stock bought for resale included.</summary>
     private AccountingTableData GetExpensesBySupplierData()
@@ -1569,11 +1575,15 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Where(e => IsInDateRange(e.Date))
             .GroupBy(e => e.SupplierId ?? "")
             .Select(g => (
-                Name: string.IsNullOrEmpty(g.Key) ? "No supplier" : companyData!.GetSupplier(g.Key)?.Name ?? "Unknown supplier",
+                Name: string.IsNullOrEmpty(g.Key)
+                    ? "(Expenses with no supplier)"
+                    : companyData!.GetSupplier(g.Key)?.Name ?? "(Supplier no longer on file)",
+                Known: !string.IsNullOrEmpty(g.Key) && companyData!.GetSupplier(g.Key) != null,
                 Count: g.Count(),
                 BeforeTax: g.Sum(e => ToDisplay(e.EffectiveSubtotalUSD, e.Date)),
                 Total: g.Sum(e => ToDisplay(e.EffectiveTotalUSD, e.Date))))
-            .OrderByDescending(s => s.Total)
+            .OrderBy(s => s.Known ? 0 : 1)
+            .ThenByDescending(s => s.Total)
             .ThenBy(s => s.Name)
             .ToList();
 
@@ -1733,7 +1743,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             {
                 Label = Items(rental),
                 IndentLevel = 1,
-                Values = [CustomerName(rental.CustomerId), rental.DueDate.Date < today ? $"{due}, overdue" : due, "", Money(Held(rental))]
+                Values = [CustomerName(rental.CustomerId, "(No customer)"), rental.DueDate.Date < today ? $"{due}, overdue" : due, "", Money(Held(rental))]
             });
         }
         if (outNow.Count == 0)
@@ -1752,7 +1762,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             {
                 Label = Items(rental),
                 IndentLevel = 1,
-                Values = [CustomerName(rental.CustomerId), FormatStatementDate(rental.ReturnDate!.Value), Money((rental.TotalCost ?? 0m) + Kept(rental)), Money(Held(rental))]
+                Values = [CustomerName(rental.CustomerId, "(No customer)"), FormatStatementDate(rental.ReturnDate!.Value), Money((rental.TotalCost ?? 0m) + Kept(rental)), Money(Held(rental))]
             });
         }
         if (returned.Count == 0)

@@ -75,7 +75,7 @@ public class SummaryReportsTests
         var result = Report(TwoCustomersSales(), AccountingReportType.SalesByCustomer);
 
         var rows = DataRows(result);
-        Assert.Equal(["Acme", "Birch Co", "No customer"], rows.Select(r => r.Label));
+        Assert.Equal(["Acme", "Birch Co", "(Sales with no customer)"], rows.Select(r => r.Label));
         Assert.Equal(1500m, ParseAmount(rows[0].Values[0]));
         Assert.Equal("", rows[0].Values[1]);
         Assert.Equal(-100m, ParseAmount(rows[1].Values[1]));
@@ -122,7 +122,7 @@ public class SummaryReportsTests
         var result = Report(data, AccountingReportType.ExpensesBySupplier);
 
         var rows = DataRows(result);
-        Assert.Equal(["Paper Mill", "Hardware Store", "No supplier"], rows.Select(r => r.Label));
+        Assert.Equal(["Paper Mill", "Hardware Store", "(Expenses with no supplier)"], rows.Select(r => r.Label));
         Assert.Equal("2", rows[0].Values[0]);
         Assert.Equal(300m, ParseAmount(rows[0].Values[1]));
         Assert.Equal(15m, ParseAmount(rows[0].Values[2]));
@@ -131,6 +131,20 @@ public class SummaryReportsTests
         var total = Row(result, "Total");
         Assert.Equal("4", total.Values[0]);
         Assert.Equal(385m, ParseAmount(total.Values[3]));
+    }
+
+    [Fact]
+    public void ExpensesBySupplier_PutsExpensesWithNoSupplierLast_EvenWhenTheyAreTheLargest()
+    {
+        var data = new CompanyData();
+        data.Suppliers.Add(new Supplier { Id = "S1", Name = "Paper Mill" });
+        data.Expenses.Add(Purchase("E1", "S1", 50m, 0m, new DateTime(2024, 2, 1)));
+        data.Expenses.Add(Purchase("E2", null, 900m, 0m, new DateTime(2024, 2, 1)));
+        data.Expenses.Add(Purchase("E3", "S-GONE", 400m, 0m, new DateTime(2024, 2, 1)));
+
+        var result = Report(data, AccountingReportType.ExpensesBySupplier);
+
+        Assert.Equal(["Paper Mill", "(Expenses with no supplier)", "(Supplier no longer on file)"], DataRows(result).Select(r => r.Label));
     }
 
     #endregion
