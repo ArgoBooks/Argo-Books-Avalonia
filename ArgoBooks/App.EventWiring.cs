@@ -1411,16 +1411,6 @@ public partial class App
                         _ = TelemetryManager.TrackFeatureAsync(FeatureName.BackupCreated);
                     }
 
-                    // Open the containing folder
-                    try
-                    {
-                        Core.Platform.FileManager.ShowFile(backupPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        ErrorLogger?.LogWarning($"Failed to open folder after backup export: {ex.Message}", "BackupExportFolder");
-                    }
-
                     _appShellViewModel.AddNotification(
                         "Backup Complete".Translate(),
                         "Company backup exported successfully.".Translate(),
@@ -1528,16 +1518,6 @@ public partial class App
                 };
                 if (TelemetryManager != null)
                     await TelemetryManager.TrackExportAsync(exportType, stopwatch.ElapsedMilliseconds, fileSize);
-
-                // Open the containing folder
-                try
-                {
-                    Core.Platform.FileManager.ShowFile(filePath);
-                }
-                catch (Exception ex)
-                {
-                    ErrorLogger?.LogWarning($"Failed to open folder after export: {ex.Message}", "ExportFolder");
-                }
             }
             catch (Exception ex)
             {
