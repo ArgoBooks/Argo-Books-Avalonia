@@ -4,6 +4,7 @@ using System.Text;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.AI;
+using ArgoBooks.Core.Models.Assets;
 using ArgoBooks.Core.Models.BankMatching;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
@@ -879,6 +880,9 @@ public class SpreadsheetImportService
             case SpreadsheetSheetType.PayRuns:
                 // Export only: an approved run's figures are frozen so a reprinted stub still matches the one the employee was handed.
                 break;
+            case SpreadsheetSheetType.Assets:
+                ImportAssets(data, headers, rows, options);
+                break;
             case SpreadsheetSheetType.Returns:
                 ImportReturns(data, headers, rows, options);
                 break;
@@ -914,6 +918,7 @@ public class SpreadsheetImportService
         SpreadsheetSheetType.InvoiceLineItems => data.Invoices.SelectMany(i => i.LineItems).Count(),
         SpreadsheetSheetType.PurchaseOrderLineItems => data.PurchaseOrders.SelectMany(po => po.LineItems).Count(),
         SpreadsheetSheetType.Employees => data.Employees.Count,
+        SpreadsheetSheetType.Assets => data.Assets.Count,
         SpreadsheetSheetType.Returns => data.Returns.Count,
         SpreadsheetSheetType.LostDamaged => data.LostDamaged.Count,
         _ => 0
@@ -1549,6 +1554,7 @@ public class SpreadsheetImportService
         SpreadsheetSheetType.PurchaseOrders => data.PurchaseOrders.Select(p => p.Id),
         SpreadsheetSheetType.Returns => data.Returns.Select(r => r.Id),
         SpreadsheetSheetType.LostDamaged => data.LostDamaged.Select(l => l.Id),
+        SpreadsheetSheetType.Assets => data.Assets.Select(a => a.Id),
         _ => []
     };
 
@@ -1919,6 +1925,16 @@ public class SpreadsheetImportService
                     return existingEmployee != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
+            case SpreadsheetSheetType.Assets:
+                var fixedAsset = JsonSerializer.Deserialize<FixedAsset>(jsonStr, opts);
+                if (fixedAsset != null && !string.IsNullOrEmpty(fixedAsset.Id))
+                {
+                    var existingAsset = data.Assets.FirstOrDefault(a => a.Id == fixedAsset.Id);
+                    if (skipExisting && existingAsset != null) return ImportEntityResult.SkippedExisting;
+                    data.Assets.AddOrUpdate(existingAsset, Merge(fixedAsset, existingAsset));
+                    return existingAsset != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
+                }
+                return ImportEntityResult.Failed;
 
             default:
                 return ImportEntityResult.Failed;
@@ -2166,6 +2182,7 @@ public class SpreadsheetImportService
             SpreadsheetSheetType.RecurringInvoices => data.RecurringInvoices.Select(r => r.Id).ToHashSet(),
             SpreadsheetSheetType.StockAdjustments => data.StockAdjustments.Select(s => s.Id).ToHashSet(),
             SpreadsheetSheetType.PurchaseOrders => data.PurchaseOrders.Select(p => p.Id).ToHashSet(),
+            SpreadsheetSheetType.Assets => data.Assets.Select(a => a.Id).ToHashSet(),
             _ => []
         };
     }
@@ -4046,6 +4063,101 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 data.Employees.Add(employee);
             else if (options != null)
                 options.UpdatedCount++;
+        }
+    }
+
+    /// <summary>Fixed assets. Depreciation to date and book value are worked out from the other columns, so those are not read.</summary>
+    private void ImportAssets(CompanyData data, List<string> headers, List<List<object?>> rows, ImportOptions? options = null)
+    {
+        var takenIds = TakenIds(data.Assets.Select(a => a.Id), headers, rows, "ID");
+        var ccaRates = CcaRateService.BuiltIn();
+
+        // Letters only, so "Furniture and fixtures" and "Declining balance" read as the names the export writes.
+        static string Letters(string text) => new(text.Where(char.IsAsciiLetter).ToArray());
+        static string? Blank(string text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+        foreach (var row in rows)
+        {
+            var id = GetString(row, headers, "ID");
+            var name = GetString(row, headers, "Name");
+
+            if (string.IsNullOrWhiteSpace(id) && string.IsNullOrWhiteSpace(name))
+                continue;
+
+            if (string.IsNullOrWhiteSpace(id))
+                id = new IdGenerator(data).NextAssetId(takenIds);
+
+            var existing = data.Assets.FirstOrDefault(a => a.Id == id);
+            if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
+
+            var asset = existing ?? new FixedAsset { Currency = CompanyCurrency(data), PurchaseDate = DateTime.Today };
+
+            // A column the sheet does not carry leaves the stored value alone.
+            bool Has(string column) => headers.Contains(column);
+
+            asset.Id = id;
+            if (Has("Name"))
+                asset.Name = name;
+            if (Has("Type"))
+                asset.Type = ParseEnum(Letters(GetString(row, headers, "Type")), AssetType.Other);
+            if (Has("Purchase Date"))
+                asset.PurchaseDate = GetNullableDateTime(row, headers, "Purchase Date") ?? asset.PurchaseDate;
+            if (Has("Cost"))
+                asset.Cost = GetDecimal(row, headers, "Cost");
+            if (Has("Currency") && Blank(GetString(row, headers, "Currency")) is { } currency)
+                asset.Currency = currency.ToUpperInvariant();
+            if (Has("Expense ID"))
+                asset.ExpenseId = Blank(GetString(row, headers, "Expense ID"));
+            if (Has("Method"))
+                asset.Method = ParseEnum(Letters(GetString(row, headers, "Method")), DepreciationMethod.StraightLine);
+            if (Has("Useful Life (Years)"))
+                asset.UsefulLifeYears = GetNullableDecimal(row, headers, "Useful Life (Years)");
+            if (Has("Rate %"))
+                asset.RatePercent = GetNullableDecimal(row, headers, "Rate %");
+            if (Has("CRA Class"))
+                asset.CcaClass = Blank(GetString(row, headers, "CRA Class"));
+            if (Has("First-Year Factor"))
+                asset.FirstYearFactor = GetNullableDecimal(row, headers, "First-Year Factor");
+            if (Has("Value at End"))
+                asset.EndValue = GetDecimal(row, headers, "Value at End");
+            if (Has("Prior Depreciation"))
+                asset.PriorDepreciation = GetDecimal(row, headers, "Prior Depreciation");
+            if (Has("Tracked From"))
+                asset.TrackedFrom = GetNullableDateTime(row, headers, "Tracked From");
+            if (Has("Disposed Date"))
+                asset.DisposedDate = GetNullableDateTime(row, headers, "Disposed Date");
+            if (Has("Sale Price"))
+                asset.SalePrice = GetDecimal(row, headers, "Sale Price");
+            if (Has("Disposal"))
+            {
+                var kind = Letters(GetString(row, headers, "Disposal"));
+                asset.DisposalKind = kind.Length == 0 ? null
+                    : kind.StartsWith("Sold", StringComparison.OrdinalIgnoreCase) ? AssetDisposalKind.Sold
+                    : AssetDisposalKind.Scrapped;
+            }
+            if (Has("Notes"))
+                asset.Notes = GetString(row, headers, "Notes");
+
+            // A sheet need only name the CRA class: its rate and first-year share are CRA's for the purchase date.
+            if (asset.CcaClass != null && asset.Method == DepreciationMethod.DecliningBalance && ccaRates != null)
+            {
+                asset.RatePercent ??= ccaRates.RateOn(asset.CcaClass, asset.PurchaseDate);
+                asset.FirstYearFactor ??= ccaRates.FirstYearFactorOn(asset.CcaClass, asset.PurchaseDate);
+            }
+
+            if (asset.DisposedDate.HasValue && asset.DisposalKind == null)
+                asset.DisposalKind = asset.SalePrice > 0 ? AssetDisposalKind.Sold : AssetDisposalKind.Scrapped;
+
+            asset.UpdatedAt = DateTime.UtcNow;
+            if (existing == null)
+            {
+                asset.CreatedAt = DateTime.UtcNow;
+                data.Assets.Add(asset);
+            }
+            else if (options != null)
+            {
+                options.UpdatedCount++;
+            }
         }
     }
 

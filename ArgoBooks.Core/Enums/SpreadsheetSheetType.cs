@@ -36,6 +36,9 @@ public enum SpreadsheetSheetType
     /// </summary>
     PayRuns,
 
+    /// <summary>Fixed assets. Depreciation to date and book value are exported but worked out again on import.</summary>
+    Assets,
+
     BankStatement,
     Unknown
 }
@@ -73,6 +76,7 @@ public static class SpreadsheetSheetTypeExtensions
             "purchase order line items" => SpreadsheetSheetType.PurchaseOrderLineItems,
             "employees" or "staff" => SpreadsheetSheetType.Employees,
             "pay runs" or "payroll" => SpreadsheetSheetType.PayRuns,
+            "assets" or "fixed assets" => SpreadsheetSheetType.Assets,
             "returns" => SpreadsheetSheetType.Returns,
             "lost damaged" or "lost / damaged" or "lost/damaged" => SpreadsheetSheetType.LostDamaged,
             "bank statement" or "bank" or "bank transactions" => SpreadsheetSheetType.BankStatement,

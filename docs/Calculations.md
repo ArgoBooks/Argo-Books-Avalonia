@@ -484,12 +484,12 @@ A reservation needs its units from its start date to its due date. A rental that
 
 ## 16. Fixed assets
 
-A fixed asset is something the business keeps for years: land, a building, a vehicle, equipment, furniture, computers. It is a `FixedAsset` in `CompanyData.Assets`, saved as `assets.json`. `AssetDepreciation` does the math, and every amount on an asset is in its own `Currency`.
+A fixed asset is something the business keeps for years: land, a building, a vehicle, equipment, furniture, computers. `AssetDepreciation` does the math, and every amount on an asset is in its own `Currency`.
 
-### Where an asset comes from
+### Cost
 
-- **From an expense.** Ticking "This is an asset I'll keep for years" on the expense form, or "Make this an asset" on an expense row, links an asset to the expense (`FixedAsset.ExpenseId`). It costs the expense's pre-tax amount (`Total − TaxAmount`, so shipping and fees are part of the cost) in the expense's currency. `ExpenseAssetLink` keeps it in step when the expense is saved again: an asset that took the whole expense follows its new amount, one given a smaller cost keeps it. Renaming the expense renames the link, and deleting the expense leaves the asset as one owned before.
-- **Owned before.** "Add Asset" on the Assets page, in the company's currency. One bought in an earlier year asks for the depreciation already claimed, `PriorDepreciation`, which counts up to `TrackedFrom` (1 January of the year it was added). The books depreciate it from then.
+- **Bought with an expense** (`FixedAsset.ExpenseId`): the expense's pre-tax amount, `Total − TaxAmount`, so shipping and fees are part of the cost, in the expense's currency. When the expense changes, an asset that took all of it follows its new amount and one given a smaller cost keeps its own (`ExpenseAssetLink`). An asset whose expense is deleted counts as one owned before.
+- **Owned before the books started:** it can carry `PriorDepreciation`, the depreciation claimed in earlier books up to `TrackedFrom` (1 January of the year it was added). These books depreciate it from that date.
 
 ### Depreciation
 
@@ -512,6 +512,10 @@ later years = value left at the start of the year × RatePercent / 100
 ```
 
 `FirstYearFactor` is 0.5 under the half-year rule and 1.5 under the Accelerated Investment Incentive, taken from the rate file for the purchase date and stored on the asset when it is saved. Each year's amount is spread over the months the asset was held in it, so a report for part of a year counts part of it. The year it is sold or disposed of has none. One carried over from earlier books (`TrackedFrom`) is past its first year. Where the rates come from, and what this leaves out, is in [AssetRateUpdates.md](AssetRateUpdates.md).
+
+### Book value
+
+Both methods give a value on any date the same way:
 
 ```
 accumulated(date) = PriorDepreciation + Σ months booked on or before date

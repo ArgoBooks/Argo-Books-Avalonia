@@ -32,7 +32,7 @@ public class CcaRateService
 
     private CcaRateFile? Load()
     {
-        var embedded = ReadEmbedded();
+        var embedded = BuiltIn();
         var cached = ReadCached();
         if (cached != null && (embedded == null || cached.Revision > embedded.Revision))
             return cached;
@@ -53,7 +53,8 @@ public class CcaRateService
         }
     }
 
-    private static CcaRateFile? ReadEmbedded()
+    /// <summary>The copy built into the app, for code that has no download to look for, such as building the sample company.</summary>
+    public static CcaRateFile? BuiltIn()
     {
         try
         {

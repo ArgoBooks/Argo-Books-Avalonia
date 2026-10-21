@@ -63,7 +63,7 @@
                                     </TextBlock>
                                     <TextBox Text="{Binding ModalName, Mode=TwoWay}"
                                              Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'e.g. Delivery van'}"
+                                             PlaceholderText="{loc:Loc 'Enter asset name'}"
                                              MaxLength="100" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="6">
@@ -263,7 +263,7 @@
                                          TextWrapping="Wrap"
                                          MinHeight="70"
                                          MaxHeight="120"
-                                         PlaceholderText="{loc:Loc 'e.g. serial number or where it is kept'}"
+                                         PlaceholderText="{loc:Loc 'Enter notes'}"
                                          MaxLength="500" />
                             </StackPanel>
 

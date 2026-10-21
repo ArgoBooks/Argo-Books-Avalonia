@@ -891,6 +891,19 @@ public class SampleCompanyService
             employee.UpdatedAt = Shift(employee.UpdatedAt);
         }
 
+        // A CRA first-year share depends on the purchase date, so a moved asset takes the one for its new date.
+        var ccaRates = CcaRateService.BuiltIn();
+        foreach (var asset in data.Assets)
+        {
+            asset.PurchaseDate = Shift(asset.PurchaseDate);
+            asset.DisposedDate = ShiftNullable(asset.DisposedDate);
+            asset.TrackedFrom = ShiftNullable(asset.TrackedFrom);
+            asset.CreatedAt = Shift(asset.CreatedAt);
+            asset.UpdatedAt = Shift(asset.UpdatedAt);
+            if (asset.FollowsCca && ccaRates != null)
+                asset.FirstYearFactor = ccaRates.FirstYearFactorOn(asset.CcaClass!, asset.PurchaseDate);
+        }
+
         // The wage expenses these produced were shifted above, so the runs move by the same offset or a run and its expense land on different days.
         foreach (var run in data.PayRuns)
         {

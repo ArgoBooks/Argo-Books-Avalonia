@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models.Assets;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services.Payroll;
 using ArgoBooks.Core.Models.Transactions;
@@ -537,6 +538,31 @@ public class SampleCompanyServiceTests
         Assert.Empty(employee.Sin);
         Assert.Single(data.PayRuns);
         Assert.Empty(data.Expenses);
+    }
+
+    #endregion
+
+    #region Sample assets
+
+    [Fact]
+    public void TimeShiftSampleData_MovesAssets_AndTakesTheFirstYearShareForTheNewDate()
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(new Revenue { Id = "REV-001", Date = new DateTime(2024, 1, 15), Total = 1000m });
+        var bought = new DateTime(2023, 9, 15);
+        var rates = CcaRateService.BuiltIn()!;
+        var computers = new FixedAsset
+        {
+            Id = "AST-001", Name = "Staff laptops", Type = AssetType.ComputerEquipment, PurchaseDate = bought,
+            Cost = 3200m, Currency = "CAD", Method = DepreciationMethod.DecliningBalance, RatePercent = 55m,
+            CcaClass = "50", FirstYearFactor = rates.FirstYearFactorOn("50", bought)
+        };
+        data.Assets.Add(computers);
+
+        SampleCompanyService.TimeShiftSampleData(data);
+
+        Assert.Equal(bought + (data.Revenues[0].Date.Date - new DateTime(2024, 1, 15)), computers.PurchaseDate);
+        Assert.Equal(rates.FirstYearFactorOn("50", computers.PurchaseDate), computers.FirstYearFactor);
     }
 
     #endregion

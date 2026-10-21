@@ -4010,6 +4010,7 @@ public partial class App : Application
             data.EventLog,
             data.BankImportSessions,
             data.Employees,
+            data.Assets,
             data.PendingConversions
         };
         return System.Text.Json.JsonSerializer.Serialize(snapshot);
@@ -4141,7 +4142,8 @@ public partial class App : Application
                || AnyNew("LostDamaged", data.LostDamaged.Select(r => r.Id))
                || AnyNew("Receipts", data.Receipts.Select(r => r.Id))
                || AnyNew("BankImportSessions", data.BankImportSessions.Select(r => r.Id))
-               || AnyNew("Employees", data.Employees.Select(r => r.Id));
+               || AnyNew("Employees", data.Employees.Select(r => r.Id))
+               || AnyNew("Assets", data.Assets.Select(r => r.Id));
     }
 
     /// <summary>
@@ -4196,6 +4198,7 @@ public partial class App : Application
         RestoreList(data.EventLog, "EventLog");
         RestoreList(data.BankImportSessions, "BankImportSessions");
         RestoreList(data.Employees, "Employees");
+        RestoreList(data.Assets, "Assets");
         // An entry the restore leaves as it was stays the same object too: a stock undo reads the
         // rate the queue converted its entry at off the entry it holds (StockChange.OldPendingCost).
         var liveEntries = data.PendingConversions
