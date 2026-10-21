@@ -267,6 +267,7 @@ public static class CurrencyService
         || RevenueAggregator.AnyCollectedWaiting(data.Revenues, start, end)
         || ExpenseAggregator.AnyWaiting(data.Expenses, start, end)
         || RefundAggregator.AnyRefundWaiting(data.Payments, start, end)
+        || ProfitCalculator.AnyAssetSaleWaiting(data.Assets, start, end)
             ? PendingMarker
             : FormatTotalOrPending(convert => ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert));
 

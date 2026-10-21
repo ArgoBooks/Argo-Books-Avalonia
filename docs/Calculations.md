@@ -36,7 +36,7 @@ Sales tax collected from customers is owed to the government, so it is shown as 
 
 ```
 Total Revenue  = Σ Revenue.EffectiveTotalUSD − Refunds(full)
-Net Profit     = Σ Revenue.EffectiveSubtotalUSD − Σ OperatingExpenseUSD(expense) − Σ CostOfGoodsSoldUSD(revenue) − Refunds(pre-tax)
+Net Profit     = Σ Revenue.EffectiveSubtotalUSD − Σ OperatingExpenseUSD(expense) − Σ CostOfGoodsSoldUSD(revenue) − Refunds(pre-tax) + Σ asset sale price (§16)
 Profit Margin  = Net Profit / Σ Revenue.EffectiveSubtotalUSD
 Tax Owed       = Σ Revenue.EffectiveTaxAmountUSD − Refunds(tax part) − Σ Expense.EffectiveTaxAmountUSD
 ```
@@ -291,7 +291,7 @@ Use this table to check where a number on screen comes from. For a new chart or 
 | Total Revenue card (dashboard, Analytics and the Revenue page's Monthly Revenue card), Revenue Over Time, Revenue Growth (Analytics) | `EffectiveTotalUSD` | — | Yes | Yes, in full |
 | Top Customers (the Analytics chart and the dashboard widget, both over the selected date range, `TopCustomers.Rank`) | `EffectiveTotalUSD` | — | Yes | Yes, in full, the refunds issued in the range. A customer left at or below 0 is not listed |
 | Total Expenses card (dashboard, Analytics and the Expenses page's Monthly Expenses card), Expenses Over Time | — | `EffectiveTotalUSD` | n/a | n/a |
-| Net Profit card, Profit Margin (Analytics), Profit Over Time | `EffectiveSubtotalUSD` | `OperatingExpenseUSD`, plus cost of goods sold (§14) | Yes | Yes, the pre-tax part |
+| Net Profit card, Profit Margin (Analytics), Profit Over Time | `EffectiveSubtotalUSD`, plus fixed asset sale prices (§16) | `OperatingExpenseUSD`, plus cost of goods sold (§14) | Yes | Yes, the pre-tax part |
 | Revenue vs Expenses | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue) | Yes, in full (revenue) |
 | Report Summary box total | The same as the Total Revenue card (Revenue reports), the Total Expenses card (Expenses reports) or the Net Profit card (all other reports) | | | |
 | Tax charts and Analytics tax cards | `EffectiveTaxAmountUSD` | `EffectiveTaxAmountUSD` | Yes (revenue) | Yes, the tax part (except the by-category, by-product and Effective Tax Rate figures) |
@@ -532,4 +532,4 @@ Each asset amount is converted at the asset's purchase date (Rule 4), and a sale
 - **Cash Flow Statement:** the asset share of an expense moves from operating to **Investing Activities**, with sale prices.
 - **Asset Register:** each asset held at the end date with its cost, the depreciation in the range, the total so far and its book value, then the ones that left the books in the range.
 
-The dashboard, Analytics and Insights count money as it moves (Rule 2), so they count an asset's purchase as an expense on the day it was paid, like any other expense.
+The dashboard, Analytics and Insights count money as it moves (Rule 2), so they count an asset's purchase as an expense on the day it was paid, like any other expense. Net Profit, Profit Margin and Profit Over Time add its sale price, converted at the sale date, on the day it was sold (`ProfitCalculator.AssetSalesByDayUSD`). The sale price isn't revenue, so the revenue cards leave it out, and Insights' forecasts leave it out because a sale happens once.
