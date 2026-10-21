@@ -3,6 +3,7 @@ using ArgoBooks.Core;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using Avalonia.Media.Imaging;
@@ -1571,19 +1572,16 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// <summary>The path with " (2)", " (3)" and so on added to its name until nothing the export writes exists yet, so an export never replaces an earlier one.</summary>
     private static string UnusedExportPath(string path, bool pageFiles)
     {
-        var dir = Path.GetDirectoryName(path) ?? "";
-        var name = Path.GetFileNameWithoutExtension(path);
-        var ext = Path.GetExtension(path);
+        if (!pageFiles)
+            return UnusedPath.ForFile(path);
 
         // A report exported as one image per page writes name_p1, name_p2 and so on, so any of those counts as taken.
-        bool Taken(string candidate) => pageFiles
-            ? Directory.Exists(dir) && Directory.EnumerateFiles(dir, $"{candidate}_p*{ext}").Any()
-            : File.Exists(Path.Combine(dir, candidate + ext));
-
-        var unused = name;
-        for (var n = 2; Taken(unused); n++)
-            unused = $"{name} ({n})";
-        return Path.Combine(dir, unused + ext);
+        return UnusedPath.ForFile(path, candidate =>
+        {
+            var dir = Path.GetDirectoryName(candidate) ?? "";
+            return Directory.Exists(dir)
+                   && Directory.EnumerateFiles(dir, $"{Path.GetFileNameWithoutExtension(candidate)}_p*{Path.GetExtension(candidate)}").Any();
+        });
     }
 
     [RelayCommand]

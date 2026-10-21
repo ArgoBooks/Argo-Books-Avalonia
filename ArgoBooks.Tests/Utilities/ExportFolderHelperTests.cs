@@ -49,14 +49,14 @@ public class ExportFolderHelperTests : IDisposable
     }
 
     [Fact]
-    public void ExportingTheSameRunTwice_ReusesTheFolder()
+    public void ExportingTheSameRunTwice_GetsASecondFolder()
     {
-        // Someone re-downloading after a correction wants to replace what is there, not to
-        // accumulate "Pay stubs (2)" beside it.
+        // The first export may be slips already filed, so a second one never replaces it.
         string first = ExportFolderHelper.Resolve(_root, "Pay stubs 2026-07-03", 3);
         string second = ExportFolderHelper.Resolve(_root, "Pay stubs 2026-07-03", 3);
 
-        Assert.Equal(first, second);
-        Assert.Single(Directory.GetDirectories(_root));
+        Assert.Equal("Pay-stubs-2026-07-03 (2)", Path.GetFileName(second));
+        Assert.Equal(2, Directory.GetDirectories(_root).Length);
+        Assert.NotEqual(first, second);
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.IO.Compression;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -146,12 +147,7 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
                     continue;
 
                 // Two folders in the zip can hold a report of the same name.
-                var target = Path.Combine(folder, name);
-                for (var n = 2; File.Exists(target); n++)
-                {
-                    target = Path.Combine(folder,
-                        $"{Path.GetFileNameWithoutExtension(name)} ({n}){Path.GetExtension(name)}");
-                }
+                var target = UnusedPath.ForFile(Path.Combine(folder, name));
                 entry.ExtractToFile(target);
                 AddFile(target);
             }

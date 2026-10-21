@@ -311,7 +311,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
                 byte[] bytes = await Task.Run(() => PayStubPdfRenderer.Render(run, line, ytd, data, symbol));
                 string name = $"{run.PayDate:yyyy-MM-dd}-{SafeFileName.Create(line.EmployeeName, "export", replaceSpaces: true)}.pdf";
 
-                await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
+                await File.WriteAllBytesAsync(UnusedPath.ForFile(Path.Combine(directory, name)), bytes);
             }
 
             _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PayStubsExported);
