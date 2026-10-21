@@ -1571,6 +1571,24 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         }
     }
 
+    /// <summary>The path with " (2)", " (3)" and so on added to its name until nothing the export writes exists yet, so an export never replaces an earlier one.</summary>
+    private static string UnusedExportPath(string path, bool pageFiles)
+    {
+        var dir = Path.GetDirectoryName(path) ?? "";
+        var name = Path.GetFileNameWithoutExtension(path);
+        var ext = Path.GetExtension(path);
+
+        // A report exported as one image per page writes name_p1, name_p2 and so on, so any of those counts as taken.
+        bool Taken(string candidate) => pageFiles
+            ? Directory.Exists(dir) && Directory.EnumerateFiles(dir, $"{candidate}_p*{ext}").Any()
+            : File.Exists(Path.Combine(dir, candidate + ext));
+
+        var unused = name;
+        for (var n = 2; Taken(unused); n++)
+            unused = $"{name} ({n})";
+        return Path.Combine(dir, unused + ext);
+    }
+
     [RelayCommand]
     private async Task ExportReportAsync()
     {
@@ -1593,10 +1611,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 Data.Regions.NameFor);
 
             bool success;
+            string exportPath;
             if (SelectedExportFormat == ExportFormat.PDF)
             {
                 // PDF handles multi-page internally
-                success = await renderer.ExportToPdfAsync(ExportFilePath);
+                exportPath = UnusedExportPath(ExportFilePath, pageFiles: false);
+                success = await renderer.ExportToPdfAsync(exportPath);
             }
             else
             {
@@ -1604,13 +1624,14 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 renderer.ComputeContinuationPlan();
                 var plan = renderer.GetContinuationPlan();
                 var effectivePageCount = renderer.EffectivePageCount;
+                exportPath = UnusedExportPath(ExportFilePath, pageFiles: effectivePageCount > 1);
 
                 if (effectivePageCount > 1)
                 {
                     // Multi-page image export: export each page as a separate file
-                    var dir = Path.GetDirectoryName(ExportFilePath) ?? "";
-                    var baseName = Path.GetFileNameWithoutExtension(ExportFilePath);
-                    var ext = Path.GetExtension(ExportFilePath);
+                    var dir = Path.GetDirectoryName(exportPath) ?? "";
+                    var baseName = Path.GetFileNameWithoutExtension(exportPath);
+                    var ext = Path.GetExtension(exportPath);
                     success = true;
 
                     if (plan?.Pages.Count > 0)
@@ -1634,14 +1655,17 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 }
                 else
                 {
-                    success = await renderer.ExportToImageAsync(ExportFilePath, SelectedExportFormat, ExportQuality);
+                    success = await renderer.ExportToImageAsync(exportPath, SelectedExportFormat, ExportQuality);
                 }
             }
 
             if (success)
             {
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReportGenerated);
-                ExportMessage = "Export completed successfully!";
+                var doneMessage = exportPath == ExportFilePath
+                    ? "Export completed successfully!"
+                    : $"{Path.GetFileName(ExportFilePath)} already exists, so this was saved as {Path.GetFileName(exportPath)}.";
+                ExportMessage = doneMessage;
 
                 // Auto-dismiss success message after 5 seconds
                 _ = Task.Run(async () =>
@@ -1651,7 +1675,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                         await Task.Delay(5000);
                         Dispatcher.UIThread.Post(() =>
                         {
-                            if (ExportMessage == "Export completed successfully!")
+                            if (ExportMessage == doneMessage)
                                 ExportMessage = string.Empty;
                         });
                     }
@@ -1664,9 +1688,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 // Save export settings for next time
                 await SaveExportSettingsAsync();
 
-                if (OpenAfterExport && File.Exists(ExportFilePath))
+                if (OpenAfterExport && File.Exists(exportPath))
                 {
-                    Core.Platform.UrlHelper.SafeOpenUrl(new Uri(ExportFilePath).AbsoluteUri);
+                    Core.Platform.UrlHelper.SafeOpenUrl(new Uri(exportPath).AbsoluteUri);
                 }
             }
             else
