@@ -235,7 +235,6 @@ public class ReportExportSettings
 {
     public string? LastExportDirectory { get; set; }
     public bool OpenAfterExport { get; set; } = true;
-    public bool IncludeMetadata { get; set; } = true;
 }
 
 /// <summary>

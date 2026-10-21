@@ -2015,12 +2015,8 @@
                         </StackPanel>
 
                         <!-- Options -->
-                        <StackPanel Spacing="8">
-                            <CheckBox Content="{loc:Loc 'Open after export'}"
-                                      IsChecked="{Binding OpenAfterExport}" />
-                            <CheckBox Content="{loc:Loc 'Include metadata'}"
-                                      IsChecked="{Binding IncludeMetadata}" />
-                        </StackPanel>
+                        <CheckBox Content="{loc:Loc 'Open after export'}"
+                                  IsChecked="{Binding OpenAfterExport}" />
 
                         <!-- Export Message -->
                         <TextBlock Text="{Binding ExportMessage}"

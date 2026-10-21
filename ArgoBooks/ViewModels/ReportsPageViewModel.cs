@@ -1495,9 +1495,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     private bool _openAfterExport = true;
 
     [ObservableProperty]
-    private bool _includeMetadata = true;
-
-    [ObservableProperty]
     private double _previewZoom = 1.0;
 
     [ObservableProperty]
@@ -1759,7 +1756,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             settings.LastExportDirectory = Path.GetDirectoryName(ExportFilePath);
             settings.OpenAfterExport = OpenAfterExport;
-            settings.IncludeMetadata = IncludeMetadata;
             await App.SettingsService.SaveGlobalSettingsAsync();
         }
     }
@@ -2338,10 +2334,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         // Load settings from persisted storage
         var settings = App.SettingsService?.GlobalSettings.ReportExport;
         if (settings != null)
-        {
             OpenAfterExport = settings.OpenAfterExport;
-            IncludeMetadata = settings.IncludeMetadata;
-        }
 
         // Set default export path to Desktop
         var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
