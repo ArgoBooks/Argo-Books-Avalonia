@@ -180,7 +180,8 @@ public class DashboardDragDropManager
         }
         else
         {
-            _dragGhost.BorderBrush = ConverterUtils.AccentBrush;
+            // Letting go away from every row leaves the widget where it was.
+            _dragGhost.BorderBrush = RefusedBrush;
             _dragGhost.Height = _originalGhostHeight;
             _crossRowTargetPanel = null;
             ResetPreviewTransforms();
