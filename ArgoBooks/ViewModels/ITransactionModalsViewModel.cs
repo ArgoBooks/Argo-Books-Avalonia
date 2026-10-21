@@ -65,6 +65,11 @@ public interface ITransactionModalsViewModel
     IRelayCommand<TransactionAttachment?> RemoveAttachmentCommand { get; }
 
     bool ModalPaid { get; set; }
+    bool ModalIsAsset { get; set; }
+    string ModalAssetType { get; set; }
+    decimal? ModalAssetUsefulLife { get; set; }
+    bool ModalAssetIsLand { get; }
+    IReadOnlyList<string> AssetTypeOptions { get; }
     string ModalNotes { get; set; }
 
     string SubtotalFormatted { get; }

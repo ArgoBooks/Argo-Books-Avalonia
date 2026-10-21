@@ -415,6 +415,52 @@
                                       FontSize="13"
                                       Margin="0,4,0,0" />
 
+                            <!-- Asset (expense) -->
+                            <StackPanel Spacing="12" IsVisible="{Binding !IsRevenue}">
+                                <CheckBox IsChecked="{Binding ModalIsAsset}"
+                                          Content="{loc:Loc 'This is an asset I','ll keep for years (depreciate it)'}"
+                                          FontSize="13" />
+                                <Border BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="16"
+                                        IsVisible="{Binding ModalIsAsset}">
+                                    <StackPanel Spacing="10">
+                                        <Grid ColumnDefinitions="*,16,*">
+                                            <StackPanel Grid.Column="0" Spacing="6">
+                                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Text="{loc:Loc 'Type'}" />
+                                                <ComboBox ItemsSource="{Binding AssetTypeOptions}"
+                                                          SelectedItem="{Binding ModalAssetType}"
+                                                          Classes="form-combobox"
+                                                          HorizontalAlignment="Stretch">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding !ModalAssetIsLand}">
+                                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Text="{loc:Loc 'Useful life (years)'}" />
+                                                <TextBox Text="{Binding ModalAssetUsefulLife, Mode=TwoWay, Converter={x:Static local:OptionalDecimalConverter.Instance}, ConverterParameter=0.##}"
+                                                         Classes="form-input"
+                                                         PlaceholderText="{loc:Loc 'e.g. 5'}"
+                                                         behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                         MaxLength="5" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   IsVisible="{Binding !ModalAssetIsLand}"
+                                                   Text="{loc:Loc 'Use the lifetime your accountant gives you. You can change the method and see the schedule on the Assets page.'}" />
+                                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   IsVisible="{Binding ModalAssetIsLand}"
+                                                   Text="{loc:Loc 'Land doesn','t depreciate. It stays on your books at what you paid.'}" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
                             <!-- Notes -->
                             <StackPanel Spacing="6">
                                 <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"

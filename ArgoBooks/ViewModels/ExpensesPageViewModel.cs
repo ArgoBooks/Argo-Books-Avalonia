@@ -710,6 +710,13 @@ public ExpensesPageViewModel()
     }
 
     [RelayCommand]
+    private void MakeAsset(ExpenseDisplayItem? item)
+    {
+        if (item == null) return;
+        App.AssetModalsViewModel?.OpenForExpense(item.Id);
+    }
+
+    [RelayCommand]
     private void OpenDeleteConfirm(ExpenseDisplayItem? item)
     {
         App.ExpenseModalsViewModel?.OpenDeleteConfirm(item);

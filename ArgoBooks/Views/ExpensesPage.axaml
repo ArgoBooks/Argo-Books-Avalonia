@@ -516,6 +516,13 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Copy}"
                                                                   Width="16" Height="16" />
                                                     </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Make this an asset'}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).MakeAssetCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Assets}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
                                                     <!-- Mark as Lost/Damaged (shown when not already marked) -->
                                                     <Button Classes="icon-button warning"
                                                             ToolTip.Tip="{loc:Loc 'Mark as Lost / Damaged'}"

@@ -35,6 +35,7 @@ public static class ReportTemplateFactory
         public const string ExpensesBySupplier = "Expenses by Supplier";
         public const string PayrollSummary = "Payroll Summary";
         public const string Rentals = "Rentals";
+        public const string AssetRegister = "Asset Register";
     }
 
     /// <summary>
@@ -66,7 +67,8 @@ public static class ReportTemplateFactory
                templateName == TemplateNames.SalesByCustomer ||
                templateName == TemplateNames.ExpensesBySupplier ||
                templateName == TemplateNames.PayrollSummary ||
-               templateName == TemplateNames.Rentals;
+               templateName == TemplateNames.Rentals ||
+               templateName == TemplateNames.AssetRegister;
     }
 
     /// <summary>
@@ -97,6 +99,7 @@ public static class ReportTemplateFactory
             TemplateNames.ExpensesBySupplier => CreateAccountingTemplate(AccountingReportType.ExpensesBySupplier, "Expenses by Supplier", DatePresetNames.YearToDate),
             TemplateNames.PayrollSummary => CreateAccountingTemplate(AccountingReportType.PayrollSummary, "Payroll Summary", DatePresetNames.YearToDate),
             TemplateNames.Rentals => CreateAccountingTemplate(AccountingReportType.Rentals, "Rentals", DatePresetNames.ThisMonth),
+            TemplateNames.AssetRegister => CreateAccountingTemplate(AccountingReportType.AssetRegister, "Asset Register", DatePresetNames.YearToDate),
             _ => new ReportConfiguration()
         };
     }

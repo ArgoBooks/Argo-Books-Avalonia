@@ -31,6 +31,7 @@ See [Calculations](Calculations.md) for the rules governing how the numbers in e
 - Payroll Remittance
 - Payroll Summary
 - Rentals
+- Asset Register
 
 ## Creating a report
 

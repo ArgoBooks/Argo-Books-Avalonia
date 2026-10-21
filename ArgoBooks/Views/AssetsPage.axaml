@@ -1,0 +1,207 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:table="using:ArgoBooks.Controls.ArgoTable"
+             xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:icons="using:ArgoBooks"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="ArgoBooks.Views.AssetsPage"
+             x:DataType="vm:AssetsPageViewModel">
+
+    <Design.DataContext>
+        <vm:AssetsPageViewModel />
+    </Design.DataContext>
+
+    <Panel>
+    <Grid RowDefinitions="*">
+        <Grid Grid.Row="0" RowDefinitions="Auto,*" Margin="24">
+            <controls:StatCardsRow Grid.Row="0" Margin="0,0,0,24">
+                <controls:StatCard Label="{loc:Loc 'Assets in use'}"
+                                   Value="{Binding AssetsInUse}"
+                                   Icon="{x:Static icons:Icons.Assets}"
+                                   IconColor="Primary" />
+                <controls:StatCard Label="{loc:Loc 'Total cost'}"
+                                   Value="{Binding TotalCost}"
+                                   Icon="{x:Static icons:Icons.Dollar}"
+                                   IconColor="Warning" />
+                <controls:StatCard Label="{loc:Loc 'Book value'}"
+                                   Value="{Binding TotalBookValue}"
+                                   Icon="{x:Static icons:Icons.Book}"
+                                   IconColor="Success" />
+                <controls:StatCard Label="{loc:Loc 'Depreciation this year'}"
+                                   Value="{Binding DepreciationThisYear}"
+                                   Icon="{x:Static icons:Icons.Calendar}"
+                                   IconColor="Danger" />
+            </controls:StatCardsRow>
+
+            <table:ArgoTable Grid.Row="1"
+                             Title="{loc:Loc Assets}"
+                             ItemsSource="{Binding Assets}"
+                             SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
+                             SearchPlaceholder="{loc:Loc 'Search assets...'}"
+                             ShowFilterButton="False"
+                             AddCommand="{Binding OpenAddModalCommand}"
+                             AddButtonText="{loc:Loc 'Add Asset'}"
+                             AddButtonTooltip="{loc:Loc 'Add an asset you already owned before using Argo Books'}"
+                             ColumnWidthsManager="{Binding ColumnWidths}"
+                             CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
+                             TotalPages="{Binding TotalPages}"
+                             PageSize="{Binding PageSize, Mode=TwoWay}"
+                             PaginationText="{Binding PaginationText}"
+                             GoToPageCommand="{Binding GoToPageCommand}"
+                             GoToPreviousPageCommand="{Binding GoToPreviousPageCommand}"
+                             GoToNextPageCommand="{Binding GoToNextPageCommand}"
+                             ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
+                             EmptyIcon="{x:Static icons:Icons.Assets}"
+                             EmptyTitle="{loc:Loc 'No assets yet'}"
+                             EmptyMessage="{loc:Loc 'Assets are things the business keeps for years, like land, buildings, vehicles and equipment. Turn a purchase into an asset from the Expenses page, or add one you bought before using Argo Books.'}">
+
+                <table:ArgoTable.HeaderContent>
+                    <StackPanel Orientation="Horizontal">
+                        <table:ArgoTableHeader Header="{loc:Loc Asset}" ColumnName="Asset" SortProperty="Asset"
+                                               ColumnWidth="{Binding ColumnWidths.AssetColumnWidth}"
+                                               IsColumnVisible="{Binding ShowAssetColumn}"
+                                               SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                               SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                        <table:ArgoTableHeader Header="{loc:Loc Type}" ColumnName="Type" SortProperty="Type"
+                                               ColumnWidth="{Binding ColumnWidths.TypeColumnWidth}"
+                                               IsColumnVisible="{Binding ShowTypeColumn}"
+                                               SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                               SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                        <table:ArgoTableHeader Header="{loc:Loc Purchased}" ColumnName="Purchased" SortProperty="Purchased"
+                                               ColumnWidth="{Binding ColumnWidths.PurchasedColumnWidth}"
+                                               IsColumnVisible="{Binding ShowPurchasedColumn}"
+                                               SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                               SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                        <table:ArgoTableHeader Header="{loc:Loc Cost}" ColumnName="Cost" SortProperty="Cost"
+                                               ColumnWidth="{Binding ColumnWidths.CostColumnWidth}"
+                                               IsColumnVisible="{Binding ShowCostColumn}"
+                                               SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                               SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                        <table:ArgoTableHeader Header="{loc:Loc 'This year'}" ColumnName="ThisYear" SortProperty="ThisYear"
+                                               ColumnWidth="{Binding ColumnWidths.ThisYearColumnWidth}"
+                                               IsColumnVisible="{Binding ShowThisYearColumn}"
+                                               SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                               SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                        <table:ArgoTableHeader Header="{loc:Loc 'Book value'}" ColumnName="BookValue" SortProperty="BookValue"
+                                               ColumnWidth="{Binding ColumnWidths.BookValueColumnWidth}"
+                                               IsColumnVisible="{Binding ShowBookValueColumn}"
+                                               SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                               SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                        <table:ArgoTableHeader Header="{loc:Loc Status}" ColumnName="Status" SortProperty="Status"
+                                               ColumnWidth="{Binding ColumnWidths.StatusColumnWidth}"
+                                               IsColumnVisible="{Binding ShowStatusColumn}"
+                                               SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                               SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                        <table:ArgoTableHeader Header="{loc:Loc Actions}" ColumnName="Actions"
+                                               ColumnWidth="{Binding ColumnWidths.ActionsColumnWidth}"
+                                               IsSortable="False" IsResizable="False" ShowSeparator="False" />
+                    </StackPanel>
+                </table:ArgoTable.HeaderContent>
+
+                <table:ArgoTable.RowsContent>
+                    <ItemsControl Classes="table-rows" ItemsSource="{Binding Assets}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:AssetDisplayItem">
+                                <Border Padding="24,0,0,0"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="0,0,0,1"
+                                        MinHeight="52">
+                                    <StackPanel Orientation="Horizontal">
+                                        <table:ArgoTableCell Text="{Binding Name}"
+                                                             ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.AssetColumnWidth}"
+                                                             IsColumnVisible="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ShowAssetColumn}" />
+
+                                        <table:ArgoTableCell Text="{Binding Type, Converter={StaticResource TranslateConverter}}"
+                                                             ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.TypeColumnWidth}"
+                                                             IsColumnVisible="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ShowTypeColumn}" />
+
+                                        <table:ArgoTableCell Text="{Binding PurchaseDateFormatted}"
+                                                             ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.PurchasedColumnWidth}"
+                                                             IsColumnVisible="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ShowPurchasedColumn}" />
+
+                                        <table:ArgoTableCell Text="{Binding CostFormatted}"
+                                                             ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.CostColumnWidth}"
+                                                             IsColumnVisible="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ShowCostColumn}" />
+
+                                        <table:ArgoTableCell Text="{Binding ThisYearFormatted}"
+                                                             ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.ThisYearColumnWidth}"
+                                                             IsColumnVisible="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ShowThisYearColumn}" />
+
+                                        <table:ArgoTableCell Text="{Binding BookValueFormatted}"
+                                                             ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.BookValueColumnWidth}"
+                                                             IsColumnVisible="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ShowBookValueColumn}" />
+
+                                        <table:ArgoTableCell Text="{Binding Status, Converter={StaticResource TranslateConverter}}"
+                                                             ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.StatusColumnWidth}"
+                                                             IsColumnVisible="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ShowStatusColumn}" />
+
+                                        <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.ActionsColumnWidth}"
+                                                             ShowSeparator="False">
+                                            <table:ArgoTableCell.CellContent>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Spacing="4">
+                                                    <Button Classes="icon-button" ToolTip.Tip="{loc:Loc Edit}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).OpenEditModalCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Edit}" Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button" ToolTip.Tip="{loc:Loc 'Sell or dispose'}"
+                                                            IsVisible="{Binding !IsDisposed}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).OpenDisposeModalCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.DollarCircle}" Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button" ToolTip.Tip="{loc:Loc 'Undo sale'}"
+                                                            IsVisible="{Binding IsDisposed}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ReverseDisposalCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Undo}" Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button danger" ToolTip.Tip="{loc:Loc Delete}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).OpenDeleteConfirmCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Delete}" Width="16" Height="16" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </table:ArgoTableCell.CellContent>
+                                        </table:ArgoTableCell>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </table:ArgoTable.RowsContent>
+            </table:ArgoTable>
+        </Grid>
+    </Grid>
+
+    <controls:ColumnVisibilityMenu IsOpen="{Binding IsColumnMenuOpen}"
+                                   MenuX="{Binding ColumnWidths.ColumnMenuX}"
+                                   MenuY="{Binding ColumnWidths.ColumnMenuY}"
+                                   CloseCommand="{Binding CloseColumnMenuCommand}"
+                                   ResetCommand="{Binding ResetColumnVisibilityCommand}">
+        <controls:ColumnVisibilityMenu.ColumnsContent>
+            <StackPanel Spacing="4">
+                <CheckBox IsChecked="{Binding ShowAssetColumn}" Content="{loc:Loc Asset}" Classes="column-toggle" />
+                <CheckBox IsChecked="{Binding ShowTypeColumn}" Content="{loc:Loc Type}" Classes="column-toggle" />
+                <CheckBox IsChecked="{Binding ShowPurchasedColumn}" Content="{loc:Loc Purchased}" Classes="column-toggle" />
+                <CheckBox IsChecked="{Binding ShowCostColumn}" Content="{loc:Loc Cost}" Classes="column-toggle" />
+                <CheckBox IsChecked="{Binding ShowThisYearColumn}" Content="{loc:Loc 'This year'}" Classes="column-toggle" />
+                <CheckBox IsChecked="{Binding ShowBookValueColumn}" Content="{loc:Loc 'Book value'}" Classes="column-toggle" />
+                <CheckBox IsChecked="{Binding ShowStatusColumn}" Content="{loc:Loc Status}" Classes="column-toggle" />
+            </StackPanel>
+        </controls:ColumnVisibilityMenu.ColumnsContent>
+    </controls:ColumnVisibilityMenu>
+    </Panel>
+
+</UserControl>

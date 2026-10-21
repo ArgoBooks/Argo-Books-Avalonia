@@ -224,6 +224,8 @@ public partial class App : Application
     /// Gets the locations modals view model for shared access.
     /// </summary>
     public static LocationsModalsViewModel? LocationsModalsViewModel => _appShellViewModel?.LocationsModalsViewModel;
+
+    public static AssetModalsViewModel? AssetModalsViewModel => _appShellViewModel?.AssetModalsViewModel;
     public static PayrollModalsViewModel? PayrollModalsViewModel => _appShellViewModel?.PayrollModalsViewModel;
 
     public static PayRunModalsViewModel? PayRunModalsViewModel => _appShellViewModel?.PayRunModalsViewModel;
@@ -1076,6 +1078,8 @@ public partial class App : Application
     /// Gets the shared column widths for the Locations table.
     /// </summary>
     public static Controls.ColumnWidths.LocationsTableColumnWidths LocationsColumnWidths { get; } = new();
+
+    public static Controls.ColumnWidths.AssetsTableColumnWidths AssetsColumnWidths { get; } = new();
     public static Controls.ColumnWidths.EmployeesTableColumnWidths EmployeesColumnWidths { get; } = new();
 
     public static Controls.ColumnWidths.PayRunsTableColumnWidths PayRunsColumnWidths { get; } = new();
@@ -1140,6 +1144,7 @@ public partial class App : Application
     private static CategoriesPageViewModel? _categoriesPageViewModel;
     private static CustomersPageViewModel? _customersPageViewModel;
     private static SuppliersPageViewModel? _suppliersPageViewModel;
+    private static AssetsPageViewModel? _assetsPageViewModel;
     private static RentalInventoryPageViewModel? _rentalInventoryPageViewModel;
     private static RentalRecordsPageViewModel? _rentalRecordsPageViewModel;
     private static ReturnsPageViewModel? _returnsPageViewModel;
@@ -1158,7 +1163,7 @@ public partial class App : Application
             _revenuePageViewModel, _expensesPageViewModel, _invoicesPageViewModel, _quotesPageViewModel,
             _bankMatchingPageViewModel, _productsPageViewModel, _stockLevelsPageViewModel, _locationsPageViewModel,
             _stockAdjustmentsPageViewModel, _purchaseOrdersPageViewModel, _categoriesPageViewModel,
-            _customersPageViewModel, _suppliersPageViewModel, _rentalInventoryPageViewModel,
+            _customersPageViewModel, _suppliersPageViewModel, _assetsPageViewModel, _rentalInventoryPageViewModel,
             _rentalRecordsPageViewModel, _returnsPageViewModel, _lostDamagedPageViewModel, _receiptsPageViewModel,
             _employeesPageViewModel, _payRunsPageViewModel
         })
@@ -1183,6 +1188,7 @@ public partial class App : Application
         _categoriesPageViewModel = null;
         _customersPageViewModel = null;
         _suppliersPageViewModel = null;
+        _assetsPageViewModel = null;
         _rentalInventoryPageViewModel = null;
         _rentalRecordsPageViewModel = null;
         _returnsPageViewModel = null;
@@ -5232,6 +5238,7 @@ public partial class App : Application
             }
             return new SuppliersPage { DataContext = _suppliersPageViewModel };
         });
+        navigationService.RegisterPage("Assets", _ => new AssetsPage { DataContext = _assetsPageViewModel ??= new AssetsPageViewModel() });
 
         // Rentals Section
         navigationService.RegisterPage("RentalInventory", _ => new RentalInventoryPage { DataContext = _rentalInventoryPageViewModel ??= new RentalInventoryPageViewModel() });

@@ -3,6 +3,7 @@ using ArgoBooks.Services;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Assets;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Models.Transactions;
@@ -137,6 +138,19 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         IsAddEditModalOpen = true;
     }
 
+    /// <summary>Ticks "this is an asset" and fills in its type and life when the expense bought one.</summary>
+    private void LoadAssetChoice(string expenseId)
+    {
+        var asset = App.CompanyManager?.CompanyData is { } data ? ExpenseAssetLink.AssetFor(data, expenseId) : null;
+        ModalIsAsset = asset != null;
+        ModalAssetType = (asset?.Type ?? AssetType.Equipment).ToDisplayName();
+        ModalAssetUsefulLife = asset?.UsefulLifeYears;
+    }
+
+    private ExpenseAssetLink.Change? ApplyAssetChoice(CompanyData companyData, Expense expense, decimal? preTaxBeforeEdit, string? currencyBeforeEdit) =>
+        ExpenseAssetLink.Apply(companyData, expense, preTaxBeforeEdit, currencyBeforeEdit,
+            ModalIsAsset, AssetTypeExtensions.ParseAssetType(ModalAssetType), ModalAssetUsefulLife);
+
     protected override Transaction? LoadIntoForm(ExpenseDisplayItem item)
     {
         var expense = App.CompanyManager?.CompanyData?.Expenses.FirstOrDefault(p => p.Id == item.Id);
@@ -147,6 +161,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         LoadProductOptions();
 
         SelectedSupplier = SupplierOptions.FirstOrDefault(s => s.Id == expense.SupplierId);
+        LoadAssetChoice(expense.Id);
         PopulateFormFromTransaction(expense);
         return expense;
     }
@@ -473,6 +488,8 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         // Adjust inventory for tracked products
         var inventoryResults = AdjustInventoryForLineItems(companyData, expense, modelLineItems, isExpense: true);
 
+        var assetChange = ApplyAssetChoice(companyData, expense, null, null);
+
         var capturedReceipts = addedReceipts;
         var action = new DelegateAction(
             $"Add expense {expenseId}",
@@ -483,6 +500,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 foreach (var r in capturedReceipts)
                     companyData.Receipts.RemoveRecord(r);
                 RevertInventoryAdjustments(companyData, inventoryResults);
+                assetChange?.Undo();
                 RaiseTransactionSaved();
             },
             () =>
@@ -492,6 +510,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 foreach (var r in capturedReceipts)
                     companyData.Receipts.RestoreRecord(r);
                 inventoryResults = AdjustInventoryForLineItems(companyData, expense, modelLineItems, isExpense: true);
+                assetChange?.Redo();
                 RaiseTransactionSaved();
             });
 
@@ -520,6 +539,8 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
         // Store original values for undo
         var original = CaptureTransactionState(expense);
+        var preTaxBeforeEdit = AssetDepreciation.PreTaxCost(expense);
+        var currencyBeforeEdit = expense.OriginalCurrency;
         var queueKey = UsdConversion.KeyOf(expense);
         var originalQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
@@ -554,6 +575,8 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         // Adjust inventory with net diff (single adjustment per product)
         var editResults = AdjustInventoryForEdit(companyData, expense, original.LineItems, modelLineItems, isExpense: true);
 
+        var assetChange = ApplyAssetChoice(companyData, expense, preTaxBeforeEdit, currencyBeforeEdit);
+
         var capturedAdded = addedReceipts;
         var capturedRemoved = removedReceipts;
         // Snapshot the NEW state so redo restores the edit itself.
@@ -571,6 +594,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 foreach (var r in capturedRemoved)
                     companyData.Receipts.RestoreRecord(r);
                 RevertInventoryAdjustments(companyData, editResults);
+                assetChange?.Undo();
                 RaiseTransactionSaved();
             },
             () =>
@@ -584,6 +608,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 foreach (var r in capturedAdded)
                     companyData.Receipts.RestoreRecord(r);
                 editResults = AdjustInventoryForEdit(companyData, expense, original.LineItems, modelLineItems, isExpense: true);
+                assetChange?.Redo();
                 RaiseTransactionSaved();
             });
 

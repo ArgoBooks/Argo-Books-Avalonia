@@ -1,5 +1,6 @@
 ﻿using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Assets;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Transactions;
@@ -42,6 +43,55 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
     private IReadOnlyDictionary<string, Invoice> InvoicesById =>
         _invoicesById ??= ProfitCalculator.BuildInvoiceLookup(companyData!.Invoices);
+
+    private Dictionary<string, decimal>? _capitalizedShares;
+
+    /// <summary>The share of each expense that bought a fixed asset, which counts as depreciation over the years rather than as an expense now.</summary>
+    private Dictionary<string, decimal> CapitalizedShares =>
+        _capitalizedShares ??= AssetDepreciation.CapitalizedShares(companyData!.Expenses, companyData.Assets);
+
+    /// <summary>An amount on a fixed asset in <see cref="DisplayCode"/>, at its purchase date unless another is given, or null when that rate is missing.</summary>
+    private decimal? AssetToDisplay(FixedAsset asset, decimal amount, DateTime? date = null) =>
+        amount == 0 ? 0m : DisplayCurrency.FromNative(amount, asset.Currency, DisplayCode, (date ?? asset.PurchaseDate).Date);
+
+    /// <summary>The fixed assets' depreciation and their gains or losses on leaving the books in the report's range.</summary>
+    private (decimal Depreciation, decimal GainOnDisposal, bool Pending) AssetFiguresInRange()
+    {
+        decimal depreciation = 0m, gain = 0m;
+        var pending = false;
+        foreach (var asset in companyData!.Assets)
+        {
+            if (AssetToDisplay(asset, AssetDepreciation.Between(asset, RangeStart, RangeEnd)) is { } booked)
+                depreciation += booked;
+            else
+                pending = true;
+
+            if (asset.DisposedDate is not { } gone || !IsInDateRange(gone))
+                continue;
+            var proceeds = AssetToDisplay(asset, asset.Proceeds, gone);
+            var bookValue = AssetToDisplay(asset, AssetDepreciation.BookValueAtDisposal(asset));
+            if (proceeds is { } p && bookValue is { } b)
+                gain += p - b;
+            else
+                pending = true;
+        }
+        return (depreciation, gain, pending);
+    }
+
+    /// <summary>What fixed assets sold for on days from <paramref name="from"/> to <paramref name="to"/>, and whether any rate was missing.</summary>
+    private (decimal Proceeds, bool Pending) AssetSaleProceeds(DateTime from, DateTime to)
+    {
+        decimal total = 0m;
+        var pending = false;
+        foreach (var asset in companyData!.Assets.Where(a => a.DisposedDate is { } gone && gone >= from && gone <= to))
+        {
+            if (AssetToDisplay(asset, asset.Proceeds, asset.DisposedDate) is { } proceeds)
+                total += proceeds;
+            else
+                pending = true;
+        }
+        return (total, pending);
+    }
 
     private string ResolveDisplayCode() => companyData == null
         ? "USD"
@@ -185,6 +235,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             AccountingReportType.ExpensesBySupplier => GetExpensesBySupplierData(),
             AccountingReportType.PayrollSummary => GetPayrollSummaryData(),
             AccountingReportType.Rentals => GetRentalsData(),
+            AccountingReportType.AssetRegister => GetAssetRegisterData(),
             _ => new AccountingTableData { Title = "Unknown Report" }
         };
     }
@@ -268,7 +319,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     }
 
     /// <summary>
-    /// <see cref="GroupTransactionsByCategory"/> for expenses, leaving out tracked stock bought: it is
+    /// <see cref="GroupTransactionsByCategory"/> for expenses, leaving out the share that bought fixed assets (§16) and tracked stock bought: it is
     /// stock until it sells, when it shows as cost of goods sold (docs/Calculations.md §14). The rest of
     /// such an expense, shipping and fees included, is spread over its other lines, or goes under
     /// Uncategorized when they can't take it, as for any transaction (§13).
@@ -277,10 +328,14 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     {
         var result = new Dictionary<string, decimal>();
 
-        void Add(string category, decimal amount) => result[category] = result.GetValueOrDefault(category) + amount;
-
         foreach (var expense in expenses)
         {
+            var kept = 1m - CapitalizedShares.GetValueOrDefault(expense.Id);
+            if (kept <= 0)
+                continue;
+
+            void Add(string category, decimal amount) => result[category] = result.GetValueOrDefault(category) + amount * kept;
+
             if (!expense.LineItems.Any(li => li.IsStockPurchase))
             {
                 foreach (var kvp in GroupTransactionsByCategory([expense]))
@@ -343,15 +398,18 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var refunds = RefundAggregator.GetRefundedPreTaxInDateRangeDisplay(
             companyData.Payments, InvoicesById, RangeStart, RangeEnd, ToDisplay);
 
+        var (depreciation, gainOnDisposal, assetsPending) = AssetFiguresInRange();
+
         var totalRevenue = revenueByCategory.Values.Sum() - refunds;
-        var totalExpenses = expenseByCategory.Values.Sum();
+        var totalExpenses = expenseByCategory.Values.Sum() + depreciation;
         var costOfGoods = revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date));
-        var netIncome = totalRevenue - costOfGoods - totalExpenses;
+        var netIncome = totalRevenue - costOfGoods - totalExpenses + gainOnDisposal;
 
         // A sale waiting for its stock's cost counts none yet, so the figures that subtract cost
         // of goods sold aren't known and read Pending rather than overstated (Calculations.md §14).
         var costPending = CostOfGoodsAggregator.IsCostOfGoodsPending(revenues);
         string AfterCost(decimal amount) => costPending ? PendingText : FormatCurrencyWithSign(amount);
+        string AssetBased(decimal amount) => assetsPending ? PendingText : FormatCurrencyWithSign(amount);
 
         // Revenue section
         data.Rows.Add(new AccountingRow
@@ -429,12 +487,35 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             });
         }
 
+        if (depreciation != 0 || assetsPending)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Depreciation",
+                Values = [AssetBased(depreciation)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
         data.Rows.Add(new AccountingRow
         {
             Label = t.TotalOperatingExpenses,
-            Values = [FormatCurrency(totalExpenses)],
+            Values = [AssetBased(totalExpenses)],
             RowType = AccountingRowType.SubtotalRow
         });
+
+        if (gainOnDisposal != 0)
+        {
+            data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
+            data.Rows.Add(new AccountingRow
+            {
+                Label = gainOnDisposal > 0 ? "Gain on Sale of Assets" : "Loss on Sale of Assets",
+                Values = [AssetBased(gainOnDisposal)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
 
         data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
 
@@ -444,9 +525,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = t.NetIncome,
-            Values = [AfterCost(netIncome)],
+            Values = [assetsPending ? PendingText : AfterCost(netIncome)],
             RowType = AccountingRowType.GrandTotalRow
         });
+
+        if (companyData.Assets.Count > 0)
+            data.Footnote = "Purchases recorded as fixed assets are not counted as expenses here. Their cost is counted as depreciation over the years they are used.";
 
         return data;
     }
@@ -520,7 +604,10 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, cashFrom, RangeEnd, ToDisplay);
 
-        var cash = openingCash + cashFromRevenue + cashFromPayments - cashPaidForExpenses;
+        var (cashFromAssetSales, salesPending) = AssetSaleProceeds(cashFrom, RangeEnd);
+        cashPending |= salesPending;
+
+        var cash = openingCash + cashFromRevenue + cashFromPayments - cashPaidForExpenses + cashFromAssetSales;
 
         // Accounts Receivable = what was still owed at the end date, each balance converted at the
         // invoice's issue date.
@@ -533,7 +620,28 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             EndDateForValuation);
 
         var totalCurrentAssets = cash + accountsReceivable + inventoryValue;
-        var totalAssets = totalCurrentAssets;
+
+        // Fixed assets stay at what they cost, converted at their purchase date, less the depreciation booked so far.
+        var heldAssets = companyData.Assets.Where(a => AssetDepreciation.IsHeldOn(a, EndDateForValuation)).ToList();
+        decimal fixedAssetCost = 0m, accumulatedDepreciation = 0m;
+        var assetsPending = false;
+        foreach (var asset in heldAssets)
+        {
+            var cost = AssetToDisplay(asset, asset.Cost);
+            var accumulated = AssetToDisplay(asset, AssetDepreciation.AccumulatedAsOf(asset, EndDateForValuation));
+            if (cost is { } costShown && accumulated is { } accumulatedShown)
+            {
+                fixedAssetCost += costShown;
+                accumulatedDepreciation += accumulatedShown;
+            }
+            else
+            {
+                assetsPending = true;
+            }
+        }
+        var netFixedAssets = fixedAssetCost - accumulatedDepreciation;
+
+        var totalAssets = totalCurrentAssets + netFixedAssets;
 
         // Accounts Payable = purchase orders placed but not received or cancelled, each converted at
         // the order date. A draft has not been sent to a supplier, so nothing is owed on it yet.
@@ -576,6 +684,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         // Without the opening balance's rate the cash, and every total built on it, is unknown rather than zero.
         string CashBased(decimal amount) => cashPending ? PendingText : FormatCurrencyWithSign(amount);
+        string AssetBased(decimal amount) => assetsPending ? PendingText : FormatCurrencyWithSign(amount);
+        string TotalBased(decimal amount) => cashPending || assetsPending ? PendingText : FormatCurrencyWithSign(amount);
 
         // ASSETS
         data.Rows.Add(new AccountingRow
@@ -630,10 +740,49 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
 
+        if (heldAssets.Count > 0)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Fixed Assets",
+                RowType = AccountingRowType.SectionHeader,
+                IndentLevel = 0,
+                Values = [""]
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Property and Equipment",
+                Values = [AssetBased(fixedAssetCost)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Less Accumulated Depreciation",
+                Values = [AssetBased(-accumulatedDepreciation)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Total Fixed Assets",
+                Values = [AssetBased(netFixedAssets)],
+                IndentLevel = 0,
+                RowType = AccountingRowType.SubtotalRow
+            });
+
+            data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
+
+            data.Footnote += " Fixed assets are shown at cost less the depreciation booked so far.";
+        }
+
         data.Rows.Add(new AccountingRow
         {
             Label = "TOTAL ASSETS",
-            Values = [CashBased(totalAssets)],
+            Values = [TotalBased(totalAssets)],
             RowType = AccountingRowType.TotalRow
         });
 
@@ -708,7 +857,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "Retained Earnings",
-            Values = [CashBased(retainedEarnings)],
+            Values = [TotalBased(retainedEarnings)],
             IndentLevel = 1,
             RowType = AccountingRowType.DataRow
         });
@@ -716,7 +865,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "TOTAL EQUITY",
-            Values = [CashBased(totalEquity)],
+            Values = [TotalBased(totalEquity)],
             RowType = AccountingRowType.TotalRow
         });
 
@@ -728,7 +877,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "TOTAL LIABILITIES & EQUITY",
-            Values = [CashBased(totalLiabilities + totalEquity)],
+            Values = [TotalBased(totalLiabilities + totalEquity)],
             RowType = AccountingRowType.GrandTotalRow
         });
 
@@ -793,11 +942,19 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Where(p => string.IsNullOrEmpty(p.RevenueId) && IsInDateRange(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
-        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, RangeStart, RangeEnd, ToDisplay);
+        // The share of an expense that bought a fixed asset is an investment rather than a running cost.
+        var cashPaidForAssets = companyData.Expenses
+            .Where(e => IsInDateRange(e.Date) && CapitalizedShares.ContainsKey(e.Id))
+            .Sum(e => ToDisplay(e.EffectiveSubtotalUSD * CapitalizedShares[e.Id], e.Date));
+        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, RangeStart, RangeEnd, ToDisplay)
+                                  - cashPaidForAssets;
+        var (cashFromAssetSales, salesPending) = AssetSaleProceeds(RangeStart, RangeEnd);
 
         var totalOperating = cashFromSales + cashFromInvoicePayments - cashPaidForExpenses;
+        var totalInvesting = cashFromAssetSales - cashPaidForAssets;
 
-        var netChange = totalOperating;
+        var netChange = totalOperating + totalInvesting;
+        string SalesBased(decimal amount) => salesPending ? PendingText : FormatCurrencyWithSign(amount);
 
         // Operating section
         data.Rows.Add(new AccountingRow
@@ -840,13 +997,48 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
 
+        if (cashPaidForAssets != 0 || cashFromAssetSales != 0 || salesPending)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "INVESTING ACTIVITIES",
+                RowType = AccountingRowType.SectionHeader,
+                Values = [""]
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Purchase of Fixed Assets",
+                Values = [FormatCurrencyWithSign(-cashPaidForAssets)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Sale of Fixed Assets",
+                Values = [SalesBased(cashFromAssetSales)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Net Cash from Investing Activities",
+                Values = [SalesBased(totalInvesting)],
+                RowType = AccountingRowType.SubtotalRow
+            });
+
+            data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
+        }
+
         // Net change
         data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = [""] });
 
         data.Rows.Add(new AccountingRow
         {
             Label = "NET CHANGE IN CASH",
-            Values = [FormatCurrencyWithSign(netChange)],
+            Values = [SalesBased(netChange)],
             RowType = AccountingRowType.GrandTotalRow
         });
 
@@ -1793,6 +1985,122 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         });
 
         data.Footnote = "Earned is the rental charges plus any deposit kept. Reserved and cancelled rentals are not listed.";
+        return data;
+    }
+
+    #endregion
+
+    #region Asset Register
+
+    /// <summary>Every fixed asset held at the end date, with its depreciation in the period and so far, then those that left the books in the period.</summary>
+    private AccountingTableData GetAssetRegisterData()
+    {
+        var data = new AccountingTableData
+        {
+            Title = "Asset Register",
+            Subtitle = GetCurrencySubtitle(),
+            ColumnHeaders = ["Asset", "Type", "Purchased", "Cost", "This Period", "Accumulated", "Book Value"],
+            ColumnWidthRatios = [0.22, 0.14, 0.12, 0.13, 0.13, 0.13, 0.13]
+        };
+
+        var end = EndDateForValuation;
+        var assets = companyData?.Assets ?? [];
+        List<string> Blank() => ["", "", "", "", "", ""];
+
+        string Shown(FixedAsset asset, decimal amount, DateTime? date = null) =>
+            AssetToDisplay(asset, amount, date) is { } shown ? FormatCurrencyWithSign(shown) : PendingText;
+
+        decimal? Sum(IEnumerable<FixedAsset> list, Func<FixedAsset, decimal> amount)
+        {
+            decimal total = 0m;
+            foreach (var asset in list)
+            {
+                if (AssetToDisplay(asset, amount(asset)) is not { } shown)
+                    return null;
+                total += shown;
+            }
+            return total;
+        }
+
+        string Total(decimal? amount) => amount is { } value ? FormatCurrencyWithSign(value) : PendingText;
+
+        var held = assets
+            .Where(a => AssetDepreciation.IsHeldOn(a, end))
+            .OrderBy(a => a.PurchaseDate)
+            .ThenBy(a => a.Name)
+            .ToList();
+
+        data.Rows.Add(new AccountingRow { Label = $"HELD ON {FormatStatementDate(end).ToUpperInvariant()}", RowType = AccountingRowType.SectionHeader, Values = Blank() });
+        foreach (var asset in held)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = asset.Name,
+                IndentLevel = 1,
+                Values =
+                [
+                    asset.Type.ToDisplayName(),
+                    FormatStatementDate(asset.PurchaseDate),
+                    Shown(asset, asset.Cost),
+                    Shown(asset, AssetDepreciation.Between(asset, RangeStart, RangeEnd)),
+                    Shown(asset, AssetDepreciation.AccumulatedAsOf(asset, end)),
+                    Shown(asset, AssetDepreciation.BookValueAsOf(asset, end))
+                ]
+            });
+        }
+        if (held.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No fixed assets on this date", IndentLevel = 1, Values = Blank() });
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Total held",
+            Values =
+            [
+                "", "",
+                Total(Sum(held, a => a.Cost)),
+                Total(Sum(held, a => AssetDepreciation.Between(a, RangeStart, RangeEnd))),
+                Total(Sum(held, a => AssetDepreciation.AccumulatedAsOf(a, end))),
+                Total(Sum(held, a => AssetDepreciation.BookValueAsOf(a, end)))
+            ],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        var gone = assets
+            .Where(a => a.DisposedDate is { } date && IsInDateRange(date))
+            .OrderBy(a => a.DisposedDate)
+            .ToList();
+
+        if (gone.Count > 0)
+        {
+            data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = Blank() });
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "SOLD OR DISPOSED IN THIS PERIOD",
+                RowType = AccountingRowType.SectionHeader,
+                Values = ["", "Left the books", "Cost", "This Period", "Received", "Gain or Loss"]
+            });
+            foreach (var asset in gone)
+            {
+                var received = AssetToDisplay(asset, asset.Proceeds, asset.DisposedDate);
+                var bookValue = AssetToDisplay(asset, AssetDepreciation.BookValueAtDisposal(asset));
+                data.Rows.Add(new AccountingRow
+                {
+                    Label = asset.Name,
+                    IndentLevel = 1,
+                    Values =
+                    [
+                        asset.Type.ToDisplayName(),
+                        FormatStatementDate(asset.DisposedDate!.Value),
+                        Shown(asset, asset.Cost),
+                        Shown(asset, AssetDepreciation.Between(asset, RangeStart, RangeEnd)),
+                        received is { } r ? FormatCurrency(r) : PendingText,
+                        received is { } got && bookValue is { } worth ? FormatCurrencyWithSign(got - worth) : PendingText
+                    ]
+                });
+            }
+        }
+
+        data.Footnote = "Cost is before tax. Land is not depreciated. Depreciation is booked at the end of each month, and not in the month an asset is sold or disposed of.";
         return data;
     }
 

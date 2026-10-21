@@ -78,7 +78,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         new(ReportTemplateFactory.TemplateNames.PayrollSummary, "Payroll Summary", "What each employee was paid",
             Icons.Person, AppColors.Primary, AppColors.PrimaryLight),
         new(ReportTemplateFactory.TemplateNames.Rentals, "Rentals", "What is rented out and what it earned",
-            Icons.RentalRecords, AppColors.MdCyan, AppColors.MdCyanLight)
+            Icons.RentalRecords, AppColors.MdCyan, AppColors.MdCyanLight),
+        new(ReportTemplateFactory.TemplateNames.AssetRegister, "Asset Register", "What your assets cost and are worth now",
+            Icons.Assets, AppColors.FlatTeal, AppColors.FlatTealLight)
     ];
 
     #endregion
@@ -648,7 +650,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     public bool ShowTotalColors => SelectedAccountingTableElement.ReportType
         is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement
             or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary
-            or AccountingReportType.Rentals;
+            or AccountingReportType.Rentals or AccountingReportType.AssetRegister;
 
     /// <summary>
     /// Gets or sets the selected chart style as a ChartStyleOption for the ComboBox binding.

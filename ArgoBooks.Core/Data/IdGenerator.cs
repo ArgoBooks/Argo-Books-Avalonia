@@ -81,6 +81,14 @@ public class IdGenerator(CompanyData companyData)
         return Next(() => checked(++highest), n => $"PR-{n:D4}", null, ids);
     }
 
+    /// <summary>Generates a new asset ID (AST-001), numbered past the highest one on file. The company file has no counter for assets.</summary>
+    public string NextAssetId()
+    {
+        var ids = companyData.Assets.Select(a => a.Id);
+        var highest = HighestNumber(ids, "AST-");
+        return Next(() => checked(++highest), n => $"AST-{n:D3}", null, ids);
+    }
+
     /// <summary>Generates a new invoice template ID (template-1).</summary>
     public string NextInvoiceTemplateId() =>
         Next(() => checked(++Counters.InvoiceTemplate), n => $"template-{n}", null, companyData.InvoiceTemplates.Select(t => t.Id));

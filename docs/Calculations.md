@@ -301,7 +301,7 @@ Use this table to check where a number on screen comes from. For a new chart or 
 | Geographic / Country charts | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue) | No |
 | Outstanding and Overdue Invoices cards | `BalanceUSD` | — | **No** (they show what's unpaid) | n/a |
 | Revenue page list | `EffectiveTotalUSD` | — | **No** (it lists everything) | n/a |
-| Income Statement / General Ledger | `EffectiveSubtotalUSD` | `EffectiveSubtotalUSD` (Income Statement: without tracked stock, plus cost of goods sold, §14) | No (all revenue) | Yes, the pre-tax part |
+| Income Statement / General Ledger | `EffectiveSubtotalUSD` | `EffectiveSubtotalUSD` (Income Statement: without tracked stock, plus cost of goods sold, §14, and without the share that bought fixed assets, plus their depreciation, §16) | No (all revenue) | Yes, the pre-tax part |
 | Sales by Product (Analytics tab) | `EffectiveTotalUSD`, shared out per line | — | Yes | No (§13) |
 | Sales by Product (report) | `EffectiveTotalUSD`, shared out per line | — | No (all revenue) | No (§13) |
 
@@ -479,3 +479,42 @@ free   = owned − booked
 ```
 
 A reservation needs its units from its start date to its due date. A rental that is out needs them for its dates and, once it's late, every day up to today. A rental that takes stock now also can't take more than is in stock, plus what it already has out when it is being edited.
+
+---
+
+## 16. Fixed assets
+
+A fixed asset is something the business keeps for years: land, a building, a vehicle, equipment, furniture, computers. It is a `FixedAsset` in `CompanyData.Assets`, saved as `assets.json`. `AssetDepreciation` does the math, and every amount on an asset is in its own `Currency`.
+
+### Where an asset comes from
+
+- **From an expense.** Ticking "This is an asset I'll keep for years" on the expense form, or "Make this an asset" on an expense row, links an asset to the expense (`FixedAsset.ExpenseId`). It costs the expense's pre-tax amount (`Total − TaxAmount`, so shipping and fees are part of the cost) in the expense's currency. `ExpenseAssetLink` keeps it in step when the expense is saved again: an asset that took the whole expense follows its new amount, one given a smaller cost keeps it. Renaming the expense renames the link, and deleting the expense leaves the asset as one owned before.
+- **Owned before.** "Add Asset" on the Assets page, in the company's currency. One bought in an earlier year asks for the depreciation already claimed, `PriorDepreciation`, which counts up to `TrackedFrom` (1 January of the year it was added). The books depreciate it from then.
+
+### Depreciation
+
+Land is never depreciated. Everything else is depreciated a month at a time, booked on each month's last day, from the month it was bought (or `TrackedFrom`) until it reaches its end value or leaves the books:
+
+```
+straight line      month = (Cost − EndValue) / (UsefulLifeYears × 12)
+declining balance  month = value at the start of its 12-month year × RatePercent / 100 / 12
+```
+
+The last month is cut short so the value never goes below `EndValue`. Declining balance stops once a month comes to less than half a cent. A month the asset is sold or disposed of in is not depreciated.
+
+```
+accumulated(date) = PriorDepreciation + Σ months booked on or before date
+book value(date)  = Cost − accumulated(date)
+gain on disposal  = sale price (0 when scrapped) − book value when it left
+```
+
+### In the reports
+
+Each asset amount is converted at the asset's purchase date (Rule 4), and a sale price at the sale date. A missing rate shows Pending.
+
+- **Income Statement:** the share of an expense that bought an asset (`AssetDepreciation.CapitalizedShare`: the assets' cost over the expense's pre-tax amount, at most 1) comes out of its categories. A **Depreciation** line adds the months booked in the range, and a **Gain** or **Loss on Sale of Assets** line adds disposals in the range.
+- **Balance Sheet:** **Fixed Assets** lists the cost of assets held at the end date and the depreciation booked on them so far. A sale price is cash on the sale date. The sale isn't also recorded as revenue.
+- **Cash Flow Statement:** the asset share of an expense moves from operating to **Investing Activities**, with sale prices.
+- **Asset Register:** each asset held at the end date with its cost, the depreciation in the range, the total so far and its book value, then the ones that left the books in the range.
+
+The dashboard, Analytics and Insights count money as it moves (Rule 2), so they count an asset's purchase as an expense on the day it was paid, like any other expense.

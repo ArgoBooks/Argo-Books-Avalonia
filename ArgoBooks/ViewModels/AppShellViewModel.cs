@@ -35,6 +35,7 @@ public partial class AppShellViewModel : ViewModelBase
     private RevenueModalsViewModel? _revenueModalsViewModel;
     private StockLevelsModalsViewModel? _stockLevelsModalsViewModel;
     private LocationsModalsViewModel? _locationsModalsViewModel;
+    private AssetModalsViewModel? _assetModalsViewModel;
     private PayrollModalsViewModel? _payrollModalsViewModel;
     private PayRunModalsViewModel? _payRunModalsViewModel;
     private YearEndModalViewModel? _yearEndModalViewModel;
@@ -392,6 +393,19 @@ public partial class AppShellViewModel : ViewModelBase
                 OnPropertyChanged();
             }
             return _locationsModalsViewModel;
+        }
+    }
+
+    public AssetModalsViewModel AssetModalsViewModel
+    {
+        get
+        {
+            if (_assetModalsViewModel == null)
+            {
+                _assetModalsViewModel = new AssetModalsViewModel();
+                OnPropertyChanged();
+            }
+            return _assetModalsViewModel;
         }
     }
 

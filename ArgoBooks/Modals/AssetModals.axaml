@@ -1,0 +1,357 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:behaviors="using:ArgoBooks.Behaviors"
+             xmlns:converters="using:ArgoBooks.Converters"
+             xmlns:icons="using:ArgoBooks"
+             xmlns:loc="using:ArgoBooks.Localization"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="700"
+             x:Class="ArgoBooks.Modals.AssetModals"
+             x:DataType="vm:AssetModalsViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.field-label">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="TextBlock.hint">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}" />
+        </Style>
+        <Style Selector="TextBlock.result">
+            <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+        </Style>
+        <Style Selector="TextBlock.result.gain">
+            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <!-- Add / Edit Asset Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsFormOpen, Mode=OneWay}"
+                               ClosingCommand="{Binding RequestCloseFormCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border Classes="modal-card"
+                        Width="620"
+                        MaxHeight="760">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <controls:ModalHeader Grid.Row="0" Title="{Binding FormTitle}" CloseCommand="{Binding RequestCloseFormCommand}" />
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="24" Spacing="16">
+                            <Border Background="{DynamicResource InfoLightBrush}"
+                                    CornerRadius="8"
+                                    Padding="12,10"
+                                    IsVisible="{Binding SourceExpenseText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <TextBlock Text="{Binding SourceExpenseText}"
+                                           FontSize="13"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource InfoTextBrush}" />
+                            </Border>
+
+                            <!-- Name and Type -->
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Classes="field-label">
+                                        <Run Text="{loc:Loc 'Asset name'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                    </TextBlock>
+                                    <TextBox Text="{Binding ModalName, Mode=TwoWay}"
+                                             Classes="form-input"
+                                             PlaceholderText="{loc:Loc 'e.g. Delivery van'}"
+                                             MaxLength="100" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock Classes="field-label" Text="{loc:Loc Type}" />
+                                    <ComboBox ItemsSource="{Binding TypeOptions}"
+                                              SelectedItem="{Binding ModalType}"
+                                              Classes="form-combobox"
+                                              HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Purchase date and Cost -->
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Classes="field-label">
+                                        <Run Text="{loc:Loc 'Purchase date'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                    </TextBlock>
+                                    <DatePicker SelectedDate="{Binding ModalPurchaseDate}"
+                                                Classes="form-datepicker"
+                                                HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock Classes="field-label">
+                                        <Run Text="{loc:Loc Cost}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                    </TextBlock>
+                                    <TextBox Text="{Binding ModalCost, Mode=TwoWay, Converter={x:Static converters:OptionalDecimalConverter.Instance}}"
+                                             Classes="form-input"
+                                             PlaceholderText="0.00"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                             MaxLength="13" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Land -->
+                            <Border Background="{DynamicResource SurfaceAltBrush}"
+                                    CornerRadius="8"
+                                    Padding="14,12"
+                                    IsVisible="{Binding IsLand}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <PathIcon Data="{x:Static icons:Icons.InfoOutline}"
+                                              Width="16" Height="16"
+                                              VerticalAlignment="Top"
+                                              Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{loc:Loc 'Land doesn','t depreciate. It stays on your books at what you paid.'}"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Depreciation -->
+                            <Border BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="16"
+                                    IsVisible="{Binding !IsLand}">
+                                <StackPanel Spacing="14">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{loc:Loc Depreciation}" FontSize="14" FontWeight="SemiBold" />
+                                        <TextBlock Classes="hint" Text="{loc:Loc 'Use the lifetime or rate your accountant gives you.'}" />
+                                    </StackPanel>
+
+                                    <Grid ColumnDefinitions="*,16,*">
+                                        <StackPanel Grid.Column="0" Spacing="6">
+                                            <TextBlock Classes="field-label" Text="{loc:Loc Method}" />
+                                            <ComboBox ItemsSource="{Binding MethodOptions}"
+                                                      SelectedItem="{Binding ModalMethod}"
+                                                      Classes="form-combobox"
+                                                      HorizontalAlignment="Stretch">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding IsStraightLine}">
+                                            <TextBlock Classes="field-label" Text="{loc:Loc 'Useful life (years)'}" />
+                                            <TextBox Text="{Binding ModalUsefulLife, Mode=TwoWay, Converter={x:Static converters:OptionalDecimalConverter.Instance}, ConverterParameter=0.##}"
+                                                     Classes="form-input"
+                                                     PlaceholderText="{loc:Loc 'e.g. 5'}"
+                                                     behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                     MaxLength="5" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding !IsStraightLine}">
+                                            <TextBlock Classes="field-label" Text="{loc:Loc 'Rate per year (%)'}" />
+                                            <TextBox Text="{Binding ModalRate, Mode=TwoWay, Converter={x:Static converters:OptionalDecimalConverter.Instance}, ConverterParameter=0.##}"
+                                                     Classes="form-input"
+                                                     PlaceholderText="{loc:Loc 'e.g. 30'}"
+                                                     behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                     MaxLength="6" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="*,16,*">
+                                        <StackPanel Grid.Column="0" Spacing="6">
+                                            <TextBlock Classes="field-label" Text="{loc:Loc 'Value at end (optional)'}" />
+                                            <TextBox Text="{Binding ModalEndValue, Mode=TwoWay, Converter={x:Static converters:OptionalDecimalConverter.Instance}}"
+                                                     Classes="form-input"
+                                                     PlaceholderText="0.00"
+                                                     behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                     MaxLength="13" />
+                                            <TextBlock Classes="hint" Text="{loc:Loc 'What you expect to sell it for when you are done with it.'}" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding ShowPriorDepreciation}">
+                                            <TextBlock Classes="field-label" Text="{Binding PriorDepreciationLabel}" TextWrapping="Wrap" />
+                                            <TextBox Text="{Binding ModalPriorDepreciation, Mode=TwoWay, Converter={x:Static converters:OptionalDecimalConverter.Instance}}"
+                                                     Classes="form-input"
+                                                     PlaceholderText="0.00"
+                                                     behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                     MaxLength="13" />
+                                            <TextBlock Classes="hint" Text="{loc:Loc 'The total from your earlier books or tax returns.'}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Yearly figure and schedule -->
+                                    <Border Background="{DynamicResource SurfaceAltBrush}"
+                                            CornerRadius="8"
+                                            Padding="14,12"
+                                            IsVisible="{Binding HasYearlyFigure}">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                    <TextBlock Classes="hint" Text="{loc:Loc 'Depreciation'}" />
+                                                    <TextBlock Text="{Binding YearlyFigureText}" FontSize="15" FontWeight="SemiBold" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        Classes="link-button"
+                                                        VerticalAlignment="Center"
+                                                        Command="{Binding ToggleScheduleCommand}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Text="{loc:Loc 'Show schedule'}" IsVisible="{Binding !IsScheduleOpen}" />
+                                                        <TextBlock Text="{loc:Loc 'Hide schedule'}" IsVisible="{Binding IsScheduleOpen}" />
+                                                        <PathIcon Data="{x:Static icons:Icons.ChevronDownSmall}" Width="14" Height="14" IsVisible="{Binding !IsScheduleOpen}" />
+                                                        <PathIcon Data="{x:Static icons:Icons.ChevronUpSmall}" Width="14" Height="14" IsVisible="{Binding IsScheduleOpen}" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
+
+                                            <StackPanel Spacing="0" IsVisible="{Binding IsScheduleOpen}">
+                                                <Grid ColumnDefinitions="80,*,*" Margin="0,0,0,6">
+                                                    <TextBlock Grid.Column="0" Classes="field-label" Text="{loc:Loc Year}" />
+                                                    <TextBlock Grid.Column="1" Classes="field-label" Text="{loc:Loc Depreciation}" HorizontalAlignment="Right" />
+                                                    <TextBlock Grid.Column="2" Classes="field-label" Text="{loc:Loc 'Book value after'}" HorizontalAlignment="Right" />
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding ScheduleRows}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="vm:AssetScheduleRow">
+                                                            <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,6">
+                                                                <Grid ColumnDefinitions="80,*,*">
+                                                                    <TextBlock Grid.Column="0" FontSize="13" Text="{Binding Year}" />
+                                                                    <TextBlock Grid.Column="1" FontSize="13" Text="{Binding Amount}" HorizontalAlignment="Right" />
+                                                                    <TextBlock Grid.Column="2" FontSize="13" Text="{Binding BookValueAfter}" HorizontalAlignment="Right" />
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Notes -->
+                            <StackPanel Spacing="6">
+                                <TextBlock Classes="field-label" Text="{loc:Loc Notes}" />
+                                <TextBox Text="{Binding ModalNotes, Mode=TwoWay}"
+                                         Classes="form-input"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         MinHeight="70"
+                                         MaxHeight="120"
+                                         PlaceholderText="{loc:Loc 'e.g. serial number or where it is kept'}"
+                                         MaxLength="500" />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding ModalError}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource ErrorBrush}"
+                                       IsVisible="{Binding ModalError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFormCommand}" />
+                            <Button Classes="primary-button" Content="{Binding FormSaveText}" Command="{Binding SaveFormCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+
+        <!-- Sell or Dispose Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsDisposeOpen, Mode=OneWay}"
+                               ClosingCommand="{Binding RequestCloseDisposeCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border Classes="modal-card"
+                        Width="460">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <controls:ModalHeader Grid.Row="0" Title="{loc:Loc 'Sell or dispose'}" CloseCommand="{Binding RequestCloseDisposeCommand}" />
+
+                    <StackPanel Grid.Row="1" Margin="24" Spacing="16">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="2">
+                                <TextBlock Classes="hint" Text="{loc:Loc Asset}" />
+                                <TextBlock Text="{Binding DisposeAssetName}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
+                                <TextBlock Classes="hint" Text="{loc:Loc 'Book value on that date'}" HorizontalAlignment="Right" />
+                                <TextBlock Text="{Binding DisposeBookValueText}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="field-label" Text="{loc:Loc 'What happened to it?'}" />
+                            <ComboBox ItemsSource="{Binding DisposalKindOptions}"
+                                      SelectedItem="{Binding DisposeKind}"
+                                      Classes="form-combobox"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="field-label" Text="{loc:Loc Date}" />
+                            <DatePicker SelectedDate="{Binding DisposeDate}"
+                                        Classes="form-datepicker"
+                                        HorizontalAlignment="Stretch" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="6" IsVisible="{Binding IsSale}">
+                            <TextBlock Classes="field-label" Text="{loc:Loc 'Sale price'}" />
+                            <TextBox Text="{Binding DisposeSalePrice, Mode=TwoWay, Converter={x:Static converters:OptionalDecimalConverter.Instance}}"
+                                     Classes="form-input"
+                                     PlaceholderText="0.00"
+                                     behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                     MaxLength="13" />
+                        </StackPanel>
+
+                        <Border Background="{DynamicResource SurfaceAltBrush}"
+                                CornerRadius="8"
+                                Padding="14,12">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="result"
+                                           Classes.gain="{Binding IsDisposeGain}"
+                                           Text="{Binding DisposeResultText}"
+                                           FontSize="15"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Classes="hint" Text="{loc:Loc 'The difference between what you got and its book value. It shows on your income statement.'}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Classes="hint"
+                                   IsVisible="{Binding IsSale}"
+                                   Text="{loc:Loc 'The sale price counts as money coming in, so there is no need to also record this sale as revenue.'}" />
+
+                        <TextBlock Text="{Binding DisposeError}"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ErrorBrush}"
+                                   IsVisible="{Binding DisposeError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseDisposeCommand}" />
+                            <Button Classes="primary-button" Content="{loc:Loc Save}" Command="{Binding SaveDisposeCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+    </Panel>
+</UserControl>

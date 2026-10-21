@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Assets;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Inventory;
@@ -122,6 +123,21 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// <summary>Whether the sale is paid. Only the revenue form offers it.</summary>
     [ObservableProperty]
     private bool _modalPaid = true;
+
+    /// <summary>Whether the purchase is kept for years and becomes an asset. Only the expense form offers it.</summary>
+    [ObservableProperty]
+    private bool _modalIsAsset;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ModalAssetIsLand))]
+    private string _modalAssetType = AssetType.Equipment.ToDisplayName();
+
+    [ObservableProperty]
+    private decimal? _modalAssetUsefulLife;
+
+    public bool ModalAssetIsLand => ModalAssetType == AssetOptions.Land;
+
+    public IReadOnlyList<string> AssetTypeOptions => AssetOptions.Types;
 
     #endregion
 
@@ -312,7 +328,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     private sealed record EditState(
         DateTimeOffset? Date, string? CounterpartyId, string NewCounterpartyName, string? CategoryId, decimal TaxAmount, decimal Shipping,
         decimal Discount, decimal Fee, string PaymentMethod, string Notes, string Attachments,
-        Helpers.EquatableArray<LineState> LineItems);
+        Helpers.EquatableArray<LineState> LineItems, bool IsAsset, string AssetType, decimal? AssetUsefulLife);
     // ReSharper restore NotAccessedPositionalProperty.Local
 
     // The form as it opened filled in from a record, for change detection. Null on a blank form.
@@ -328,7 +344,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         new Helpers.EquatableArray<LineState>(LineItems.Select(li => new LineState(
             li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice,
             li.ItemText?.Trim() ?? string.Empty, li.CategoryText?.Trim() ?? string.Empty,
-            li.SelectedLocation?.Id))));
+            li.SelectedLocation?.Id))),
+        ModalIsAsset, ModalAssetType, ModalAssetUsefulLife);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -343,6 +360,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDiscount > 0 ||
         ModalFee > 0 ||
         Attachments.Count > 0 ||
+        ModalIsAsset ||
         LineItems.Any(li => li.SelectedProduct != null || li.SelectedCategory != null || !string.IsNullOrWhiteSpace(li.Description) || (li.UnitPrice ?? 0) > 0 ||
                             !string.IsNullOrWhiteSpace(li.ItemText) || !string.IsNullOrWhiteSpace(li.CategoryText));
 
@@ -1047,6 +1065,13 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             return;
         }
 
+        if (!IsRevenue && ModalIsAsset && !ModalAssetIsLand && ModalAssetUsefulLife is not > 0)
+        {
+            ValidationMessage = "Enter how many years the asset will be used for.".Translate();
+            HasValidationMessage = true;
+            return;
+        }
+
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
@@ -1455,6 +1480,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalFee = 0;
         SelectedPaymentMethod = "Cash";
         ModalNotes = string.Empty;
+        ModalIsAsset = false;
+        ModalAssetType = AssetType.Equipment.ToDisplayName();
+        ModalAssetUsefulLife = null;
         foreach (var li in LineItems)
             li.PropertyChanged -= OnLineItemPropertyChanged;
         LineItems.Clear();

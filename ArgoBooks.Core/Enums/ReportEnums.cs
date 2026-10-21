@@ -276,7 +276,8 @@ public enum AccountingReportType
     SalesByCustomer,
     ExpensesBySupplier,
     PayrollSummary,
-    Rentals
+    Rentals,
+    AssetRegister
 }
 
 /// <summary>
@@ -463,6 +464,7 @@ public static class ReportEnumExtensions
             AccountingReportType.ExpensesBySupplier => "Expenses by Supplier",
             AccountingReportType.PayrollSummary => "Payroll Summary",
             AccountingReportType.Rentals => "Rentals",
+            AccountingReportType.AssetRegister => "Asset Register",
             _ => reportType.ToString()
         };
     }
