@@ -326,9 +326,6 @@ public partial class DashboardLayoutViewModel : ObservableObject
         else
             targetRow.Widgets.Add(widget);
 
-        if (sourceRow.Widgets.Count == 0)
-            Rows.Remove(sourceRow);
-
         OnPropertyChanged(nameof(HasWidgets));
         return true;
     }
