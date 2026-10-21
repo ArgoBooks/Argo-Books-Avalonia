@@ -6,6 +6,7 @@
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:behaviors="using:ArgoBooks.Behaviors"
              xmlns:converters="using:ArgoBooks.Converters"
+             xmlns:services="using:ArgoBooks.Services"
              xmlns:icons="using:ArgoBooks"
              xmlns:loc="using:ArgoBooks.Localization"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="700"
@@ -129,6 +130,23 @@
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="{loc:Loc Depreciation}" FontSize="14" FontWeight="SemiBold" />
                                         <TextBlock Classes="hint" Text="{loc:Loc 'Use the lifetime or rate your accountant gives you.'}" />
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="6" IsVisible="{Binding ShowCcaClass}">
+                                        <TextBlock Classes="field-label" Text="{loc:Loc 'CRA class'}" />
+                                        <ComboBox ItemsSource="{Binding CcaClassOptions}"
+                                                  SelectedItem="{Binding ModalCcaClass}"
+                                                  Classes="form-combobox"
+                                                  HorizontalAlignment="Stretch">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="services:CcaClassOption">
+                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <TextBlock Classes="hint"
+                                                   Text="{Binding CcaClassHint}"
+                                                   IsVisible="{Binding CcaClassHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                     </StackPanel>
 
                                     <Grid ColumnDefinitions="*,16,*">

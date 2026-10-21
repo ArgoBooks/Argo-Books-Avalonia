@@ -39,7 +39,9 @@ Both check `resources/downloads/payroll/{edition}.json` and go silent once it is
 
 ## What else needs a look each year
 
-The rate tables are the big one and the rest of this document is about them. They are not the only thing that moves, and nothing else has a reminder attached, so check these when you do the January edition.
+The rate tables are the big one and the rest of this document is about them. They are not the only thing that moves, and nothing else here has a reminder attached, so check these when you do the January edition.
+
+The Capital Cost Allowance rates for assets have their own reminder in the same December and June windows, and their own document, [AssetRateUpdates.md](AssetRateUpdates.md).
 
 ### The XML specification
 

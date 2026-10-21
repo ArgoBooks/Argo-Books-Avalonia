@@ -2026,6 +2026,9 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         string Total(decimal? amount) => amount is { } value ? FormatCurrencyWithSign(value) : PendingText;
 
+        static string TypeLabel(FixedAsset asset) =>
+            string.IsNullOrEmpty(asset.CcaClass) ? asset.Type.ToDisplayName() : $"{asset.Type.ToDisplayName()}, Class {asset.CcaClass}";
+
         var held = assets
             .Where(a => AssetDepreciation.IsHeldOn(a, end))
             .OrderBy(a => a.PurchaseDate)
@@ -2041,7 +2044,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 IndentLevel = 1,
                 Values =
                 [
-                    asset.Type.ToDisplayName(),
+                    TypeLabel(asset),
                     FormatStatementDate(asset.PurchaseDate),
                     Shown(asset, asset.Cost),
                     Shown(asset, AssetDepreciation.Between(asset, RangeStart, RangeEnd)),
@@ -2091,7 +2094,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                     IndentLevel = 1,
                     Values =
                     [
-                        asset.Type.ToDisplayName(),
+                        TypeLabel(asset),
                         FormatStatementDate(asset.DisposedDate!.Value),
                         Shown(asset, asset.Cost),
                         Shown(asset, AssetDepreciation.Between(asset, RangeStart, RangeEnd)),

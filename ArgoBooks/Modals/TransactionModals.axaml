@@ -8,6 +8,7 @@
              xmlns:local="using:ArgoBooks.Converters"
              xmlns:icons="using:ArgoBooks"
              xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:services="using:ArgoBooks.Services"
              mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
              x:Class="ArgoBooks.Modals.TransactionModals"
              x:DataType="vm:ITransactionModalsViewModel">
@@ -441,7 +442,21 @@
                                                     </ComboBox.ItemTemplate>
                                                 </ComboBox>
                                             </StackPanel>
-                                            <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding ShowAssetUsefulLife}">
+                                            <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding ShowAssetClass}">
+                                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Text="{loc:Loc 'CRA class'}" />
+                                                <ComboBox ItemsSource="{Binding AssetClassOptions}"
+                                                          SelectedItem="{Binding ModalAssetClass}"
+                                                          Classes="form-combobox"
+                                                          HorizontalAlignment="Stretch">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="services:CcaClassOption">
+                                                            <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding ShowAssetLifeBesideType}">
                                                 <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
                                                            Text="{loc:Loc 'Useful life (years)'}" />
                                                 <TextBox Text="{Binding ModalAssetUsefulLife, Mode=TwoWay, Converter={x:Static local:OptionalDecimalConverter.Instance}, ConverterParameter=0.##}"
@@ -451,6 +466,18 @@
                                                          MaxLength="5" />
                                             </StackPanel>
                                         </Grid>
+                                        <StackPanel Spacing="6" IsVisible="{Binding ShowAssetLifeBelow}">
+                                            <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       Text="{loc:Loc 'Useful life (years)'}" />
+                                            <TextBox Text="{Binding ModalAssetUsefulLife, Mode=TwoWay, Converter={x:Static local:OptionalDecimalConverter.Instance}, ConverterParameter=0.##}"
+                                                     Classes="form-input"
+                                                     PlaceholderText="{loc:Loc 'e.g. 5'}"
+                                                     behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                     MaxLength="5" />
+                                        </StackPanel>
+                                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   Text="{Binding AssetClassHint}"
+                                                   IsVisible="{Binding AssetClassHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                         <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
                                                    IsVisible="{Binding ShowAssetUsefulLife}"
                                                    Text="{loc:Loc 'Use the lifetime your accountant gives you. You can change the method and see the schedule on the Assets page.'}" />

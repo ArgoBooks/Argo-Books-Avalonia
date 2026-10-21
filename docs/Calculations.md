@@ -500,7 +500,18 @@ straight line      month = (Cost − EndValue) / (UsefulLifeYears × 12)
 declining balance  month = value at the start of its 12-month year × RatePercent / 100 / 12
 ```
 
-The last month is cut short so the value never goes below `EndValue`. Declining balance stops once a month comes to less than half a cent. A month the asset is sold or disposed of in is not depreciated.
+Each month is the running total rounded to the cent less what is already booked, so a year adds up to its exact amount. The last month is cut short so the value never goes below `EndValue`, and declining balance stops once a month rounds to nothing. A month the asset is sold or disposed of in is not depreciated.
+
+### CRA's method, for Canadian companies
+
+An asset with a CRA class (`CcaClass`) and declining balance is depreciated as CRA's Capital Cost Allowance is claimed, by calendar year rather than by month:
+
+```
+first year  = Cost × RatePercent / 100 × FirstYearFactor
+later years = value left at the start of the year × RatePercent / 100
+```
+
+`FirstYearFactor` is 0.5 under the half-year rule and 1.5 under the Accelerated Investment Incentive, taken from the rate file for the purchase date and stored on the asset when it is saved. Each year's amount is spread over the months the asset was held in it, so a report for part of a year counts part of it. The year it is sold or disposed of has none. One carried over from earlier books (`TrackedFrom`) is past its first year. Where the rates come from, and what this leaves out, is in [AssetRateUpdates.md](AssetRateUpdates.md).
 
 ```
 accumulated(date) = PriorDepreciation + Σ months booked on or before date

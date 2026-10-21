@@ -41,6 +41,16 @@ public class FixedAsset : IRecord
     [JsonPropertyName("ratePercent")]
     public decimal? RatePercent { get; set; }
 
+    /// <summary>CRA's Capital Cost Allowance class, such as "10", for a Canadian company's asset.</summary>
+    [JsonPropertyName("ccaClass")]
+    public string? CcaClass { get; set; }
+
+    /// <summary>
+    /// The share of the rate claimed in the year it was bought, as CRA allows for its purchase date. Set only when it follows CRA's yearly method.
+    /// </summary>
+    [JsonPropertyName("firstYearFactor")]
+    public decimal? FirstYearFactor { get; set; }
+
     /// <summary>What it is expected to be worth when the business is done with it. It is never depreciated below this.</summary>
     [JsonPropertyName("endValue")]
     public decimal EndValue { get; set; }
@@ -75,6 +85,10 @@ public class FixedAsset : IRecord
     [JsonIgnore]
     public bool IsDisposed => DisposedDate.HasValue;
 
+    /// <summary>Whether it is depreciated by CRA's yearly method, a declining balance with its own first-year share, rather than month by month.</summary>
+    [JsonIgnore]
+    public bool FollowsCca => Method == DepreciationMethod.DecliningBalance && FirstYearFactor.HasValue && !string.IsNullOrEmpty(CcaClass);
+
     /// <summary>What it brought in when it left the books.</summary>
     [JsonIgnore]
     public decimal Proceeds => DisposalKind == AssetDisposalKind.Sold ? SalePrice : 0m;
@@ -92,6 +106,8 @@ public class FixedAsset : IRecord
         Method = other.Method;
         UsefulLifeYears = other.UsefulLifeYears;
         RatePercent = other.RatePercent;
+        CcaClass = other.CcaClass;
+        FirstYearFactor = other.FirstYearFactor;
         EndValue = other.EndValue;
         PriorDepreciation = other.PriorDepreciation;
         TrackedFrom = other.TrackedFrom;

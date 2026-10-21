@@ -71,6 +71,12 @@ public interface ITransactionModalsViewModel
     bool ModalAssetIsLand { get; }
     bool ShowAssetUsefulLife { get; }
     bool ShowAssetUsesRateHint { get; }
+    bool ShowAssetClass { get; }
+    bool ShowAssetLifeBesideType { get; }
+    bool ShowAssetLifeBelow { get; }
+    IReadOnlyList<Services.CcaClassOption> AssetClassOptions { get; }
+    Services.CcaClassOption? ModalAssetClass { get; set; }
+    string? AssetClassHint { get; }
     IReadOnlyList<string> AssetTypeOptions { get; }
     string ModalNotes { get; set; }
 

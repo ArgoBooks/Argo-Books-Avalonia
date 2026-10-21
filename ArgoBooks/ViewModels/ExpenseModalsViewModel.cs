@@ -142,15 +142,21 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     private void LoadAssetChoice(string expenseId)
     {
         var asset = App.CompanyManager?.CompanyData is { } data ? ExpenseAssetLink.AssetFor(data, expenseId) : null;
+        LoadingAssetChoice = true;
+        PrepareAssetClasses();
         ModalIsAsset = asset != null;
         ModalAssetType = (asset?.Type ?? AssetType.Equipment).ToDisplayName();
         ModalAssetUsefulLife = asset?.UsefulLifeYears;
-        ModalAssetUsesRate = asset?.Method == DepreciationMethod.DecliningBalance;
+        ModalAssetUsesRate = asset?.Method == DepreciationMethod.DecliningBalance && string.IsNullOrEmpty(asset.CcaClass);
+        ModalAssetClass = asset == null
+            ? DefaultAssetClass()
+            : AssetClassOptions.FirstOrDefault(o => o.Number == asset.CcaClass) ?? AssetClassOptions.FirstOrDefault();
+        LoadingAssetChoice = false;
     }
 
     private ExpenseAssetLink.Change? ApplyAssetChoice(CompanyData companyData, Expense expense, decimal? preTaxBeforeEdit, string? currencyBeforeEdit) =>
         ExpenseAssetLink.Apply(companyData, expense, preTaxBeforeEdit, currencyBeforeEdit,
-            ModalIsAsset, AssetTypeExtensions.ParseAssetType(ModalAssetType), ModalAssetUsefulLife);
+            ModalIsAsset, AssetTypeExtensions.ParseAssetType(ModalAssetType), ModalAssetUsefulLife, AssetCcaChoice(expense.Date));
 
     protected override Transaction? LoadIntoForm(ExpenseDisplayItem item)
     {

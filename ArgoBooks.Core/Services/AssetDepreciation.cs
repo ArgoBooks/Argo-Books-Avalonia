@@ -25,12 +25,16 @@ public static class AssetDepreciation
     public static decimal StartingValue(FixedAsset asset) =>
         asset.Cost - (asset.TrackedFrom.HasValue ? asset.PriorDepreciation : 0m);
 
-    /// <summary>Each month's depreciation until it reaches its end value or leaves the books, leaving out the month it left in.</summary>
+    /// <summary>Each month's depreciation until it reaches its end value or leaves the books, leaving out the month it left in (the year, under CRA's method).</summary>
     public static IEnumerable<DepreciationMonth> Months(FixedAsset asset)
     {
         if (!Depreciates(asset))
-            yield break;
+            return [];
+        return asset.FollowsCca ? CcaMonths(asset) : MonthlyMonths(asset);
+    }
 
+    private static IEnumerable<DepreciationMonth> MonthlyMonths(FixedAsset asset)
+    {
         var start = asset.TrackedFrom ?? asset.PurchaseDate;
         var month = new DateTime(start.Year, start.Month, 1);
         DateTime? stopMonth = asset.DisposedDate is { } disposed ? new DateTime(disposed.Year, disposed.Month, 1) : null;
@@ -71,6 +75,44 @@ public static class AssetDepreciation
         }
     }
 
+    /// <summary>
+    /// CRA's method: each calendar year takes the rate of what is left, the first year only its first-year share, and the year it leaves the books none.
+    /// </summary>
+    private static IEnumerable<DepreciationMonth> CcaMonths(FixedAsset asset)
+    {
+        var start = asset.TrackedFrom ?? asset.PurchaseDate;
+        var bookValue = StartingValue(asset);
+        var floor = Math.Max(0m, asset.EndValue);
+        var rate = asset.RatePercent!.Value / 100m;
+
+        // An asset carried over from earlier books is past its first year by the time these books start.
+        var firstYearFactor = asset.TrackedFrom.HasValue ? 1m : asset.FirstYearFactor!.Value;
+
+        for (var year = start.Year; year < start.Year + MaxMonths / 12 && bookValue > floor; year++)
+        {
+            if (asset.DisposedDate is { } disposed && year >= disposed.Year)
+                yield break;
+
+            var yearAmount = Math.Min(Cents(bookValue * rate * (year == start.Year ? firstYearFactor : 1m)), bookValue - floor);
+            if (yearAmount <= 0)
+                yield break;
+
+            // The year's amount is spread over the months the asset was held, each the running total rounded to the cent less what is already booked.
+            var firstMonth = year == start.Year ? start.Month : 1;
+            var monthCount = 13 - firstMonth;
+            for (var i = 0; i < monthCount; i++)
+            {
+                var amount = Cents(yearAmount * (i + 1) / monthCount) - Cents(yearAmount * i / monthCount);
+                if (amount == 0)
+                    continue;
+                var month = new DateTime(year, firstMonth + i, 1);
+                yield return new DepreciationMonth(month.AddMonths(1).AddDays(-1), amount);
+            }
+
+            bookValue -= yearAmount;
+        }
+    }
+
     private static decimal Cents(decimal amount) => Math.Round(amount, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>Depreciation booked on days from <paramref name="from"/> to <paramref name="to"/>, both included.</summary>
@@ -102,6 +144,10 @@ public static class AssetDepreciation
 
     /// <summary>A full year's depreciation at the start: the same every year for straight line, then less each year for declining balance.</summary>
     public static decimal FirstYear(FixedAsset asset) => Months(asset).Take(12).Sum(m => m.Amount);
+
+    /// <summary>A full year's depreciation once the first year is past, which for CRA's method is what the class rate gives.</summary>
+    public static decimal FullYear(FixedAsset asset) =>
+        asset.FollowsCca ? Cents(StartingValue(asset) * asset.RatePercent!.Value / 100m) : FirstYear(asset);
 
     /// <summary>Depreciation in each calendar year, and the book value left at the end of it.</summary>
     public static List<DepreciationYear> Schedule(FixedAsset asset)

@@ -161,7 +161,65 @@ public partial class AssetModalsViewModel : ViewModelBase
 
     public string PriorDepreciationLabel => "Depreciation already claimed before {0}".TranslateFormat(PriorDepreciationYear ?? DateTime.Today.Year);
 
-    partial void OnModalTypeChanged(string value) => UpdatePreview();
+    #region CRA Class
+
+    /// <summary>Whether the company is in Canada, where the form fills in CRA's class and rate.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowCcaClass))]
+    private bool _isCanadian;
+
+    [ObservableProperty]
+    private List<CcaClassOption> _ccaClassOptions = [];
+
+    [ObservableProperty]
+    private CcaClassOption? _modalCcaClass;
+
+    [ObservableProperty]
+    private string? _ccaClassHint;
+
+    public bool ShowCcaClass => IsCanadian && !IsLand;
+
+    // Set while the form is being filled from a record, so loading it does not count as the user picking a type or class.
+    private bool _loading;
+
+    private ExpenseAssetLink.CcaChoice? CurrentCcaChoice =>
+        ShowCcaClass && ModalPurchaseDate is { } date ? CanadianAssetRates.Choice(ModalCcaClass?.Number, date.Date) : null;
+
+    partial void OnModalCcaClassChanged(CcaClassOption? value)
+    {
+        if (!_loading && CurrentCcaChoice is { } choice)
+        {
+            ModalMethod = AssetOptions.DecliningBalance;
+            ModalRate = choice.RatePercent;
+        }
+        UpdatePreview();
+    }
+
+    private void PrepareCcaClasses()
+    {
+        IsCanadian = CanadianAssetRates.AppliesTo(Data);
+        CcaClassOptions = IsCanadian ? CanadianAssetRates.Options() : [];
+        if (IsCanadian)
+            CanadianAssetRates.CheckForUpdateOnce();
+    }
+
+    /// <summary>Starts a new asset in the class CRA gives its type, with that class's rate.</summary>
+    private void PickDefaultCcaClass()
+    {
+        if (IsCanadian)
+            ModalCcaClass = CanadianAssetRates.DefaultFor(CcaClassOptions, AssetTypeExtensions.ParseAssetType(ModalType));
+    }
+
+    #endregion
+
+    partial void OnModalTypeChanged(string value)
+    {
+        OnPropertyChanged(nameof(ShowCcaClass));
+        if (!_loading)
+            PickDefaultCcaClass();
+        UpdatePreview();
+    }
+
     partial void OnModalPurchaseDateChanged(DateTimeOffset? value) => UpdatePreview();
     partial void OnModalCostChanged(decimal? value) => UpdatePreview();
     partial void OnModalMethodChanged(string value) => UpdatePreview();
@@ -172,19 +230,20 @@ public partial class AssetModalsViewModel : ViewModelBase
 
     private sealed record FormState(
         string Name, string Type, DateTimeOffset? PurchaseDate, decimal? Cost, string Method, decimal? UsefulLife,
-        decimal? Rate, decimal? EndValue, decimal? PriorDepreciation, string Notes);
+        decimal? Rate, decimal? EndValue, decimal? PriorDepreciation, string Notes, string? CcaClass);
 
     // The form as it opened, so closing it only asks to discard when something was changed.
     private FormState? _original;
 
     private FormState Capture() => new(
         ModalName, ModalType, ModalPurchaseDate, ModalCost, ModalMethod, ModalUsefulLife,
-        ModalRate, ModalEndValue, ModalPriorDepreciation, ModalNotes);
+        ModalRate, ModalEndValue, ModalPriorDepreciation, ModalNotes, ModalCcaClass?.Number);
 
     public void OpenAddModal()
     {
         ResetForm();
         _currency = Data?.Settings.Localization.Currency ?? "USD";
+        PickDefaultCcaClass();
         _original = Capture();
         IsEditMode = false;
         IsFormOpen = true;
@@ -196,6 +255,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         if (asset == null) return;
 
         ResetForm();
+        _loading = true;
         _editing = asset;
         _currency = asset.Currency;
         ModalName = asset.Name;
@@ -210,6 +270,8 @@ public partial class AssetModalsViewModel : ViewModelBase
         ModalNotes = asset.Notes;
         if (!string.IsNullOrEmpty(asset.ExpenseId))
             SourceExpenseText = "Bought with expense {0}".TranslateFormat(asset.ExpenseId);
+        ModalCcaClass = CcaClassOptions.FirstOrDefault(o => o.Number == asset.CcaClass) ?? CcaClassOptions.FirstOrDefault();
+        _loading = false;
         UpdatePreview();
 
         _original = Capture();
@@ -237,6 +299,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         ModalPurchaseDate = new DateTimeOffset(expense.Date);
         ModalCost = AssetDepreciation.PreTaxCost(expense);
         SourceExpenseText = "From expense {0}. The reports count this cost as depreciation instead of as an expense.".TranslateFormat(expense.Id);
+        PickDefaultCcaClass();
         UpdatePreview();
 
         _original = Capture();
@@ -300,7 +363,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         else if (!IsLand && IsStraightLine && ModalUsefulLife is not > 0)
             ModalError = "Enter how many years it will be used for.".Translate();
         else if (!IsLand && !IsStraightLine && ModalRate is not (> 0 and <= 100))
-            ModalError = "Enter a yearly rate between 1 and 100 percent.".Translate();
+            ModalError = "Enter a yearly rate above 0 and up to 100 percent.".Translate();
         else if (!IsLand && (endValue < 0 || endValue >= cost))
             ModalError = "The value at the end has to be less than what it cost.".Translate();
         else if (ShowPriorDepreciation && ((ModalPriorDepreciation ?? 0m) < 0 || (ModalPriorDepreciation ?? 0m) > cost - endValue))
@@ -314,6 +377,7 @@ public partial class AssetModalsViewModel : ViewModelBase
     {
         var land = IsLand;
         var showPrior = ShowPriorDepreciation;
+        var cca = CurrentCcaChoice;
         return new FixedAsset
         {
             Id = _editing?.Id ?? string.Empty,
@@ -326,6 +390,8 @@ public partial class AssetModalsViewModel : ViewModelBase
             Method = !land && !IsStraightLine ? DepreciationMethod.DecliningBalance : DepreciationMethod.StraightLine,
             UsefulLifeYears = !land && IsStraightLine ? ModalUsefulLife : null,
             RatePercent = !land && !IsStraightLine ? ModalRate : null,
+            CcaClass = cca?.ClassNumber,
+            FirstYearFactor = !land && !IsStraightLine ? cca?.FirstYearFactor : null,
             EndValue = land ? 0m : ModalEndValue ?? 0m,
             PriorDepreciation = showPrior ? ModalPriorDepreciation ?? 0m : 0m,
             TrackedFrom = showPrior ? new DateTime(PriorDepreciationYear!.Value, 1, 1) : null,
@@ -340,6 +406,9 @@ public partial class AssetModalsViewModel : ViewModelBase
 
     private void ResetForm()
     {
+        _loading = true;
+        PrepareCcaClasses();
+        ModalCcaClass = null;
         _editing = null;
         _sourceExpenseId = null;
         SourceExpenseText = null;
@@ -355,6 +424,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         ModalNotes = string.Empty;
         ModalError = null;
         IsScheduleOpen = false;
+        _loading = false;
         UpdatePreview();
     }
 
@@ -362,6 +432,11 @@ public partial class AssetModalsViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(ShowPriorDepreciation));
         OnPropertyChanged(nameof(PriorDepreciationLabel));
+        CcaClassHint = CurrentCcaChoice is { } choice
+            ? IsStraightLine
+                ? "CRA depreciates this class by a yearly rate. Choose Declining balance to follow it.".Translate()
+                : CanadianAssetRates.Describe(choice)
+            : null;
         ScheduleRows.Clear();
         YearlyFigureText = string.Empty;
         HasYearlyFigure = false;
@@ -377,9 +452,11 @@ public partial class AssetModalsViewModel : ViewModelBase
             return;
 
         var firstYear = Money(AssetDepreciation.FirstYear(asset));
-        YearlyFigureText = asset.Method == DepreciationMethod.StraightLine
-            ? "{0} a year".TranslateFormat(firstYear)
-            : "{0} in the first year, then less each year".TranslateFormat(firstYear);
+        YearlyFigureText = asset.FollowsCca
+            ? "{0} in {1}, then {2}% of what is left each year".TranslateFormat(ScheduleRows[0].Amount, ScheduleRows[0].Year, asset.RatePercent!.Value.ToString("0.##"))
+            : asset.Method == DepreciationMethod.StraightLine
+                ? "{0} a year".TranslateFormat(firstYear)
+                : "{0} in the first year, then less each year".TranslateFormat(firstYear);
         HasYearlyFigure = true;
     }
 
