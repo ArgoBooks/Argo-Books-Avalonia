@@ -69,6 +69,8 @@ public interface ITransactionModalsViewModel
     string ModalAssetType { get; set; }
     decimal? ModalAssetUsefulLife { get; set; }
     bool ModalAssetIsLand { get; }
+    bool ShowAssetUsefulLife { get; }
+    bool ShowAssetUsesRateHint { get; }
     IReadOnlyList<string> AssetTypeOptions { get; }
     string ModalNotes { get; set; }
 

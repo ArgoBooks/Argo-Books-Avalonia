@@ -1,6 +1,7 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Assets;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
@@ -214,6 +215,21 @@ public class FixedAssetTests
         Assert.Single(data.Assets);
     }
 
+    [Fact]
+    public void ExpenseLink_AssetPutBackAfterTheExpenseWasRenamed_TakesItsNewId()
+    {
+        var data = new CompanyData();
+        var expense = Purchase("EXP-1", 1000m, 0m, new DateTime(2024, 2, 20));
+        data.Expenses.Add(expense);
+        ExpenseAssetLink.Apply(data, expense, null, null, true, AssetType.Equipment, 5m);
+        var change = ExpenseAssetLink.Apply(data, expense, 1000m, "USD", false, AssetType.Equipment, 5m);
+
+        expense.Id = "EXP-9";
+        change!.Undo();
+
+        Assert.Equal("EXP-9", Assert.Single(data.Assets).ExpenseId);
+    }
+
     #endregion
 
     #region Reports
@@ -240,6 +256,27 @@ public class FixedAssetTests
         Assert.Equal(2400m, ParseAmount(Row(result, "Depreciation").Values[0]));
         Assert.Equal(2900m, ParseAmount(Row(result, "Total Operating Expenses").Values[0]));
         Assert.Equal(-2900m, ParseAmount(Row(result, "NET INCOME").Values[0]));
+    }
+
+    [Fact]
+    public void IncomeStatement_ExpenseThatBoughtStockAndAnAsset_CountsNeitherAsAnExpense()
+    {
+        var data = new CompanyData();
+        var expense = Purchase("EXP-1", 1500m, 0m, new DateTime(2024, 1, 1));
+        expense.LineItems =
+        [
+            new LineItem { ProductId = "PRD-1", Quantity = 5, UnitPrice = 100m, IsStockPurchase = true },
+            new LineItem { Description = "Van", Quantity = 1, UnitPrice = 1000m }
+        ];
+        data.Expenses.Add(expense);
+        var asset = Asset(1000m, expense.Date);
+        asset.ExpenseId = expense.Id;
+        data.Assets.Add(asset);
+
+        var result = Report(data, AccountingReportType.IncomeStatement);
+
+        Assert.Equal(0m, result.Rows.Where(r => r.Label == "Uncategorized").Sum(r => ParseAmount(r.Values[0])));
+        Assert.Equal(200m, ParseAmount(Row(result, "Depreciation").Values[0]));
     }
 
     [Fact]

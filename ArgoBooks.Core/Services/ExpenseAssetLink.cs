@@ -13,6 +13,13 @@ public static class ExpenseAssetLink
     public static FixedAsset? AssetFor(CompanyData data, string expenseId) =>
         data.Assets.FirstOrDefault(a => a.ExpenseId == expenseId);
 
+    // Renaming the expense only reaches assets in the books, so one put back after a rename takes the expense's id as it is now.
+    private static void Restore(CompanyData data, FixedAsset asset, Expense expense)
+    {
+        asset.ExpenseId = expense.Id;
+        data.Assets.RestoreRecord(asset);
+    }
+
     /// <summary>Adds, updates or removes the asset bought with <paramref name="expense"/> to match the form, or returns null when nothing changed.</summary>
     /// <param name="preTaxBeforeEdit">The expense's cost before tax as it was before this save, or null for a new expense.</param>
     /// <param name="currencyBeforeEdit">The expense's currency as it was before this save, or null for a new expense.</param>
@@ -26,7 +33,7 @@ public static class ExpenseAssetLink
             if (existing == null)
                 return null;
             data.Assets.RemoveRecord(existing);
-            return new Change(() => data.Assets.RestoreRecord(existing), () => data.Assets.RemoveRecord(existing));
+            return new Change(() => Restore(data, existing, expense), () => data.Assets.RemoveRecord(existing));
         }
 
         if (existing == null)
@@ -44,7 +51,7 @@ public static class ExpenseAssetLink
                 UsefulLifeYears = type == AssetType.Land ? null : usefulLifeYears
             };
             data.Assets.Add(asset);
-            return new Change(() => data.Assets.RemoveRecord(asset), () => data.Assets.RestoreRecord(asset));
+            return new Change(() => data.Assets.RemoveRecord(asset), () => Restore(data, asset, expense));
         }
 
         var before = existing.Clone();

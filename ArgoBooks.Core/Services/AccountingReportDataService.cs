@@ -328,22 +328,24 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     {
         var result = new Dictionary<string, decimal>();
 
+        void Add(string category, decimal amount) => result[category] = result.GetValueOrDefault(category) + amount;
+
         foreach (var expense in expenses)
         {
-            var kept = 1m - CapitalizedShares.GetValueOrDefault(expense.Id);
-            if (kept <= 0)
+            var capitalized = CapitalizedShares.GetValueOrDefault(expense.Id);
+            if (capitalized >= 1)
                 continue;
-
-            void Add(string category, decimal amount) => result[category] = result.GetValueOrDefault(category) + amount * kept;
 
             if (!expense.LineItems.Any(li => li.IsStockPurchase))
             {
                 foreach (var kvp in GroupTransactionsByCategory([expense]))
-                    Add(kvp.Key, kvp.Value);
+                    Add(kvp.Key, kvp.Value * (1m - capitalized));
                 continue;
             }
 
-            var remainingUSD = expense.EffectiveSubtotalUSD - CostOfGoodsAggregator.StockPurchaseUSD(expense);
+            var remainingUSD = Math.Max(0m, expense.EffectiveSubtotalUSD
+                                            - CostOfGoodsAggregator.StockPurchaseUSD(expense)
+                                            - expense.EffectiveSubtotalUSD * capitalized);
             var otherLines = expense.LineItems.Where(li => !li.IsStockPurchase).ToList();
             var allocation = LineAllocation.Allocate(otherLines, remainingUSD);
             if (allocation.IsSplit)

@@ -145,6 +145,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         ModalIsAsset = asset != null;
         ModalAssetType = (asset?.Type ?? AssetType.Equipment).ToDisplayName();
         ModalAssetUsefulLife = asset?.UsefulLifeYears;
+        ModalAssetUsesRate = asset?.Method == DepreciationMethod.DecliningBalance;
     }
 
     private ExpenseAssetLink.Change? ApplyAssetChoice(CompanyData companyData, Expense expense, decimal? preTaxBeforeEdit, string? currencyBeforeEdit) =>

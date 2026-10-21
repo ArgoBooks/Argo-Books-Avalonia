@@ -129,8 +129,17 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     private bool _modalIsAsset;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ModalAssetIsLand))]
+    [NotifyPropertyChangedFor(nameof(ModalAssetIsLand), nameof(ShowAssetUsefulLife), nameof(ShowAssetUsesRateHint))]
     private string _modalAssetType = AssetType.Equipment.ToDisplayName();
+
+    /// <summary>Whether the asset bought with this expense is depreciated by a yearly rate, set on the Assets page, rather than over a number of years.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAssetUsefulLife), nameof(ShowAssetUsesRateHint))]
+    private bool _modalAssetUsesRate;
+
+    public bool ShowAssetUsefulLife => !ModalAssetIsLand && !ModalAssetUsesRate;
+
+    public bool ShowAssetUsesRateHint => !ModalAssetIsLand && ModalAssetUsesRate;
 
     [ObservableProperty]
     private decimal? _modalAssetUsefulLife;
@@ -723,6 +732,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ReceiptFileName = "No receipt attached";
         Attachments.Clear();
         OnPropertyChanged(nameof(HasReceipt));
+        // A copy is a new purchase, so it becomes an asset only when ticked for itself.
+        ModalIsAsset = false;
+        ModalAssetUsesRate = false;
         // Taken again now the date has moved, so closing an untouched copy does not ask first.
         CaptureOriginalValues();
         // The mismatch warning stays. The copy is saved at what its lines add up to, so when the
@@ -1065,7 +1077,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             return;
         }
 
-        if (!IsRevenue && ModalIsAsset && !ModalAssetIsLand && ModalAssetUsefulLife is not > 0)
+        if (!IsRevenue && ModalIsAsset && ShowAssetUsefulLife && ModalAssetUsefulLife is not > 0)
         {
             ValidationMessage = "Enter how many years the asset will be used for.".Translate();
             HasValidationMessage = true;
@@ -1483,6 +1495,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalIsAsset = false;
         ModalAssetType = AssetType.Equipment.ToDisplayName();
         ModalAssetUsefulLife = null;
+        ModalAssetUsesRate = false;
         foreach (var li in LineItems)
             li.PropertyChanged -= OnLineItemPropertyChanged;
         LineItems.Clear();

@@ -269,7 +269,7 @@ public partial class AssetModalsViewModel : ViewModelBase
             var before = asset.Clone();
             asset.CopyFrom(formAsset);
             var after = asset.Clone();
-            Record("Edit asset '{0}'".TranslateFormat(asset.Name), () => asset.CopyFrom(before), () => asset.CopyFrom(after));
+            Record($"Edit asset '{asset.Name}'", () => asset.CopyFrom(before), () => asset.CopyFrom(after));
         }
         else
         {
@@ -277,7 +277,7 @@ public partial class AssetModalsViewModel : ViewModelBase
             formAsset.ExpenseId = _sourceExpenseId;
             formAsset.CreatedAt = DateTime.UtcNow;
             data.Assets.Add(formAsset);
-            Record("Add asset '{0}'".TranslateFormat(formAsset.Name),
+            Record($"Add asset '{formAsset.Name}'",
                 () => data.Assets.RemoveRecord(formAsset),
                 () => data.Assets.RestoreRecord(formAsset));
         }
@@ -473,7 +473,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         asset.SalePrice = IsSale ? DisposeSalePrice ?? 0m : 0m;
         asset.UpdatedAt = DateTime.UtcNow;
         var after = asset.Clone();
-        Record((IsSale ? "Sell asset '{0}'" : "Dispose of asset '{0}'").TranslateFormat(asset.Name),
+        Record(IsSale ? $"Edit asset '{asset.Name}' to record its sale" : $"Edit asset '{asset.Name}' to record its disposal",
             () => asset.CopyFrom(before), () => asset.CopyFrom(after));
 
         IsDisposeOpen = false;
@@ -512,7 +512,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         asset.SalePrice = 0m;
         asset.UpdatedAt = DateTime.UtcNow;
         var after = asset.Clone();
-        Record("Undo sale of asset '{0}'".TranslateFormat(asset.Name), () => asset.CopyFrom(before), () => asset.CopyFrom(after));
+        Record($"Edit asset '{asset.Name}' to put it back on the books", () => asset.CopyFrom(before), () => asset.CopyFrom(after));
     }
 
     #endregion
@@ -534,7 +534,7 @@ public partial class AssetModalsViewModel : ViewModelBase
                 return;
 
             data.Assets.RemoveRecord(asset);
-            Record("Delete asset '{0}'".TranslateFormat(asset.Name),
+            Record($"Delete asset '{asset.Name}'",
                 () => data.Assets.RestoreRecord(asset),
                 () => data.Assets.RemoveRecord(asset));
         }

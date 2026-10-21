@@ -45,7 +45,7 @@
                              ShowFilterButton="False"
                              AddCommand="{Binding OpenAddModalCommand}"
                              AddButtonText="{loc:Loc 'Add Asset'}"
-                             AddButtonTooltip="{loc:Loc 'Add an asset you already owned before using Argo Books'}"
+                             AddButtonTooltip="{loc:Loc 'Add Asset'}"
                              ColumnWidthsManager="{Binding ColumnWidths}"
                              CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
                              TotalPages="{Binding TotalPages}"
@@ -57,7 +57,7 @@
                              ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                              EmptyIcon="{x:Static icons:Icons.Assets}"
                              EmptyTitle="{loc:Loc 'No assets yet'}"
-                             EmptyMessage="{loc:Loc 'Assets are things the business keeps for years, like land, buildings, vehicles and equipment. Turn a purchase into an asset from the Expenses page, or add one you bought before using Argo Books.'}">
+                             EmptyMessage="{loc:Loc 'Assets are things the business keeps for years, like land, buildings, vehicles and equipment. Turn a purchase into an asset from the Expenses page, or add one here.'}">
 
                 <table:ArgoTable.HeaderContent>
                     <StackPanel Orientation="Horizontal">
@@ -161,7 +161,7 @@
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.DollarCircle}" Width="16" Height="16" />
                                                     </Button>
-                                                    <Button Classes="icon-button" ToolTip.Tip="{loc:Loc 'Undo sale'}"
+                                                    <Button Classes="icon-button" ToolTip.Tip="{loc:Loc 'Undo sale or disposal'}"
                                                             IsVisible="{Binding IsDisposed}"
                                                             Command="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ReverseDisposalCommand}"
                                                             CommandParameter="{Binding}">

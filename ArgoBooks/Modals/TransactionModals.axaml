@@ -441,7 +441,7 @@
                                                     </ComboBox.ItemTemplate>
                                                 </ComboBox>
                                             </StackPanel>
-                                            <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding !ModalAssetIsLand}">
+                                            <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding ShowAssetUsefulLife}">
                                                 <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
                                                            Text="{loc:Loc 'Useful life (years)'}" />
                                                 <TextBox Text="{Binding ModalAssetUsefulLife, Mode=TwoWay, Converter={x:Static local:OptionalDecimalConverter.Instance}, ConverterParameter=0.##}"
@@ -452,8 +452,11 @@
                                             </StackPanel>
                                         </Grid>
                                         <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
-                                                   IsVisible="{Binding !ModalAssetIsLand}"
+                                                   IsVisible="{Binding ShowAssetUsefulLife}"
                                                    Text="{loc:Loc 'Use the lifetime your accountant gives you. You can change the method and see the schedule on the Assets page.'}" />
+                                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   IsVisible="{Binding ShowAssetUsesRateHint}"
+                                                   Text="{loc:Loc 'It depreciates by a yearly rate. You can change it and see the schedule on the Assets page.'}" />
                                         <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
                                                    IsVisible="{Binding ModalAssetIsLand}"
                                                    Text="{loc:Loc 'Land doesn','t depreciate. It stays on your books at what you paid.'}" />
