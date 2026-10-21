@@ -358,25 +358,12 @@ public class DashboardDragDropManager
                 && sourceIndex >= 0 && sourceIndex < sourceRowVm.Widgets.Count
                 && targetRowVm.CanFit(sourceRowVm.Widgets[sourceIndex].Size))
             {
-                // Determine insert position from ghost X relative to target row
                 var targetPanelPos = crossRowTarget.TranslatePoint(new Point(0, 0), _rowsContainer) ?? new Point();
-                double ghostCenterX = _lastGhostRect.Center.X - targetPanelPos.X;
-                int insertIndex = targetRowVm.Widgets.Count; // default: append
-                for (int i = 0; i < crossRowTarget.Children.Count; i++)
-                {
-                    var child = crossRowTarget.Children[i];
-                    var midX = child.Bounds.Left + child.Bounds.Width / 2;
-                    if (ghostCenterX < midX)
-                    {
-                        insertIndex = i;
-                        break;
-                    }
-                }
                 var moved = sourceRowVm.Widgets[sourceIndex];
                 if (crossRowTarget.Bounds.Width > 0)
                     moved.StartOffset = DropOffset(crossRowTarget, moved.Size.ToFraction(),
                         (_lastGhostRect.Left - targetPanelPos.X) / crossRowTarget.Bounds.Width);
-                _layoutVm.MoveWidgetToRow(sourceRowVm, sourceIndex, targetRowVm, insertIndex);
+                _layoutVm.MoveWidgetToRow(sourceRowVm, sourceIndex, targetRowVm, targetRowVm.IndexForOffset(moved.StartOffset));
             }
         }
         else if (startOffset >= 0 && sourceControl != null && sourceRowPanel != null)

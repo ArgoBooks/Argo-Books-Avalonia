@@ -227,6 +227,12 @@ public partial class DashboardPage : UserControl
                     if (removeChild is WidgetHost host && host.DataContext is WidgetHostViewModel oldVm)
                         oldVm.PropertyChanged -= OnWidgetHostPropertyChanged;
                     panel.Children.RemoveAt(args.OldStartingIndex);
+                    // A full row only records where its widgets sit on the controls, so the row keeps those spots once it has a gap.
+                    foreach (var remaining in panel.Children)
+                    {
+                        if (remaining is WidgetHost { DataContext: WidgetHostViewModel remainingVm })
+                            remainingVm.StartOffset = Math.Round(DashboardRowPanel.GetStartOffset(remaining) * 4) / 4;
+                    }
                     panel.InvalidateArrange();
                 }
                 else if (args.Action == NotifyCollectionChangedAction.Add
