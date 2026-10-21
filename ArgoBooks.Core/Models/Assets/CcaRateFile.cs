@@ -57,6 +57,14 @@ public class CcaClass
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
 
+    /// <summary>For a class that is no type's default: the <see cref="AssetType"/> it is offered under.</summary>
+    [JsonPropertyName("assetType")]
+    public string? AssetType { get; set; }
+
+    /// <summary>For a class that is no type's default: what the type list calls it, such as "Frame or metal building".</summary>
+    [JsonPropertyName("label")]
+    public string? Label { get; set; }
+
     [JsonPropertyName("rates")]
     public List<CcaRate> Rates { get; set; } = [];
 }

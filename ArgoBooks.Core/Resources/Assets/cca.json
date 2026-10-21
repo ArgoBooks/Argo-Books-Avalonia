@@ -10,6 +10,8 @@
     {
       "number": "6",
       "description": "Frame, log, stucco-on-frame and metal buildings with no footings below ground, or used for farming or fishing",
+      "assetType": "Building",
+      "label": "Frame or metal building",
       "rates": [ { "percent": 10 } ]
     },
     {
@@ -25,11 +27,15 @@
     {
       "number": "10.1",
       "description": "Passenger vehicles costing more than CRA's limit",
+      "assetType": "Vehicle",
+      "label": "Passenger vehicle over CRA's limit",
       "rates": [ { "percent": 30 } ]
     },
     {
       "number": "12",
       "description": "Tools, kitchen utensils and medical or dental instruments costing less than $500 each",
+      "assetType": "Equipment",
+      "label": "Small tool under $500",
       "rates": [ { "percent": 100 } ]
     },
     {

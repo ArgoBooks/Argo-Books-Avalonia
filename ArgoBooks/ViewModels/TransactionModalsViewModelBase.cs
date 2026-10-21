@@ -129,78 +129,47 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     private bool _modalIsAsset;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ModalAssetIsLand), nameof(ShowAssetClass), nameof(ShowAssetUsefulLife), nameof(ShowAssetUsesRateHint),
-        nameof(ShowAssetLifeBesideType), nameof(ShowAssetLifeBelow), nameof(AssetClassHint))]
-    private string _modalAssetType = AssetType.Equipment.ToDisplayName();
+    private IReadOnlyList<AssetTypeOption> _assetTypeOptions = [];
+
+    /// <summary>The asset's type, which for a Canadian company also names its CRA class.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ModalAssetIsLand), nameof(ShowAssetUsefulLife), nameof(ShowAssetUsesRateHint), nameof(AssetClassHint))]
+    private AssetTypeOption? _modalAssetType;
 
     /// <summary>Whether the asset bought with this expense is depreciated by a yearly rate, set on the Assets page, rather than over a number of years.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowAssetUsefulLife), nameof(ShowAssetUsesRateHint), nameof(ShowAssetLifeBesideType), nameof(ShowAssetLifeBelow))]
+    [NotifyPropertyChangedFor(nameof(ShowAssetUsefulLife), nameof(ShowAssetUsesRateHint))]
     private bool _modalAssetUsesRate;
 
-    /// <summary>Whether the company is in Canada, where the form offers CRA's classes instead of a number of years.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowAssetClass), nameof(ShowAssetUsefulLife), nameof(ShowAssetUsesRateHint),
-        nameof(ShowAssetLifeBesideType), nameof(ShowAssetLifeBelow), nameof(AssetClassHint))]
-    private bool _isCanadianCompany;
-
-    [ObservableProperty]
-    private IReadOnlyList<CcaClassOption> _assetClassOptions = [];
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowAssetUsefulLife), nameof(ShowAssetUsesRateHint), nameof(ShowAssetLifeBesideType),
-        nameof(ShowAssetLifeBelow), nameof(AssetClassHint))]
-    private CcaClassOption? _modalAssetClass;
-
-    public bool ShowAssetClass => IsCanadianCompany && !ModalAssetIsLand;
-
-    private bool HasAssetClass => ShowAssetClass && ModalAssetClass?.Number != null;
+    private bool HasAssetClass => !ModalAssetIsLand && ModalAssetType?.CcaClass != null;
 
     public bool ShowAssetUsefulLife => !ModalAssetIsLand && !HasAssetClass && !ModalAssetUsesRate;
 
     public bool ShowAssetUsesRateHint => !ModalAssetIsLand && !HasAssetClass && ModalAssetUsesRate;
 
-    /// <summary>Outside Canada the years box sits beside the type; in Canada the class takes that place and the years box goes underneath.</summary>
-    public bool ShowAssetLifeBesideType => ShowAssetUsefulLife && !ShowAssetClass;
-
-    public bool ShowAssetLifeBelow => ShowAssetUsefulLife && ShowAssetClass;
-
     public string? AssetClassHint => AssetCcaChoice((ModalDate ?? DateTimeOffset.Now).Date) is { } choice ? CanadianAssetRates.Describe(choice) : null;
-
-    // Set while the form is filled from a record, so loading its type does not count as the user picking one.
-    protected bool LoadingAssetChoice;
-
-    partial void OnModalAssetTypeChanged(string value)
-    {
-        if (!LoadingAssetChoice && IsCanadianCompany)
-            ModalAssetClass = CanadianAssetRates.DefaultFor(AssetClassOptions, AssetTypeExtensions.ParseAssetType(value));
-    }
 
     partial void OnModalDateChanged(DateTimeOffset? value) => OnPropertyChanged(nameof(AssetClassHint));
 
-    /// <summary>Offers CRA's classes when the open company is in Canada.</summary>
-    protected void PrepareAssetClasses()
+    /// <summary>Lists the asset types, each with its CRA class when the open company is in Canada.</summary>
+    protected void PrepareAssetTypes()
     {
-        IsCanadianCompany = CanadianAssetRates.AppliesTo(App.CompanyManager?.CompanyData);
-        AssetClassOptions = IsCanadianCompany ? CanadianAssetRates.Options() : [];
-        if (IsCanadianCompany)
+        var data = App.CompanyManager?.CompanyData;
+        AssetTypeOptions = CanadianAssetRates.TypeOptions(data);
+        if (CanadianAssetRates.AppliesTo(data))
             CanadianAssetRates.CheckForUpdateOnce();
     }
 
-    protected CcaClassOption? DefaultAssetClass() => IsCanadianCompany
-        ? CanadianAssetRates.DefaultFor(AssetClassOptions, AssetTypeExtensions.ParseAssetType(ModalAssetType))
-        : null;
+    protected AssetTypeOption? DefaultAssetType() => AssetTypeOptions.FirstOrDefault(o => o.Type == AssetType.Equipment);
 
     /// <summary>The CRA class picked, with the rate and first-year share it has for an asset bought on <paramref name="date"/>.</summary>
     protected ExpenseAssetLink.CcaChoice? AssetCcaChoice(DateTime date) =>
-        HasAssetClass ? CanadianAssetRates.Choice(ModalAssetClass!.Number, date) : null;
+        HasAssetClass ? CanadianAssetRates.Choice(ModalAssetType!.CcaClass, date) : null;
 
     [ObservableProperty]
     private decimal? _modalAssetUsefulLife;
 
-    public bool ModalAssetIsLand => ModalAssetType == AssetOptions.Land;
-
-    public IReadOnlyList<string> AssetTypeOptions => AssetOptions.Types;
+    public bool ModalAssetIsLand => ModalAssetType?.Type == AssetType.Land;
 
     #endregion
 
@@ -408,7 +377,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice,
             li.ItemText?.Trim() ?? string.Empty, li.CategoryText?.Trim() ?? string.Empty,
             li.SelectedLocation?.Id))),
-        ModalIsAsset, ModalAssetType, ModalAssetUsefulLife, ModalAssetClass?.Number);
+        ModalIsAsset, ModalAssetType?.Label ?? string.Empty, ModalAssetUsefulLife, ModalAssetType?.CcaClass);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -789,7 +758,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         // A copy is a new purchase, so it becomes an asset only when ticked for itself.
         ModalIsAsset = false;
         ModalAssetUsesRate = false;
-        ModalAssetClass = DefaultAssetClass();
+        ModalAssetType = DefaultAssetType();
         // Taken again now the date has moved, so closing an untouched copy does not ask first.
         CaptureOriginalValues();
         // The mismatch warning stays. The copy is saved at what its lines add up to, so when the
@@ -1547,14 +1516,11 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalFee = 0;
         SelectedPaymentMethod = "Cash";
         ModalNotes = string.Empty;
-        LoadingAssetChoice = true;
-        PrepareAssetClasses();
+        PrepareAssetTypes();
         ModalIsAsset = false;
-        ModalAssetType = AssetType.Equipment.ToDisplayName();
+        ModalAssetType = DefaultAssetType();
         ModalAssetUsefulLife = null;
         ModalAssetUsesRate = false;
-        ModalAssetClass = DefaultAssetClass();
-        LoadingAssetChoice = false;
         foreach (var li in LineItems)
             li.PropertyChanged -= OnLineItemPropertyChanged;
         LineItems.Clear();

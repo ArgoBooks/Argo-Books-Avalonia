@@ -66,18 +66,13 @@ public interface ITransactionModalsViewModel
 
     bool ModalPaid { get; set; }
     bool ModalIsAsset { get; set; }
-    string ModalAssetType { get; set; }
+    Services.AssetTypeOption? ModalAssetType { get; set; }
     decimal? ModalAssetUsefulLife { get; set; }
     bool ModalAssetIsLand { get; }
     bool ShowAssetUsefulLife { get; }
     bool ShowAssetUsesRateHint { get; }
-    bool ShowAssetClass { get; }
-    bool ShowAssetLifeBesideType { get; }
-    bool ShowAssetLifeBelow { get; }
-    IReadOnlyList<Services.CcaClassOption> AssetClassOptions { get; }
-    Services.CcaClassOption? ModalAssetClass { get; set; }
     string? AssetClassHint { get; }
-    IReadOnlyList<string> AssetTypeOptions { get; }
+    IReadOnlyList<Services.AssetTypeOption> AssetTypeOptions { get; }
     string ModalNotes { get; set; }
 
     string SubtotalFormatted { get; }

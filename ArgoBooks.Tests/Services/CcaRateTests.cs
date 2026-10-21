@@ -165,6 +165,29 @@ public class CcaRateTests : IDisposable
     }
 
     [Fact]
+    public void BuiltInFile_OffersEachNonDefaultClassUnderAType()
+    {
+        var file = Rates().Current!;
+        var defaults = file.TypeDefaults.Values.ToHashSet();
+
+        Assert.All(file.Classes.Where(c => !defaults.Contains(c.Number)), c =>
+        {
+            Assert.NotNull(c.AssetType);
+            Assert.False(string.IsNullOrWhiteSpace(c.Label));
+        });
+        Assert.Equal("Vehicle", file.GetClass("10.1")!.AssetType);
+    }
+
+    [Fact]
+    public void Check_RefusesAClassOfferedUnderATypeWithNoLabel()
+    {
+        var file = JsonSerializer.Deserialize<CcaRateFile>(FileJson(2))!;
+        file.Classes.Add(new CcaClass { Number = "10.1", Description = "Pricier cars", AssetType = "Vehicle", Rates = [new CcaRate { Percent = 30 }] });
+
+        Assert.Contains(CcaRateValidator.Validate(file), p => p.Contains("no label"));
+    }
+
+    [Fact]
     public void Check_RefusesADuplicateClass()
     {
         var file = JsonSerializer.Deserialize<CcaRateFile>(FileJson(2))!;

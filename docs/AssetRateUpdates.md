@@ -60,13 +60,14 @@ CRA's own pages lag the law. In October 2026 the Accelerated Investment Incentiv
 - **A rate** applies to assets bought from `from` to `to`, both optional and both inclusive. When a budget changes a class's rate from a date, end the old rate the day before and add the new one, rather than editing the old one, so assets bought earlier keep theirs.
 - **A first-year rule** gives the share of the rate claimed in the year an asset is bought: 0.5 under the half-year rule, 1.0 when it is suspended, 1.5 under the Accelerated Investment Incentive. A rule with `classes` applies only to those and wins over a general one. Two general rules may not cover the same day.
 - **`typeDefaults`** maps each `AssetType` name, except Land, to the class it starts in.
+- **A class that is no type's default** names the type it is offered under (`assetType`) and what the type list calls it (`label`), such as class 10.1 under Vehicle as "Passenger vehicle over CRA's limit". Without them a class is in the file but not offered.
 
 Only the classes a small business commonly uses are listed. Adding one is a new entry in `classes`, with no code change.
 
 ## How the app uses it
 
-- **The asset form**, for a company whose country is Canada, shows a CRA class drop-down. Picking a type picks its default class, and picking a class sets Declining balance and the class's rate for the purchase date. Everything stays editable, and editing an asset never overwrites its saved rate.
-- **The expense form** shows the class in place of a number of years.
+- **The type list** in the asset form and the expense form, for a company whose country is Canada, offers each type with its class and rate, such as "Vehicle (Class 10, 30%)", plus the other classes a type can be in, such as "Passenger vehicle over CRA's limit (Class 10.1, 30%)". So one list picks both.
+- **Picking a type in the asset form** sets Declining balance and the class's rate for the purchase date. Everything stays editable, and editing an asset never overwrites its saved rate. The expense form asks for no number of years when the type has a class.
 - **An asset with a class and Declining balance** is depreciated by CRA's method (`AssetDepreciation.CcaMonths`): each calendar year takes the rate of what is left, the first year only its first-year share, and the year it is sold or disposed of none. The first-year share is stored on the asset when it is saved, so a later change to the rules only reaches an asset when it is edited.
 - **Prior depreciation** carried over from earlier books means the asset is past its first year, so no first-year share applies.
 

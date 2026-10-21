@@ -6,8 +6,8 @@ using ArgoBooks.Localization;
 
 namespace ArgoBooks.Services;
 
-/// <summary>A choice in the CRA class drop-downs, where a null number means the asset is depreciated however the user sets it.</summary>
-public record CcaClassOption(string? Number, string Label)
+/// <summary>A choice in the asset type lists, which for a Canadian company also names the CRA class it goes in.</summary>
+public record AssetTypeOption(AssetType Type, string? CcaClass, string Label)
 {
     public override string ToString() => Label;
 }
@@ -32,22 +32,39 @@ public static class CanadianAssetRates
 
     public static bool AppliesTo(CompanyData? data) => data != null && CraFormat.IsCanada(data.Settings.Company.Country);
 
-    /// <summary>Every class with today's rate, after a choice for setting the depreciation by hand.</summary>
-    public static List<CcaClassOption> Options()
+    /// <summary>The types the asset forms offer, each with its CRA class and rate for a Canadian company, so one list picks both.</summary>
+    public static List<AssetTypeOption> TypeOptions(CompanyData? data)
     {
-        var options = new List<CcaClassOption> { new(null, "No CRA class (set it myself)".Translate()) };
-        if (Rates.Current is { } file)
+        var file = AppliesTo(data) ? Rates.Current : null;
+        var options = new List<AssetTypeOption>();
+
+        foreach (var type in Enum.GetValues<AssetType>())
         {
-            options.AddRange(file.Classes.Select(c => new CcaClassOption(c.Number,
-                "Class {0}: {1} ({2}%)".TranslateFormat(c.Number, c.Description, Percent(file.RateOn(c.Number, DateTime.Today) ?? 0m)))));
+            var name = type.ToDisplayName().Translate();
+            options.Add(file?.DefaultClassFor(type) is { } number ? WithClass(file, type, number, name) : new AssetTypeOption(type, null, name));
+
+            if (file == null)
+                continue;
+            foreach (var extra in file.Classes.Where(c => c.AssetType == type.ToString() && c.Label != null))
+                options.Add(WithClass(file, type, extra.Number, extra.Label!.Translate()));
         }
+
         return options;
     }
 
-    public static CcaClassOption? DefaultFor(IEnumerable<CcaClassOption> options, AssetType type)
+    private static AssetTypeOption WithClass(CcaRateFile file, AssetType type, string number, string name) =>
+        new(type, number, "{0} (Class {1}, {2}%)".TranslateFormat(name, number, Percent(file.RateOn(number, DateTime.Today) ?? 0m)));
+
+    /// <summary>The choice for an asset's type and class, added to <paramref name="options"/> when it is a pairing the list does not offer, such as one imported from a sheet.</summary>
+    public static AssetTypeOption Find(List<AssetTypeOption> options, AssetType type, string? ccaClass)
     {
-        var number = Rates.Current?.DefaultClassFor(type);
-        return options.FirstOrDefault(o => o.Number == number);
+        if (options.FirstOrDefault(o => o.Type == type && o.CcaClass == ccaClass) is { } found)
+            return found;
+
+        var name = type.ToDisplayName().Translate();
+        var added = new AssetTypeOption(type, ccaClass, ccaClass == null ? name : "{0} (Class {1})".TranslateFormat(name, ccaClass));
+        options.Add(added);
+        return added;
     }
 
     /// <summary>The class with the rate and first-year share CRA gives it for an asset bought on <paramref name="purchaseDate"/>, or null when it has no rate then.</summary>

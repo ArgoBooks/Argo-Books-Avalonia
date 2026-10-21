@@ -45,6 +45,11 @@ public static class CcaRateValidator
 
             if (Overlaps(cca.Rates.Select(r => (r.From, r.To)).ToList()))
                 problems.Add($"Class {cca.Number} has rates whose dates overlap.");
+
+            if (cca.AssetType != null && (!Enum.TryParse<AssetType>(cca.AssetType, out var offeredAs) || offeredAs == AssetType.Land))
+                problems.Add($"Class {cca.Number} is offered as \"{cca.AssetType}\", which is not an asset type that depreciates.");
+            if (cca.AssetType != null && string.IsNullOrWhiteSpace(cca.Label))
+                problems.Add($"Class {cca.Number} is offered as a type but has no label for the list.");
         }
 
         foreach (var rule in file.FirstYearRules)

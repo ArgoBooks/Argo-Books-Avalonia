@@ -12,7 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace ArgoBooks.ViewModels;
 
 /// <summary>
-/// The choices offered wherever an asset is described, so the asset form and the expense form list the same types.
+/// The method and disposal choices offered wherever an asset is described.
 /// </summary>
 public static class AssetOptions
 {
@@ -20,10 +20,6 @@ public static class AssetOptions
     public const string DecliningBalance = "Declining balance";
     public const string Sold = "Sold";
     public const string Scrapped = "Scrapped or given away";
-
-    public static string Land => AssetType.Land.ToDisplayName();
-
-    public static IReadOnlyList<string> Types { get; } = Enum.GetValues<AssetType>().Select(t => t.ToDisplayName()).ToList();
 
     public static IReadOnlyList<string> Methods { get; } = [StraightLine, DecliningBalance];
 
@@ -38,7 +34,6 @@ public partial class AssetModalsViewModel : ViewModelBase
     /// <summary>Raised whenever an asset is added, changed, sold or removed, including by undo.</summary>
     public event EventHandler? AssetsChanged;
 
-    public IReadOnlyList<string> TypeOptions => AssetOptions.Types;
     public IReadOnlyList<string> MethodOptions => AssetOptions.Methods;
     public IReadOnlyList<string> DisposalKindOptions => AssetOptions.DisposalKinds;
 
@@ -97,10 +92,14 @@ public partial class AssetModalsViewModel : ViewModelBase
     private string _modalName = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLand), nameof(ShowPriorDepreciation))]
-    private string _modalType = AssetType.Equipment.ToDisplayName();
+    private List<AssetTypeOption> _typeOptions = [];
 
-    public bool IsLand => ModalType == AssetOptions.Land;
+    /// <summary>The asset's type, which for a Canadian company also names its CRA class.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLand), nameof(ShowPriorDepreciation))]
+    private AssetTypeOption? _modalType;
+
+    public bool IsLand => ModalType?.Type == AssetType.Land;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowPriorDepreciation), nameof(PriorDepreciationLabel))]
@@ -163,60 +162,37 @@ public partial class AssetModalsViewModel : ViewModelBase
 
     #region CRA Class
 
-    /// <summary>Whether the company is in Canada, where the form fills in CRA's class and rate.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowCcaClass))]
-    private bool _isCanadian;
-
-    [ObservableProperty]
-    private List<CcaClassOption> _ccaClassOptions = [];
-
-    [ObservableProperty]
-    private CcaClassOption? _modalCcaClass;
-
     [ObservableProperty]
     private string? _ccaClassHint;
 
-    public bool ShowCcaClass => IsCanadian && !IsLand;
-
-    // Set while the form is being filled from a record, so loading it does not count as the user picking a type or class.
+    // Set while the form is being filled from a record, so loading it does not count as the user picking a type.
     private bool _loading;
 
     private ExpenseAssetLink.CcaChoice? CurrentCcaChoice =>
-        ShowCcaClass && ModalPurchaseDate is { } date ? CanadianAssetRates.Choice(ModalCcaClass?.Number, date.Date) : null;
+        !IsLand && ModalPurchaseDate is { } date ? CanadianAssetRates.Choice(ModalType?.CcaClass, date.Date) : null;
 
-    partial void OnModalCcaClassChanged(CcaClassOption? value)
+    private void PrepareTypes()
     {
-        if (!_loading && CurrentCcaChoice is { } choice)
-        {
-            ModalMethod = AssetOptions.DecliningBalance;
-            ModalRate = choice.RatePercent;
-        }
-        UpdatePreview();
-    }
-
-    private void PrepareCcaClasses()
-    {
-        IsCanadian = CanadianAssetRates.AppliesTo(Data);
-        CcaClassOptions = IsCanadian ? CanadianAssetRates.Options() : [];
-        if (IsCanadian)
+        TypeOptions = CanadianAssetRates.TypeOptions(Data);
+        if (CanadianAssetRates.AppliesTo(Data))
             CanadianAssetRates.CheckForUpdateOnce();
     }
 
-    /// <summary>Starts a new asset in the class CRA gives its type, with that class's rate.</summary>
-    private void PickDefaultCcaClass()
+    /// <summary>Sets a type that carries a CRA class to depreciate at that class's rate.</summary>
+    private void UseTypeRate()
     {
-        if (IsCanadian)
-            ModalCcaClass = CanadianAssetRates.DefaultFor(CcaClassOptions, AssetTypeExtensions.ParseAssetType(ModalType));
+        if (CurrentCcaChoice is not { } choice)
+            return;
+        ModalMethod = AssetOptions.DecliningBalance;
+        ModalRate = choice.RatePercent;
     }
 
     #endregion
 
-    partial void OnModalTypeChanged(string value)
+    partial void OnModalTypeChanged(AssetTypeOption? value)
     {
-        OnPropertyChanged(nameof(ShowCcaClass));
         if (!_loading)
-            PickDefaultCcaClass();
+            UseTypeRate();
         UpdatePreview();
     }
 
@@ -230,20 +206,20 @@ public partial class AssetModalsViewModel : ViewModelBase
 
     private sealed record FormState(
         string Name, string Type, DateTimeOffset? PurchaseDate, decimal? Cost, string Method, decimal? UsefulLife,
-        decimal? Rate, decimal? EndValue, decimal? PriorDepreciation, string Notes, string? CcaClass);
+        decimal? Rate, decimal? EndValue, decimal? PriorDepreciation, string Notes);
 
     // The form as it opened, so closing it only asks to discard when something was changed.
     private FormState? _original;
 
     private FormState Capture() => new(
-        ModalName, ModalType, ModalPurchaseDate, ModalCost, ModalMethod, ModalUsefulLife,
-        ModalRate, ModalEndValue, ModalPriorDepreciation, ModalNotes, ModalCcaClass?.Number);
+        ModalName, ModalType?.Label ?? string.Empty, ModalPurchaseDate, ModalCost, ModalMethod, ModalUsefulLife,
+        ModalRate, ModalEndValue, ModalPriorDepreciation, ModalNotes);
 
     public void OpenAddModal()
     {
         ResetForm();
         _currency = Data?.Settings.Localization.Currency ?? "USD";
-        PickDefaultCcaClass();
+        UseTypeRate();
         _original = Capture();
         IsEditMode = false;
         IsFormOpen = true;
@@ -259,7 +235,10 @@ public partial class AssetModalsViewModel : ViewModelBase
         _editing = asset;
         _currency = asset.Currency;
         ModalName = asset.Name;
-        ModalType = asset.Type.ToDisplayName();
+        var options = TypeOptions.ToList();
+        var type = CanadianAssetRates.Find(options, asset.Type, asset.CcaClass);
+        TypeOptions = options;
+        ModalType = type;
         ModalPurchaseDate = new DateTimeOffset(asset.PurchaseDate);
         ModalCost = asset.Cost;
         ModalMethod = asset.Method == DepreciationMethod.DecliningBalance ? AssetOptions.DecliningBalance : AssetOptions.StraightLine;
@@ -270,7 +249,6 @@ public partial class AssetModalsViewModel : ViewModelBase
         ModalNotes = asset.Notes;
         if (!string.IsNullOrEmpty(asset.ExpenseId))
             SourceExpenseText = "Bought with expense {0}".TranslateFormat(asset.ExpenseId);
-        ModalCcaClass = CcaClassOptions.FirstOrDefault(o => o.Number == asset.CcaClass) ?? CcaClassOptions.FirstOrDefault();
         _loading = false;
         UpdatePreview();
 
@@ -299,7 +277,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         ModalPurchaseDate = new DateTimeOffset(expense.Date);
         ModalCost = AssetDepreciation.PreTaxCost(expense);
         SourceExpenseText = "From expense {0}. The reports count this cost as depreciation instead of as an expense.".TranslateFormat(expense.Id);
-        PickDefaultCcaClass();
+        UseTypeRate();
         UpdatePreview();
 
         _original = Capture();
@@ -382,7 +360,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         {
             Id = _editing?.Id ?? string.Empty,
             Name = ModalName.Trim(),
-            Type = AssetTypeExtensions.ParseAssetType(ModalType),
+            Type = ModalType?.Type ?? AssetType.Other,
             PurchaseDate = ModalPurchaseDate?.Date ?? DateTime.Today,
             Cost = ModalCost ?? 0m,
             Currency = _currency,
@@ -390,7 +368,7 @@ public partial class AssetModalsViewModel : ViewModelBase
             Method = !land && !IsStraightLine ? DepreciationMethod.DecliningBalance : DepreciationMethod.StraightLine,
             UsefulLifeYears = !land && IsStraightLine ? ModalUsefulLife : null,
             RatePercent = !land && !IsStraightLine ? ModalRate : null,
-            CcaClass = cca?.ClassNumber,
+            CcaClass = land ? null : ModalType?.CcaClass,
             FirstYearFactor = !land && !IsStraightLine ? cca?.FirstYearFactor : null,
             EndValue = land ? 0m : ModalEndValue ?? 0m,
             PriorDepreciation = showPrior ? ModalPriorDepreciation ?? 0m : 0m,
@@ -407,13 +385,12 @@ public partial class AssetModalsViewModel : ViewModelBase
     private void ResetForm()
     {
         _loading = true;
-        PrepareCcaClasses();
-        ModalCcaClass = null;
+        PrepareTypes();
         _editing = null;
         _sourceExpenseId = null;
         SourceExpenseText = null;
         ModalName = string.Empty;
-        ModalType = AssetType.Equipment.ToDisplayName();
+        ModalType = TypeOptions.FirstOrDefault(o => o.Type == AssetType.Equipment);
         ModalPurchaseDate = DateTimeOffset.Now;
         ModalCost = null;
         ModalMethod = AssetOptions.StraightLine;
