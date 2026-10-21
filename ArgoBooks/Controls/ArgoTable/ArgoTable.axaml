@@ -222,35 +222,64 @@
                                               Width="28" Height="28"
                                               Foreground="{DynamicResource TextTertiaryBrush}" />
                                 </Border>
-                                <!-- With filters applied the rows may exist but be hidden, so say so -->
+                                <!-- A search or filters may hide rows that exist, so say that rather than that there is nothing yet -->
                                 <StackPanel Spacing="16"
-                                            IsVisible="{Binding #Root.FilterCount, Converter={x:Static local:IntConverters.IsPositive}}">
+                                            IsVisible="{Binding #Root.IsNarrowed}">
+                                    <TextBlock Text="{loc:Loc 'No results match your search'}"
+                                               FontSize="16"
+                                               FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center"
+                                               IsVisible="{Binding #Root.IsSearching}" />
                                     <TextBlock Text="{loc:Loc 'No results match your filters'}"
                                                FontSize="16"
                                                FontWeight="Medium"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                               HorizontalAlignment="Center" />
+                                               HorizontalAlignment="Center"
+                                               IsVisible="{Binding !#Root.IsSearching}" />
+                                    <TextBlock Text="{loc:Loc 'Try a different search, or clear it to see everything.'}"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               HorizontalAlignment="Center"
+                                               TextAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               MaxWidth="300"
+                                               IsVisible="{Binding #Root.IsSearching}" />
                                     <TextBlock Text="{loc:Loc 'Clear the filters to see everything.'}"
                                                FontSize="14"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                HorizontalAlignment="Center"
                                                TextAlignment="Center"
                                                TextWrapping="Wrap"
-                                               MaxWidth="300" />
-                                    <Button Classes="secondary-button"
-                                            HorizontalAlignment="Center"
-                                            Margin="0,8,0,0"
-                                            Command="{Binding #Root.ClearFiltersCommand}"
-                                            IsVisible="{Binding #Root.ClearFiltersCommand, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                        <TextBlock Text="{loc:Loc 'Clear filters'}" />
-                                    </Button>
+                                               MaxWidth="300"
+                                               IsVisible="{Binding !#Root.IsSearching}" />
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
+                                                Spacing="8"
+                                                Margin="0,8,0,0">
+                                        <Button Classes="secondary-button"
+                                                Command="{Binding #Root.ClearSearchCommand}"
+                                                IsVisible="{Binding #Root.IsSearching}">
+                                            <TextBlock Text="{loc:Loc 'Clear search'}" />
+                                        </Button>
+                                        <Button Classes="secondary-button"
+                                                Command="{Binding #Root.ClearFiltersCommand}">
+                                            <Button.IsVisible>
+                                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                    <Binding Path="#Root.FilterCount" Converter="{x:Static local:IntConverters.IsPositive}" />
+                                                    <Binding Path="#Root.ClearFiltersCommand" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                                                </MultiBinding>
+                                            </Button.IsVisible>
+                                            <TextBlock Text="{loc:Loc 'Clear filters'}" />
+                                        </Button>
+                                    </StackPanel>
                                 </StackPanel>
                                 <TextBlock Text="{Binding #Root.EmptyTitle}"
                                            FontSize="16"
                                            FontWeight="Medium"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            HorizontalAlignment="Center"
-                                           IsVisible="{Binding #Root.FilterCount, Converter={x:Static local:IntConverters.IsZero}}" />
+                                           IsVisible="{Binding !#Root.IsNarrowed}" />
                                 <TextBlock Text="{Binding #Root.EmptyMessage}"
                                            FontSize="14"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
@@ -258,7 +287,7 @@
                                            TextAlignment="Center"
                                            TextWrapping="Wrap"
                                            MaxWidth="300"
-                                           IsVisible="{Binding #Root.FilterCount, Converter={x:Static local:IntConverters.IsZero}}" />
+                                           IsVisible="{Binding !#Root.IsNarrowed}" />
                                 <Button Classes="primary-button"
                                         HorizontalAlignment="Center"
                                         Margin="0,8,0,0"
@@ -268,7 +297,7 @@
                                         <MultiBinding Converter="{x:Static BoolConverters.And}">
                                             <Binding Path="#Root.ShowAddButton" />
                                             <Binding Path="#Root.ShowEmptyAddButton" />
-                                            <Binding Path="#Root.FilterCount" Converter="{x:Static local:IntConverters.IsZero}" />
+                                            <Binding Path="#Root.IsNarrowed" Converter="{x:Static BoolConverters.Not}" />
                                         </MultiBinding>
                                     </Button.IsVisible>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
