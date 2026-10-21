@@ -197,12 +197,11 @@
             </Border>
 
             <!-- Main Content Area -->
-            <!-- Disabled under the loading screen, so Tab cannot reach the page behind it. -->
-            <ContentControl x:Name="MainContent" Content="{Binding CurrentView}" IsEnabled="{Binding !IsLoading}" />
+            <ContentControl x:Name="MainContent" Content="{Binding CurrentView}" />
         </DockPanel>
 
         <!-- Welcome Screen (full-screen overlay when no company is open) -->
-        <Panel IsVisible="{Binding ShowWelcomeScreen}" IsEnabled="{Binding !IsLoading}" ZIndex="150">
+        <Panel IsVisible="{Binding ShowWelcomeScreen}" ZIndex="150">
             <views:WelcomeScreen DataContext="{Binding WelcomeScreenViewModel}" />
         </Panel>
 
