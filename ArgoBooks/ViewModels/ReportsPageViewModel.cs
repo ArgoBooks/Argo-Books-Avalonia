@@ -1740,7 +1740,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         }
         catch (Exception ex)
         {
-            ExportMessage = $"Export error: {ex.Message}";
+            App.ErrorLogger?.LogError(ex, ErrorCategory.Export, "Failed to export report");
+            ExportMessage = "The report couldn't be exported. Check that the folder still exists and try again.";
         }
         finally
         {
