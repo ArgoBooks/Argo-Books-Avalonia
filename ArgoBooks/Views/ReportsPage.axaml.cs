@@ -119,6 +119,7 @@ public partial class ReportsPage : UserControl
             _designCanvas.PointerReleased += OnCanvasPointerReleased;
             _designCanvas.SelectionChanged += OnCanvasSelectionChanged;
             _designCanvas.ContextMenuRequested += OnCanvasContextMenuRequested;
+            _designCanvas.PageContextMenuRequested += OnCanvasPageContextMenuRequested;
 
             // Provide viewport center callback to ViewModel for element placement
             if (DataContext is ReportsPageViewModel vm2)
@@ -150,6 +151,7 @@ public partial class ReportsPage : UserControl
             vm.TemplateLoaded += OnTemplateLoaded;
             vm.PreviewFitToWindowRequested += OnPreviewFitToWindowRequested;
             vm.CanvasRefreshRequested += OnCanvasRefreshRequested;
+            vm.PageScrollRequested += OnPageScrollRequested;
 
             // Ensure viewport center callback is wired (may have missed it if DataContext wasn't ready earlier)
             if (_designCanvas != null)
@@ -316,6 +318,9 @@ public partial class ReportsPage : UserControl
         _designCanvas?.InvalidateCanvas();
     }
 
+    private void OnPageScrollRequested(object? sender, int pageNumber) =>
+        _designCanvas?.ScrollToPageWhenDrawn(pageNumber);
+
     private void OnToolbarLayoutUpdated(object? sender, EventArgs e)
     {
         if (_toolbarScrollViewer == null || _toolbarContent == null) return;
@@ -345,6 +350,7 @@ public partial class ReportsPage : UserControl
             _designCanvas.PointerReleased -= OnCanvasPointerReleased;
             _designCanvas.SelectionChanged -= OnCanvasSelectionChanged;
             _designCanvas.ContextMenuRequested -= OnCanvasContextMenuRequested;
+            _designCanvas.PageContextMenuRequested -= OnCanvasPageContextMenuRequested;
         }
 
         if (_previewScrollViewer != null)
@@ -368,6 +374,7 @@ public partial class ReportsPage : UserControl
             vm.TemplateLoaded -= OnTemplateLoaded;
             vm.PreviewFitToWindowRequested -= OnPreviewFitToWindowRequested;
             vm.CanvasRefreshRequested -= OnCanvasRefreshRequested;
+            vm.PageScrollRequested -= OnPageScrollRequested;
             vm.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
             vm.Cleanup();
         }
@@ -461,6 +468,12 @@ public partial class ReportsPage : UserControl
         {
             vm.ShowContextMenu(e.X, e.Y);
         }
+    }
+
+    private void OnCanvasPageContextMenuRequested(object? sender, PageContextMenuRequestedEventArgs e)
+    {
+        if (DataContext is ReportsPageViewModel vm)
+            vm.ShowPageContextMenu(e.X, e.Y, e.PageNumber);
     }
 
     private void OnCanvasPointerWheelChanged(object? sender, PointerWheelEventArgs e)

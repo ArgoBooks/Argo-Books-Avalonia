@@ -1054,6 +1054,36 @@
                                                       DuplicateCommand="{Binding ContextMenuDuplicateCommand}"
                                                       DeleteCommand="{Binding ContextMenuDeleteCommand}"
                                                       CloseCommand="{Binding HideContextMenuCommand}" />
+
+                        <!-- Right-click menu for a page, away from any element -->
+                        <controls:AnimatedContextMenu IsOpen="{Binding IsPageContextMenuOpen}"
+                                                      MenuX="{Binding PageContextMenuX}"
+                                                      MenuY="{Binding PageContextMenuY}"
+                                                      CloseCommand="{Binding HidePageContextMenuCommand}">
+                            <controls:AnimatedContextMenu.MenuContent>
+                                <StackPanel Spacing="2" MinWidth="140">
+                                    <Button Classes="context-menu-item"
+                                            Command="{Binding PageContextMenuAddPageCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <PathIcon Data="{x:Static icons:Icons.AddAlt}"
+                                                      Width="16" Height="16"
+                                                      Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <TextBlock Text="{loc:Loc 'Add new page'}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Classes="context-menu-item danger"
+                                            Command="{Binding PageContextMenuDeletePageCommand}"
+                                            IsEnabled="{Binding CanDeletePage}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <PathIcon Data="{x:Static icons:Icons.Delete}"
+                                                      Width="16" Height="16"
+                                                      Foreground="{DynamicResource DangerBrush}" />
+                                            <TextBlock Text="{loc:Loc 'Delete page'}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </controls:AnimatedContextMenu.MenuContent>
+                        </controls:AnimatedContextMenu>
                     </Grid>
                 </Grid>
 
@@ -2076,14 +2106,10 @@
                                   Width="16" Height="16" />
                     </Button>
 
-                    <!-- Add/Delete Page -->
+                    <!-- Add Page (a page is deleted from its right-click menu) -->
                     <Border Width="1" Height="20" Background="{DynamicResource BorderBrush}" Margin="4,0" />
                     <Button Classes="toolbar-button" Command="{Binding AddPageCommand}" ToolTip.Tip="{loc:Loc 'Add Page'}">
                         <PathIcon Data="{x:Static icons:Icons.AddAlt}"
-                                  Width="16" Height="16" />
-                    </Button>
-                    <Button Classes="toolbar-button" Command="{Binding DeletePageCommand}" IsEnabled="{Binding CanDeletePage}" ToolTip.Tip="{loc:Loc 'Delete Page'}">
-                        <PathIcon Data="{x:Static icons:Icons.Delete}"
                                   Width="16" Height="16" />
                     </Button>
                 </StackPanel>

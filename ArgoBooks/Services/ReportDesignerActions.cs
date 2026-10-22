@@ -356,27 +356,33 @@ public class BatchMoveResizeAction(
 }
 
 /// <summary>
-/// Action for adding a new page to the report.
+/// Action for adding a blank page to the report as page <paramref name="newPageNumber"/>, moving the pages from there on down one.
 /// </summary>
-public class AddPageAction(ReportConfiguration config) : IUndoableAction
+public class AddPageAction(ReportConfiguration config, int newPageNumber) : IUndoableAction
 {
-    private readonly int _newPageNumber = config.PageCount + 1;
-
     public string Description => "Add Page".Translate();
 
     public void Undo()
     {
         // Remove any elements that were added to the new page
-        var elementsOnPage = config.Elements.Where(e => e.PageNumber == _newPageNumber).ToList();
+        var elementsOnPage = config.Elements.Where(e => e.PageNumber == newPageNumber).ToList();
         foreach (var element in elementsOnPage)
         {
             config.Elements.Remove(element);
+        }
+        foreach (var element in config.Elements.Where(e => e.PageNumber > newPageNumber))
+        {
+            element.PageNumber--;
         }
         config.PageCount--;
     }
 
     public void Redo()
     {
+        foreach (var element in config.Elements.Where(e => e.PageNumber >= newPageNumber))
+        {
+            element.PageNumber++;
+        }
         config.PageCount++;
     }
 }

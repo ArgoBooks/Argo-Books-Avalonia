@@ -778,21 +778,29 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     public bool CanDeletePage => Configuration.PageCount > 1;
 
     [RelayCommand]
-    private void AddPage()
+    private void AddPage() => InsertPage(Configuration.PageCount + 1);
+
+    /// <summary>Adds a blank page as page <paramref name="newPageNumber"/>, moving the pages from there on down one.</summary>
+    private void InsertPage(int newPageNumber)
     {
-        UndoRedoManager.RecordAction(new AddPageAction(Configuration));
-        Configuration.PageCount++;
-        CurrentDesignerPage = Configuration.PageCount;
+        var action = new AddPageAction(Configuration, newPageNumber);
+        UndoRedoManager.RecordAction(action);
+        action.Redo();
         OnPropertyChanged(nameof(CanDeletePage));
+
+        // The redraw is asked for first, so the canvas waits for the new page to exist before scrolling to it.
         CanvasRefreshRequested?.Invoke(this, EventArgs.Empty);
+        CurrentDesignerPage = newPageNumber;
+        PageScrollRequested?.Invoke(this, newPageNumber);
     }
 
-    [RelayCommand]
-    private void DeletePage()
+    /// <summary>Raised to bring a page into view, such as one just added.</summary>
+    public event EventHandler<int>? PageScrollRequested;
+
+    private void DeletePage(int pageToDelete)
     {
         if (Configuration.PageCount <= 1) return;
 
-        var pageToDelete = CurrentDesignerPage;
         var elementsOnPage = Configuration.Elements
             .Where(e => e.PageNumber == pageToDelete).ToList();
 
@@ -821,6 +829,43 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         SelectedElement = null;
         OnPropertyChanged(nameof(CanDeletePage));
         CanvasRefreshRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [ObservableProperty]
+    private bool _isPageContextMenuOpen;
+
+    [ObservableProperty]
+    private double _pageContextMenuX;
+
+    [ObservableProperty]
+    private double _pageContextMenuY;
+
+    private int _pageContextMenuPage;
+
+    /// <summary>Opens the page menu for <paramref name="pageNumber"/>, the page that was right-clicked.</summary>
+    public void ShowPageContextMenu(double x, double y, int pageNumber)
+    {
+        _pageContextMenuPage = pageNumber;
+        PageContextMenuX = x;
+        PageContextMenuY = y;
+        IsPageContextMenuOpen = true;
+    }
+
+    [RelayCommand]
+    private void HidePageContextMenu() => IsPageContextMenuOpen = false;
+
+    [RelayCommand]
+    private void PageContextMenuAddPage()
+    {
+        HidePageContextMenu();
+        InsertPage(_pageContextMenuPage + 1);
+    }
+
+    [RelayCommand]
+    private void PageContextMenuDeletePage()
+    {
+        HidePageContextMenu();
+        DeletePage(_pageContextMenuPage);
     }
 
     #endregion
@@ -1808,8 +1853,11 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         new(Enum.GetValues<PageOrientation>());
 
     // Element property enum collections - uses GetDisplayName() extension method for consistent naming
+    // Product Revenue Trend needs a product picked, which only the Analytics page offers, so a report has nothing to draw for it.
     public ObservableCollection<ChartDataTypeOption> ChartTypeOptions { get; } =
-        new(Enum.GetValues<ChartDataType>().Select(t => new ChartDataTypeOption(t, t.GetDisplayName().Translate())));
+        new(Enum.GetValues<ChartDataType>()
+            .Where(t => t != ChartDataType.ProductRevenueTrend)
+            .Select(t => new ChartDataTypeOption(t, t.GetDisplayName().Translate())));
 
     /// <summary>
     /// Gets or sets the selected chart data type option, syncing with SelectedChartElement.ChartType.
