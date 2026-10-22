@@ -1299,8 +1299,8 @@ public class ReportRenderer : IDisposable
         // Determine if we have negative values
         var hasNegatives = minValue < 0;
 
-        // 20% headroom above the max so the tallest point is not flush with the top, with the floor pinned at 0 unless the data goes negative.
-        var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : maxValue;
+        // 20% headroom above the max so the tallest point is not flush with the top. Zero stays on the chart: it is the floor unless the data goes negative, and the top when all of it does.
+        var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : 0;
         var paddedMinValue = hasNegatives ? minValue * 1.2 : 0;
 
         // Calculate the total range the chart needs to display
@@ -1414,8 +1414,8 @@ public class ReportRenderer : IDisposable
         // Determine if we have negative values
         var hasNegatives = minValue < 0;
 
-        // 20% headroom above the max so the tallest point is not flush with the top, with the floor pinned at 0 unless the data goes negative.
-        var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : maxValue;
+        // 20% headroom above the max so the tallest point is not flush with the top. Zero stays on the chart: it is the floor unless the data goes negative, and the top when all of it does.
+        var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : 0;
         var paddedMinValue = hasNegatives ? minValue * 1.2 : 0;
 
         // Calculate the total range the chart needs to display
@@ -1459,8 +1459,14 @@ public class ReportRenderer : IDisposable
         canvas.DrawLine(chartArea.Left, chartArea.Top, chartArea.Left, chartArea.Bottom, axisPaint);
         canvas.DrawLine(chartArea.Left, baselineY, chartArea.Right, baselineY, axisPaint);
 
-        // Line uses a single representative color per chart type. For profit/tax-liability, that's the color matching positive values (green for profits, red for owed tax).
-        var lineColor = ChartColors.ForValue(chart.ChartType, 0);
+        // A profit chart is green above zero and red below it, so the line and its fill are drawn once for each side of the baseline.
+        var aboveColor = ChartColors.ForValue(chart.ChartType, 1);
+        var belowColor = ChartColors.ForValue(chart.ChartType, -1);
+        var sides = new[]
+        {
+            (Color: aboveColor, Clip: new SKRect(chartArea.Left - chartArea.Width, chartArea.Top - chartArea.Height, chartArea.Right + chartArea.Width, baselineY)),
+            (Color: belowColor, Clip: new SKRect(chartArea.Left - chartArea.Width, baselineY, chartArea.Right + chartArea.Width, chartArea.Bottom + chartArea.Height))
+        };
 
         // Calculate point positions
         var pointCount = dataPoints.Count;
@@ -1508,17 +1514,22 @@ public class ReportRenderer : IDisposable
             path.Close();
 
             using var fillPaint = new SKPaint();
-            fillPaint.Color = lineColor.WithAlpha(80);
             fillPaint.Style = SKPaintStyle.Fill;
             fillPaint.IsAntialias = true;
-            canvas.DrawPath(path, fillPaint);
+            foreach (var (color, clip) in sides)
+            {
+                fillPaint.Color = color.WithAlpha(80);
+                canvas.Save();
+                canvas.ClipRect(clip);
+                canvas.DrawPath(path, fillPaint);
+                canvas.Restore();
+            }
         }
 
         // Draw the line (skip for Scatter charts - only points)
         if (chart.ChartStyle != ReportChartStyle.Scatter)
         {
             using var linePaint = new SKPaint();
-            linePaint.Color = lineColor;
             linePaint.Style = SKPaintStyle.Stroke;
             linePaint.StrokeWidth = 2 * _renderScale;
             linePaint.IsAntialias = true;
@@ -1560,19 +1571,26 @@ public class ReportRenderer : IDisposable
                 }
             }
 
-            canvas.DrawPath(linePath, linePaint);
+            foreach (var (color, clip) in sides)
+            {
+                linePaint.Color = color;
+                canvas.Save();
+                canvas.ClipRect(clip);
+                canvas.DrawPath(linePath, linePaint);
+                canvas.Restore();
+            }
         }
 
         // Draw points
         using var pointPaint = new SKPaint();
-        pointPaint.Color = lineColor;
         pointPaint.Style = SKPaintStyle.Fill;
         pointPaint.IsAntialias = true;
         var pointRadius = 4 * _renderScale;
 
-        foreach (var point in points)
+        for (int i = 0; i < points.Length; i++)
         {
-            canvas.DrawCircle(point, pointRadius, pointPaint);
+            pointPaint.Color = ChartColors.ForValue(chart.ChartType, dataPoints[i].Value);
+            canvas.DrawCircle(points[i], pointRadius, pointPaint);
         }
 
         // Draw X-axis labels - dynamically based on date range and available width
@@ -1738,8 +1756,8 @@ public class ReportRenderer : IDisposable
         // Determine if we have negative values
         var hasNegatives = minValue < 0;
 
-        // 20% headroom above the max so the tallest point is not flush with the top, with the floor pinned at 0 unless the data goes negative.
-        var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : maxValue;
+        // 20% headroom above the max so the tallest point is not flush with the top. Zero stays on the chart: it is the floor unless the data goes negative, and the top when all of it does.
+        var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : 0;
         var paddedMinValue = hasNegatives ? minValue * 1.2 : 0;
 
         // Calculate the total range the chart needs to display
@@ -1868,8 +1886,8 @@ public class ReportRenderer : IDisposable
         // Determine if we have negative values
         var hasNegatives = minValue < 0;
 
-        // 20% headroom above the max so the tallest point is not flush with the top, with the floor pinned at 0 unless the data goes negative.
-        var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : maxValue;
+        // 20% headroom above the max so the tallest point is not flush with the top. Zero stays on the chart: it is the floor unless the data goes negative, and the top when all of it does.
+        var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : 0;
         var paddedMinValue = hasNegatives ? minValue * 1.2 : 0;
 
         // Calculate the total range the chart needs to display
