@@ -1631,15 +1631,21 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var allBrackets = new[] { "0%", "1-5%", "6-10%", "11-15%", "16-20%", "20%+" };
 
-        // Transaction.TaxRate is stored as percentage (e.g., 8 for 8%) by ViewModels
+        // Transaction.TaxRate is stored as percentage (e.g., 8 for 8%) by ViewModels.
+        // A transaction imported from a spreadsheet keeps its tax but not its rate, so the rate is worked out from the two.
+        static decimal RateOf(Transaction t) =>
+            t.TaxRate != 0 || t.EffectiveTaxAmountUSD == 0 || t.EffectiveSubtotalUSD <= 0
+                ? t.TaxRate
+                : Math.Round(t.EffectiveTaxAmountUSD / t.EffectiveSubtotalUSD * 100, 2);
+
         var revenueRates = companyData.Revenues
             .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .Select(r => r.TaxRate)
+            .Select(RateOf)
             .ToList();
 
         var expenseRates = companyData.Expenses
             .Where(e => e.Date >= startDate && e.Date <= endDate)
-            .Select(e => e.TaxRate)
+            .Select(RateOf)
             .ToList();
 
         if (revenueRates.Count == 0 && expenseRates.Count == 0)
