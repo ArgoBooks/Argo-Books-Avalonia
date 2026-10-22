@@ -1717,17 +1717,16 @@ public class ReportRenderer : IDisposable
                 var dotCenterY = legendY + circleRadius;
                 canvas.DrawCircle(legendX + circleRadius, dotCenterY, circleRadius, dotPaint);
 
-                var legendText = slice.Label;
-                var maxChars = chart.LegendMaxCharacters;
-                if (legendText.Length > maxChars) legendText = legendText[..maxChars] + "...";
-
                 var textX = legendX + circleRadius * 2 + 6 * _renderScale;
                 var textY = dotCenterY + circleRadius * 0.4f;
-                canvas.DrawText(legendText, textX, textY, SKTextAlign.Left, labelFont, labelPaint);
 
                 // Percentage text (lighter gray, right-aligned to chart edge)
                 var percentText = $"{percentage * 100:F1}%";
                 canvas.DrawText(percentText, percentRightEdge, textY, SKTextAlign.Right, labelFont, percentPaint);
+
+                // A name is cut only where it would run into its percentage, so a smaller font shows more of it.
+                var nameWidth = percentRightEdge - labelFont.MeasureText(percentText) - 8 * _renderScale - textX;
+                canvas.DrawText(TruncateText(slice.Label, nameWidth, labelFont), textX, textY, SKTextAlign.Left, labelFont, labelPaint);
 
                 legendY += lineHeight;
             }

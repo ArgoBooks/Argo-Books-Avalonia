@@ -286,13 +286,6 @@ public class ChartReportElement : ReportElementBase
         set => SetField(ref field, value);
     } = "Segoe UI";
 
-    [JsonPropertyName("legendMaxCharacters")]
-    public int LegendMaxCharacters
-    {
-        get;
-        set => SetField(ref field, value);
-    } = 20;
-
     public override double MinimumSize => 80;
     public override string DisplayName => "Chart";
     public override ReportElementType GetElementType() => ReportElementType.Chart;
@@ -318,7 +311,6 @@ public class ChartReportElement : ReportElementBase
             TitleFontSize = TitleFontSize,
             AxisFontSize = AxisFontSize,
             LegendFontSize = LegendFontSize,
-            LegendMaxCharacters = LegendMaxCharacters,
             BorderColor = BorderColor,
             BorderThickness = BorderThickness,
             BackgroundColor = BackgroundColor

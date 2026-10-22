@@ -1148,10 +1148,6 @@
                                     <TextBlock Text="{loc:Loc 'Legend Size'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                     <controls:ArgoNumericUpDown Value="{Binding SelectedChartElement.LegendFontSize, FallbackValue=0}" Minimum="6" Maximum="24" />
                                 </StackPanel>
-                                <StackPanel Spacing="4" IsVisible="{Binding IsDistributionChartSelected}">
-                                    <TextBlock Text="{loc:Loc 'Legend Max Characters'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    <controls:ArgoNumericUpDown Value="{Binding SelectedChartElement.LegendMaxCharacters, FallbackValue=0}" Minimum="5" Maximum="50" />
-                                </StackPanel>
                                 <StackPanel Spacing="4">
                                     <TextBlock Text="{loc:Loc 'Border Color'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                     <controls:ColorPickerInput ColorValue="{Binding SelectedChartElement.BorderColor, Mode=TwoWay, FallbackValue={x:Null}}" />
