@@ -131,7 +131,7 @@ public partial class App
 
             // Load company-specific chart settings (date range, chart type, etc.)
             // before navigating so the dashboard renders with the right range.
-            ChartSettingsService.Instance.LoadForCompany(args.FilePath);
+            ChartSettingsService.Instance.LoadForCompany(args.FilePath, CompanyManager.IsSampleCompany);
 
             // This handler is async void, so nothing above it would catch a failure here; it would leave the loading overlay up.
             var sampleShifted = false;
