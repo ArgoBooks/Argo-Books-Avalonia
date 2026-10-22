@@ -167,8 +167,7 @@ public class TelemetryStorageServiceTests
     private class MockPlatformService : IPlatformService
     {
         // One directory per mock instance, not one per call.
-        private readonly string _appDataPath =
-            Path.Combine(Path.GetTempPath(), "ArgoBooks_Test_" + Guid.NewGuid().ToString("N")[..8]);
+        private readonly string _appDataPath = TestTempFolder.New("ArgoBooks_Test_");
 
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => _appDataPath;
