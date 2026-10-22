@@ -4311,9 +4311,16 @@ public partial class App : Application
     /// </remarks>
     private static async Task<bool> ConfirmLeavingCompanyAsync()
     {
+        if (CompanyManager?.IsCompanyOpen != true)
+            return true;
+
+        // The report designer is saved as a template, apart from the company, so it is asked about first, as closing the window does.
+        if (!await ConfirmReportsUnsavedChangesAsync())
+            return false;
+
         // UndoRedoManager's saved state, which correctly accounts for undoing back to the
         // last-saved point.
-        if (CompanyManager?.IsCompanyOpen != true || UndoRedoManager.IsAtSavedState)
+        if (UndoRedoManager.IsAtSavedState)
             return true;
 
         switch (await ShowUnsavedChangesDialogAsync())
