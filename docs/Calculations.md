@@ -347,9 +347,9 @@ Lines with no product are grouped under "Unknown". A transaction with no lines a
 | Screen | Amount shared out | When the lines can't take it |
 |---|---|---|
 | Sales by Product (both), Top Performing Product (Insights) | `EffectiveTotalUSD` | Left out, since it can't be put on any product |
-| Revenue and expense by-category charts | `EffectiveTotalUSD` | "Other" |
+| Revenue and expense by-category charts | `EffectiveTotalUSD` | "Uncategorized", kept apart from the "Other" slice that pie charts make of their smallest slices |
 | Income Statement categories, General Ledger | `EffectiveSubtotalUSD` | The transaction's own line ("Uncategorized" on the Income Statement, the Revenue or Expenses heading in the General Ledger), so the report still balances |
-| Tax by category and tax by product charts | `EffectiveTaxAmountUSD`, as tax | "Other" |
+| Tax by category and tax by product charts | `EffectiveTaxAmountUSD`, as tax | "Uncategorized" by category, "No product" by product |
 | Tax Summary report, by rate | `EffectiveTaxAmountUSD`, as tax, grouped by each line's own rate | The transaction's own rate, which is also where its tax goes when no line carries a rate of its own |
 | Refunds by product | Each invoice's refunds, in the display currency | Left out |
 

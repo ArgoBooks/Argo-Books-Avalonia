@@ -124,7 +124,7 @@ public class LineAllocationTests
     }
 
     [Fact]
-    public void RevenueByCategoryChart_PutsAnUnsplittableSaleUnderOther()
+    public void RevenueByCategoryChart_PutsAnUnsplittableSaleUnderUncategorized()
     {
         var data = new CompanyData();
         data.Revenues.Add(Sale(15m, 0m, new LineItem { Quantity = 1, UnitPrice = 50, Discount = 50 }));
@@ -136,7 +136,7 @@ public class LineAllocationTests
 
         var point = Assert.Single(service.GetRevenueDistribution());
 
-        Assert.Equal("Other", point.Label);
+        Assert.Equal("Uncategorized", point.Label);
         Assert.Equal(15d, point.Value);
     }
 }

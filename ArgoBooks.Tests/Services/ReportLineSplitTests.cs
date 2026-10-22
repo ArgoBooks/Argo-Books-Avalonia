@@ -87,14 +87,14 @@ public class ReportLineSplitTests
     }
 
     [Fact]
-    public void TaxByCategory_TransactionWithNoLines_GoesUnderOther()
+    public void TaxByCategory_TransactionWithNoLines_GoesUnderUncategorized()
     {
         var data = TwoCategories();
         data.Revenues.Add(TaxedSale());
 
         var point = Assert.Single(new ReportChartDataService(data, Year2024).GetTaxByCategory());
 
-        Assert.Equal(("Other", 10d), (point.Label, point.Value));
+        Assert.Equal(("Uncategorized", 10d), (point.Label, point.Value));
     }
 
     // An expense whose lines all bought stock has only its shipping and fees left as an expense.
