@@ -178,7 +178,7 @@
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="14,10"
-                            Margin="0,8,0,4"
+                            Margin="0,0,0,4"
                             IsVisible="{Binding StripeBannerVisible}">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                             <PathIcon Grid.Column="0"
@@ -230,7 +230,7 @@
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="14,10"
-                            Margin="0,8,0,4"
+                            Margin="0,0,0,4"
                             IsVisible="{Binding ArgoApiBannerVisible}">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                             <PathIcon Grid.Column="0"
