@@ -1673,6 +1673,20 @@ public partial class App : Application
                 _mainWindowViewModel.AppTourViewModel?.StartTour();
             };
 
+            // Each first step runs the same action as its entry in Quick Actions.
+            _mainWindowViewModel.TutorialWelcomeViewModel.FirstStepRequested += (_, step) =>
+            {
+                var (target, action) = step switch
+                {
+                    FirstStep.ScanReceipt => ("Receipts", "OpenScanModal"),
+                    FirstStep.BankStatement => ((string?)null, "OpenBankImport"),
+                    FirstStep.Import => (null, "OpenImport"),
+                    _ => ("Expenses", "OpenAddModal")
+                };
+                _appShellViewModel.QuickActionsViewModel.ExecuteActionCommand.Execute(
+                    new QuickActionItem(string.Empty, string.Empty, string.Empty, QuickActionType.QuickAction, target, action));
+            };
+
             // Final reset of unsaved changes before window is shown - ensures clean startup state
             _mainWindowViewModel.HasUnsavedChanges = false;
             _appShellViewModel.HeaderViewModel.HasUnsavedChanges = false;

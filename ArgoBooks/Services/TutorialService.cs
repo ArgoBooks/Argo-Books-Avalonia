@@ -282,9 +282,17 @@ public class TutorialService
     /// </summary>
     public void SkipTour()
     {
+        FinishWelcome();
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.OnboardingSkipped);
+    }
+
+    /// <summary>
+    /// Closes out the welcome overlay and the app tour without counting it as skipped, for a user who chose a first step to take instead.
+    /// </summary>
+    public void FinishWelcome()
+    {
         CompleteWelcomeTutorial();
         CompleteAppTour();
-        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.OnboardingSkipped);
     }
 
     /// <summary>

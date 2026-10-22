@@ -60,6 +60,7 @@ public enum FeatureName
     OnboardingCompleted,
     OnboardingSkipped,
     SampleCompanyOpened,
+    FirstStepChosen,
 
     // Attempts, so a completion can be divided by one. Without the denominator, abandonment is invisible.
     CompanyCreateOpened,

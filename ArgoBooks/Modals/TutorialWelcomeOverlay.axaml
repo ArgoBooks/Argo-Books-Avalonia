@@ -51,7 +51,7 @@
                                        FontWeight="Bold"
                                        Foreground="White"
                                        HorizontalAlignment="Center" />
-                            <TextBlock Text="{loc:Loc 'Let','s get you started with a quick tour'}"
+                            <TextBlock Text="{loc:Loc 'How would you like to add your first transactions?'}"
                                        FontSize="14"
                                        Foreground="#CCFFFFFF"
                                        HorizontalAlignment="Center" />
@@ -59,101 +59,113 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Content -->
+                <!-- The ways to add a first transaction, the quickest first -->
                 <StackPanel Grid.Row="1"
-                            Spacing="24"
-                            Margin="32,32">
-                    <!-- Feature highlights -->
-                    <StackPanel Spacing="16">
+                            Spacing="10"
+                            Margin="24,24">
+                    <StackPanel.Styles>
+                        <Style Selector="Button.first-step">
+                            <Setter Property="HorizontalAlignment" Value="Stretch" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="16,12" />
+                            <Setter Property="CornerRadius" Value="12" />
+                            <Setter Property="Background" Value="{DynamicResource BackgroundSecondaryBrush}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                            <Setter Property="BorderThickness" Value="1" />
+                            <Setter Property="Cursor" Value="Hand" />
+                        </Style>
+                        <Style Selector="Button.first-step:pointerover /template/ ContentPresenter">
+                            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+                        </Style>
+                    </StackPanel.Styles>
+
+                    <Button Classes="first-step" Command="{Binding ChooseScanReceiptCommand}">
                         <Grid ColumnDefinitions="Auto,*">
-                            <Border Grid.Column="0"
-                                    Width="40" Height="40"
-                                    CornerRadius="20"
-                                    Background="{DynamicResource PrimaryLightBrush}"
-                                    Margin="0,0,16,0">
-                                <PathIcon Data="{x:Static local:Icons.Lightning}"
-                                          Width="20" Height="20"
+                            <Border Grid.Column="0" Width="40" Height="40" CornerRadius="20"
+                                    Background="{DynamicResource PrimaryLightBrush}" Margin="0,0,14,0">
+                                <PathIcon Data="{x:Static local:Icons.ScanReceipt}" Width="20" Height="20"
                                           Foreground="{DynamicResource PrimaryBrush}" />
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="{loc:Loc 'Learn the essentials'}"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
+                                <TextBlock Text="{loc:Loc 'Scan a receipt'}" FontSize="14" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{loc:Loc 'Quick tour of navigation and key features'}"
-                                           FontSize="13"
+                                <TextBlock Text="{loc:Loc 'Pick a photo or PDF of a receipt and the expense is filled in for you'}"
+                                           FontSize="13" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
                         </Grid>
+                    </Button>
 
+                    <Button Classes="first-step" Command="{Binding ChooseBankStatementCommand}">
                         <Grid ColumnDefinitions="Auto,*">
-                            <Border Grid.Column="0"
-                                    Width="40" Height="40"
-                                    CornerRadius="20"
-                                    Background="{DynamicResource SuccessLightBrush}"
-                                    Margin="0,0,16,0">
-                                <PathIcon Data="{x:Static local:Icons.Check}"
-                                          Width="20" Height="20"
+                            <Border Grid.Column="0" Width="40" Height="40" CornerRadius="20"
+                                    Background="{DynamicResource SuccessLightBrush}" Margin="0,0,14,0">
+                                <PathIcon Data="{x:Static local:Icons.Bank}" Width="20" Height="20"
                                           Foreground="{DynamicResource SuccessBrush}" />
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="{loc:Loc 'Setup Checklist'}"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
+                                <TextBlock Text="{loc:Loc 'Import a bank statement'}" FontSize="14" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{loc:Loc 'Track your progress setting up your business'}"
-                                           FontSize="13"
+                                <TextBlock Text="{loc:Loc 'Bring in a month of transactions at once from your bank'}"
+                                           FontSize="13" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
                         </Grid>
+                    </Button>
 
+                    <Button Classes="first-step" Command="{Binding ChooseImportCommand}">
                         <Grid ColumnDefinitions="Auto,*">
-                            <Border Grid.Column="0"
-                                    Width="40" Height="40"
-                                    CornerRadius="20"
-                                    Background="{DynamicResource WarningLightBrush}"
-                                    Margin="0,0,16,0">
-                                <PathIcon Data="{x:Static local:Icons.Help}"
-                                          Width="20" Height="20"
+                            <Border Grid.Column="0" Width="40" Height="40" CornerRadius="20"
+                                    Background="{DynamicResource WarningLightBrush}" Margin="0,0,14,0">
+                                <PathIcon Data="{x:Static local:Icons.ImportData}" Width="20" Height="20"
                                           Foreground="{DynamicResource WarningBrush}" />
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="{loc:Loc 'Helpful hints'}"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
+                                <TextBlock Text="{loc:Loc 'Import from QuickBooks or a spreadsheet'}" FontSize="14" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{loc:Loc 'Tips appear as you explore new features'}"
-                                           FontSize="13"
+                                <TextBlock Text="{loc:Loc 'Move over the records you already keep'}"
+                                           FontSize="13" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
                         </Grid>
-                    </StackPanel>
+                    </Button>
+
+                    <Button Classes="first-step" Command="{Binding ChooseManualCommand}">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border Grid.Column="0" Width="40" Height="40" CornerRadius="20"
+                                    Background="{DynamicResource SurfaceAltBrush}" Margin="0,0,14,0">
+                                <PathIcon Data="{x:Static local:Icons.Edit}" Width="20" Height="20"
+                                          Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{loc:Loc 'Add one by hand'}" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{loc:Loc 'Type in an expense yourself'}"
+                                           FontSize="13" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
                 </StackPanel>
 
-                <!-- Footer with actions -->
+                <!-- Footer: leave without picking -->
                 <Border Grid.Row="2"
-                        Padding="32,24"
+                        Padding="24,16"
                         CornerRadius="0,0,16,16"
                         Background="{DynamicResource BackgroundSecondaryBrush}">
                     <Grid ColumnDefinitions="*,Auto">
                         <Button Grid.Column="0"
                                 Classes="text-button lg"
-                                Content="{loc:Loc 'Skip for now'}"
+                                Content="{loc:Loc 'I','ll look around first'}"
                                 Command="{Binding SkipTutorialCommand}"
                                 HorizontalAlignment="Left" />
 
                         <Button Grid.Column="1"
-                                Classes="primary-button"
+                                Classes="text-button lg"
+                                Content="{loc:Loc 'Take a tour'}"
                                 Command="{Binding StartTourCommand}"
-                                HorizontalAlignment="Right">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="{loc:Loc 'Start Tour'}"
-                                           VerticalAlignment="Center" />
-                                <PathIcon Data="{x:Static local:Icons.ChevronRightNav}"
-                                          Width="16" Height="16"
-                                          VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
+                                HorizontalAlignment="Right" />
                     </Grid>
                 </Border>
             </Grid>
