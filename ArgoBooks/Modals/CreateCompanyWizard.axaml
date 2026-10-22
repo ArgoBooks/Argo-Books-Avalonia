@@ -264,6 +264,39 @@
                                         </Panel>
                                     </Border>
 
+                                    <StackPanel Grid.Column="1" Spacing="4" Margin="16,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:Loc 'Company Logo'}"
+                                                   FontSize="13"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Shown on your invoices and reports.'}"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'PNG, JPG up to 5MB'}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                                        <Button Classes="secondary-button"
+                                                Command="{Binding BrowseLogoCommand}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <PathIcon Data="{x:Static icons:Icons.ImportData}"
+                                                          Width="16" Height="16" />
+                                                <TextBlock Text="{loc:Loc 'Upload Logo'}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="text-button"
+                                                HorizontalAlignment="Center"
+                                                Command="{Binding RemoveLogoCommand}"
+                                                IsVisible="{Binding HasLogo}">
+                                            <TextBlock Text="{loc:Loc Remove}" Foreground="{DynamicResource DangerBrush}" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
                             <!-- Password protection -->
                             <Border Background="{DynamicResource SurfaceAltBrush}"
                                     CornerRadius="8"
@@ -364,39 +397,6 @@
                                         </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
-                            </Border>
-
-                                    <StackPanel Grid.Column="1" Spacing="4" Margin="16,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{loc:Loc 'Company Logo'}"
-                                                   FontSize="13"
-                                                   FontWeight="Medium"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="{loc:Loc 'Shown on your invoices and reports.'}"
-                                                   FontSize="12"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
-                                        <TextBlock Text="{loc:Loc 'PNG, JPG up to 5MB'}"
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
-                                        <Button Classes="secondary-button"
-                                                Command="{Binding BrowseLogoCommand}">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <PathIcon Data="{x:Static icons:Icons.ImportData}"
-                                                          Width="16" Height="16" />
-                                                <TextBlock Text="{loc:Loc 'Upload Logo'}" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="text-button"
-                                                HorizontalAlignment="Center"
-                                                Command="{Binding RemoveLogoCommand}"
-                                                IsVisible="{Binding HasLogo}">
-                                            <TextBlock Text="{loc:Loc Remove}" Foreground="{DynamicResource DangerBrush}" />
-                                        </Button>
-                                    </StackPanel>
-                                </Grid>
                             </Border>
                         </StackPanel>
                     </StackPanel>
