@@ -1,7 +1,7 @@
 <Project>
     <PropertyGroup>
         <!-- The release version. Change it here only: the app and every build script read it from this line. -->
-        <Version>2.0.21</Version>
+        <Version>2.0.22</Version>
         <!-- Keeps the version the app reports as just the number, such as 2.0.21, with no code added after it. -->
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
         <!-- The app also has a Windows-only build, and this lets a Mac or Linux machine load the project without stopping on it. -->
