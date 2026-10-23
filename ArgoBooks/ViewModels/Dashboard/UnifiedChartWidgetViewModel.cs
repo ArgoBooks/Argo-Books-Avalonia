@@ -196,7 +196,10 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         }
         else
         {
-            var result = service.GetChartData(ChartDataType);
+            // Customer lifetime value counts customers, but sorts them into bands by money, which has to be in the currency the bands are labelled in.
+            var result = ChartDataType == ChartDataType.CustomerLifetimeValue
+                ? service.GetChartData(ChartDataType, CurrencyService.GetDisplayAmount)
+                : service.GetChartData(ChartDataType);
             LoadSingleSeriesChart(result);
         }
     }

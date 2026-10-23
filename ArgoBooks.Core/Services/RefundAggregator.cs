@@ -82,6 +82,11 @@ public static class RefundAggregator
     public static decimal PreTaxPortionUSD(Payment refund, IReadOnlyDictionary<string, Invoice> invoicesById)
     {
         var refundUSD = RevenuePortionUSD(refund);
+
+        // A refund that recorded its own tax, as one for a returned sale does, uses it rather than its invoice's share.
+        if (refund.RefundTaxAmount is { } tax && refund.Amount != 0)
+            return refundUSD - Math.Abs(refund.EffectiveAmountUSD) * Math.Abs(tax) / Math.Abs(refund.Amount);
+
         return !string.IsNullOrEmpty(refund.InvoiceId)
                && invoicesById.TryGetValue(refund.InvoiceId, out var invoice)
                && invoice.Total > 0

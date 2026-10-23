@@ -152,7 +152,7 @@ public class AssetSpreadsheetTests : IDisposable
         foreach (var asset in data.Assets.Where(a => a.ExpenseId != null))
         {
             var expense = Assert.Single(data.Expenses, e => e.Id == asset.ExpenseId);
-            Assert.Equal(1m, AssetDepreciation.CapitalizedShare(expense, data.Assets));
+            Assert.Equal(1m, AssetDepreciation.CapitalizedShare(expense, data.Assets, PurchaseTax.RuleFor(data)));
             Assert.True(asset.FollowsCca, $"{asset.Name} should follow CRA's method");
         }
     }

@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Assets;
 using ArgoBooks.Core.Models.Payroll;
@@ -563,6 +564,81 @@ public class SampleCompanyServiceTests
 
         Assert.Equal(bought + (data.Revenues[0].Date.Date - new DateTime(2024, 1, 15)), computers.PurchaseDate);
         Assert.Equal(rates.FirstYearFactorOn("50", computers.PurchaseDate), computers.FirstYearFactor);
+    }
+
+    #endregion
+
+    #region Invoices
+
+    /// <summary>A $16,778.75 invoice linked to a $1,130 sale, with the given payments on it.</summary>
+    private static CompanyData InvoiceLinkedToASmallerSale(InvoiceStatus status, params decimal[] payments)
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(new Revenue
+        {
+            Id = "SAL-001", InvoiceId = "INV-001", Date = new DateTime(2025, 10, 2), OriginalCurrency = "CAD",
+            Total = 1130m, TotalUSD = 820m, TaxAmount = 130m, TaxRate = 13m, PaymentStatus = RevenuePaymentStatus.Paid,
+            LineItems = [new Core.Models.Common.LineItem { Description = "Consulting", Quantity = 10, UnitPrice = 100m }]
+        });
+        var invoice = new Invoice
+        {
+            Id = "INV-001", IssueDate = new DateTime(2025, 10, 10), Status = status, OriginalCurrency = "CAD", Total = 16778.75m, TotalUSD = 11700m,
+            AmountPaid = payments.Sum()
+        };
+        data.Invoices.Add(invoice);
+        for (var i = 0; i < payments.Length; i++)
+        {
+            data.Payments.Add(new Payment
+            {
+                Id = $"PAY-{i}", InvoiceId = "INV-001", OriginalCurrency = "CAD",
+                Amount = payments[i], AmountUSD = payments[i] * 0.7m
+            });
+        }
+        return data;
+    }
+
+    [Fact]
+    public void MatchInvoicesToTheirSales_PaidInvoiceBillsTheSale_AndIsPaidExactlyThat()
+    {
+        var data = InvoiceLinkedToASmallerSale(InvoiceStatus.Paid, 10000m, 6778.75m);
+
+        SampleCompanyService.MatchInvoicesToTheirSales(data);
+
+        var invoice = data.Invoices[0];
+        Assert.Equal(1130m, invoice.Total);
+        Assert.Equal(130m, invoice.TaxAmount);
+        Assert.Equal(1000m, invoice.Subtotal);
+        Assert.Equal(1130m, data.Payments.Sum(p => p.Amount));
+        Assert.Equal(0m, invoice.Balance);
+        Assert.Equal(InvoiceStatus.Paid, invoice.Status);
+        Assert.Equal(RevenuePaymentStatus.Paid, data.Revenues[0].PaymentStatus);
+        Assert.Equal(new DateTime(2025, 10, 10), data.Revenues[0].Date);
+        Assert.Equal(Math.Round(11700m / 16778.75m, 10), Math.Round(invoice.TotalUSD / invoice.Total, 10));
+    }
+
+    [Fact]
+    public void MatchInvoicesToTheirSales_PartPaidInvoiceKeepsItsShare_AndItsSaleIsNotCollected()
+    {
+        var data = InvoiceLinkedToASmallerSale(InvoiceStatus.Partial, 8389.38m);
+
+        SampleCompanyService.MatchInvoicesToTheirSales(data);
+
+        var invoice = data.Invoices[0];
+        Assert.Equal(565m, data.Payments[0].Amount);
+        Assert.Equal(565m, invoice.Balance);
+        Assert.Equal(InvoiceStatus.Partial, invoice.Status);
+        Assert.Equal(RevenuePaymentStatus.Unpaid, data.Revenues[0].PaymentStatus);
+    }
+
+    [Fact]
+    public void MatchInvoicesToTheirSales_SentInvoice_LeavesItsSaleUncollected()
+    {
+        var data = InvoiceLinkedToASmallerSale(InvoiceStatus.Sent);
+
+        SampleCompanyService.MatchInvoicesToTheirSales(data);
+
+        Assert.Equal(1130m, data.Invoices[0].Balance);
+        Assert.Equal(RevenuePaymentStatus.Unpaid, data.Revenues[0].PaymentStatus);
     }
 
     #endregion

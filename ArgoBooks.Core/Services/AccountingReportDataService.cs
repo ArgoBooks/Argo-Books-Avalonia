@@ -44,11 +44,20 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     private IReadOnlyDictionary<string, Invoice> InvoicesById =>
         _invoicesById ??= ProfitCalculator.BuildInvoiceLookup(companyData!.Invoices);
 
+    private PurchaseTaxRule? _purchaseTaxRule;
+
+    private HashSet<string>? _payrollExpenseIds;
+
+    /// <summary>Every expense a pay run recorded, which the Income Statement counts from the pay runs instead.</summary>
+    private HashSet<string> PayrollExpenseIds => _payrollExpenseIds ??= PayrollBooks.ExpenseIds(companyData!);
+
+    private PurchaseTaxRule Rule => _purchaseTaxRule ??= PurchaseTax.RuleFor(companyData);
+
     private Dictionary<string, decimal>? _capitalizedShares;
 
     /// <summary>The share of each expense that bought a fixed asset, which counts as depreciation over the years rather than as an expense now.</summary>
     private Dictionary<string, decimal> CapitalizedShares =>
-        _capitalizedShares ??= AssetDepreciation.CapitalizedShares(companyData!.Expenses, companyData.Assets);
+        _capitalizedShares ??= AssetDepreciation.CapitalizedShares(companyData!.Expenses, companyData.Assets, Rule);
 
     /// <summary>An amount on a fixed asset in <see cref="DisplayCode"/>, at its purchase date unless another is given, or null when that rate is missing.</summary>
     private decimal? AssetToDisplay(FixedAsset asset, decimal amount, DateTime? date = null) =>
@@ -319,7 +328,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     }
 
     /// <summary>
-    /// <see cref="GroupTransactionsByCategory"/> for expenses, leaving out the share that bought fixed assets (§16) and tracked stock bought: it is
+    /// What each expense cost the business (<see cref="PurchaseTax.CostUSD"/>) by category, leaving out the share that bought fixed assets (§16) and tracked stock bought: it is
     /// stock until it sells, when it shows as cost of goods sold (docs/Calculations.md §14). The rest of
     /// such an expense, shipping and fees included, is spread over its other lines, or goes under
     /// Uncategorized when they can't take it, as for any transaction (§13).
@@ -336,16 +345,11 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             if (capitalized >= 1)
                 continue;
 
-            if (!expense.LineItems.Any(li => li.IsStockPurchase))
-            {
-                foreach (var kvp in GroupTransactionsByCategory([expense]))
-                    Add(kvp.Key, kvp.Value * (1m - capitalized));
-                continue;
-            }
-
-            var remainingUSD = Math.Max(0m, expense.EffectiveSubtotalUSD
-                                            - CostOfGoodsAggregator.StockPurchaseUSD(expense)
-                                            - expense.EffectiveSubtotalUSD * capitalized);
+            var costUSD = PurchaseTax.CostUSD(expense, Rule);
+            var afterStock = costUSD - CostOfGoodsAggregator.StockPurchaseUSD(expense) - costUSD * capitalized;
+            // What is left after the stock never crosses zero: a supplier credit is below zero throughout.
+            var remainingUSD = !expense.LineItems.Any(li => li.IsStockPurchase) ? costUSD * (1m - capitalized)
+                : costUSD < 0 ? Math.Min(0m, afterStock) : Math.Max(0m, afterStock);
             var otherLines = expense.LineItems.Where(li => !li.IsStockPurchase).ToList();
             var allocation = LineAllocation.Allocate(otherLines, remainingUSD);
             if (allocation.IsSplit)
@@ -384,32 +388,19 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return data;
         }
 
-        // Filter revenues and expenses by date
-        var revenues = companyData.Revenues
-            .Where(r => IsInDateRange(r.Date))
-            .ToList();
+        var income = IncomeInRange();
+        var revenueByCategory = income.RevenueByCategory;
+        var expenseByCategory = income.ExpenseByCategory;
+        var refunds = income.Refunds;
+        var depreciation = income.Depreciation;
+        var gainOnDisposal = income.GainOnDisposal;
+        var totalRevenue = income.TotalRevenue;
+        var totalExpenses = income.TotalExpenses;
+        var costOfGoods = income.CostOfGoods;
+        var netIncome = income.NetIncome;
+        var assetsPending = income.AssetsPending || income.PayrollPending;
+        var costPending = income.CostPending;
 
-        var expenses = companyData.Expenses
-            .Where(e => IsInDateRange(e.Date))
-            .ToList();
-
-        var revenueByCategory = GroupTransactionsByCategory(revenues);
-        var expenseByCategory = GroupExpensesByCategory(expenses);
-
-        // Refunds come off revenue on their own date, before tax (docs/Calculations.md §8).
-        var refunds = RefundAggregator.GetRefundedPreTaxInDateRangeDisplay(
-            companyData.Payments, InvoicesById, RangeStart, RangeEnd, ToDisplay);
-
-        var (depreciation, gainOnDisposal, assetsPending) = AssetFiguresInRange();
-
-        var totalRevenue = revenueByCategory.Values.Sum() - refunds;
-        var totalExpenses = expenseByCategory.Values.Sum() + depreciation;
-        var costOfGoods = revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date));
-        var netIncome = totalRevenue - costOfGoods - totalExpenses + gainOnDisposal;
-
-        // A sale waiting for its stock's cost counts none yet, so the figures that subtract cost
-        // of goods sold aren't known and read Pending rather than overstated (Calculations.md §14).
-        var costPending = CostOfGoodsAggregator.IsCostOfGoodsPending(revenues);
         string AfterCost(decimal amount) => costPending ? PendingText : FormatCurrencyWithSign(amount);
         string AssetBased(decimal amount) => assetsPending ? PendingText : FormatCurrencyWithSign(amount);
 
@@ -489,7 +480,25 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             });
         }
 
-        if (depreciation != 0 || assetsPending)
+        if (income.Wages != 0 || income.EmployerContributions != 0 || income.PayrollPending)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Wages and Salaries",
+                Values = [income.PayrollPending ? PendingText : FormatCurrency(income.Wages)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Employer Payroll Contributions",
+                Values = [income.PayrollPending ? PendingText : FormatCurrency(income.EmployerContributions)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        if (depreciation != 0 || income.AssetsPending)
         {
             data.Rows.Add(new AccountingRow
             {
@@ -535,6 +544,59 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             data.Footnote = "Purchases recorded as fixed assets are not counted as expenses here. Their cost is counted as depreciation over the years they are used.";
 
         return data;
+    }
+
+    /// <summary>Everything the Income Statement adds up for the report's range, in <see cref="DisplayCode"/>.</summary>
+    private sealed record IncomeFigures(
+        Dictionary<string, decimal> RevenueByCategory, decimal Refunds, decimal CostOfGoods,
+        Dictionary<string, decimal> ExpenseByCategory, decimal Wages, decimal EmployerContributions,
+        decimal Depreciation, decimal GainOnDisposal, bool AssetsPending, bool PayrollPending, bool CostPending)
+    {
+        public decimal TotalRevenue => RevenueByCategory.Values.Sum() - Refunds;
+        public decimal TotalExpenses => ExpenseByCategory.Values.Sum() + Wages + EmployerContributions + Depreciation;
+        public decimal NetIncome => TotalRevenue - CostOfGoods - TotalExpenses + GainOnDisposal;
+    }
+
+    private IncomeFigures IncomeInRange()
+    {
+        var revenues = companyData!.Revenues.Where(r => IsInDateRange(r.Date)).ToList();
+
+        // Payroll counts from its pay runs below, so the expenses that paid it are left out here.
+        var expenses = companyData.Expenses
+            .Where(e => IsInDateRange(e.Date) && !PayrollExpenseIds.Contains(e.Id))
+            .ToList();
+
+        // Refunds come off revenue on their own date, before tax (docs/Calculations.md §8).
+        var refunds = RefundAggregator.GetRefundedPreTaxInDateRangeDisplay(
+            companyData.Payments, InvoicesById, RangeStart, RangeEnd, ToDisplay);
+
+        // A pay run costs its gross pay and the employer's contributions on its pay date, in the company's currency.
+        decimal wages = 0m, employer = 0m;
+        var payrollPending = false;
+        foreach (var run in PayrollBooks.RecordedRuns(companyData).Where(r => IsInDateRange(r.PayDate)))
+        {
+            var gross = DisplayCurrency.FromNative(run.TotalGross, GetCurrencyCode(), DisplayCode, run.PayDate.Date);
+            var share = DisplayCurrency.FromNative(run.TotalEmployerShare, GetCurrencyCode(), DisplayCode, run.PayDate.Date);
+            if (gross is { } g && share is { } e)
+            {
+                wages += g;
+                employer += e;
+            }
+            else
+            {
+                payrollPending = true;
+            }
+        }
+
+        var (depreciation, gainOnDisposal, assetsPending) = AssetFiguresInRange();
+
+        return new IncomeFigures(
+            GroupTransactionsByCategory(revenues), refunds,
+            revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date)),
+            GroupExpensesByCategory(expenses), wages, employer, depreciation, gainOnDisposal,
+            assetsPending, payrollPending,
+            // A sale waiting for its stock's cost counts none yet, so the figures that subtract cost of goods sold aren't known (Calculations.md §14).
+            CostOfGoodsAggregator.IsCostOfGoodsPending(revenues));
     }
 
     private void AddEmptyIncomeStatement(AccountingTableData data, AccountingTerms t)
@@ -589,7 +651,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 : $"Cash is the opening bank balance on {DateFormats.Format(opening.Date, companyData.Settings.Localization.DateFormat)} plus the money recorded in and out since. ")
             + "Inventory valued at each item's current unit cost (cost "
             + "history is not tracked) applied to stock levels "
-            + "reconstructed as of the report date.";
+            + "reconstructed as of the report date. Retained earnings are the profit to date; owner's equity "
+            + "is the rest, such as what the business owned before these books.";
 
         // Cash = Revenue (Paid, no invoice) + Payments - Expenses, all filtered by date. Uses post-tax (total) amounts because cash includes tax collected/paid.
         var cashFromRevenue = companyData.Revenues
@@ -654,7 +717,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                          && IsOnOrBeforeEndDate(po.OrderDate))
             .Sum(po => ToDisplay(po.EffectiveTotalUSD, po.OrderDate));
 
-        // Sales Tax Payable = tax collected on all revenue, less tax handed back on refunds (docs/Calculations.md §8), minus input tax credits from expenses.
+        // Sales Tax Payable = tax collected on all revenue, less tax handed back on refunds (docs/Calculations.md §8), minus the tax on expenses the company claims back.
         var taxCollected = companyData.Revenues
             .Where(r => IsOnOrBeforeEndDate(r.Date))
             .Sum(r => ToDisplay(r.EffectiveTotalUSD - r.EffectiveSubtotalUSD, r.Date));
@@ -662,7 +725,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             companyData.Payments, InvoicesById, DateTime.MinValue, RangeEnd, ToDisplay);
         var taxPaidOnExpenses = companyData.Expenses
             .Where(e => IsOnOrBeforeEndDate(e.Date))
-            .Sum(e => ToDisplay(e.EffectiveTotalUSD - e.EffectiveSubtotalUSD, e.Date));
+            .Sum(e => ToDisplay(PurchaseTax.ClaimableUSD(e, Rule), e.Date));
         var salesTaxPayable = taxCollected - taxRefunded - taxPaidOnExpenses;
 
         // A security deposit is not earned (docs/Calculations.md §4), but the invoice total carrying it is cash or receivables from the day it is issued.
@@ -677,17 +740,33 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 SecurityDeposits.StillHeld(i, paymentsToDate, revenuesToDate) * i.EffectiveTotalUSD / i.Total,
                 i.IssueDate));
 
-        var totalLiabilities = accountsPayable + salesTaxPayable + securityDeposits;
+        // What pay runs withheld and the employer added, until an expense records paying it to the agency.
+        decimal payrollOwing = 0m;
+        var payrollPending = false;
+        foreach (var (amount, payDate) in PayrollBooks.OwingAsOf(companyData, EndDateForValuation))
+        {
+            if (DisplayCurrency.FromNative(amount, GetCurrencyCode(), DisplayCode, payDate.Date) is { } owing)
+                payrollOwing += owing;
+            else
+                payrollPending = true;
+        }
 
-        // Retained Earnings derived as balancing figure so Assets = Liabilities + Equity.
-        // This is standard for simplified bookkeeping systems without full double-entry.
-        var retainedEarnings = totalAssets - totalLiabilities - openingCash;
-        var totalEquity = openingCash + retainedEarnings;
+        var totalLiabilities = accountsPayable + salesTaxPayable + securityDeposits + payrollOwing;
+
+        // Retained earnings are the profit to date, as the Income Statement counts it from the first record to the end date.
+        var earnings = new AccountingReportDataService(companyData, new ReportFilters { EndDate = filters.EndDate }).IncomeInRange();
+        var retainedEarnings = earnings.NetIncome;
+        var earningsPending = earnings.AssetsPending || earnings.PayrollPending || earnings.CostPending;
+
+        // Owner's equity is what is left: assets owned before these books, and money the owner put in or took out.
+        var totalEquity = totalAssets - totalLiabilities;
+        var ownersEquity = totalEquity - openingCash - retainedEarnings;
 
         // Without the opening balance's rate the cash, and every total built on it, is unknown rather than zero.
         string CashBased(decimal amount) => cashPending ? PendingText : FormatCurrencyWithSign(amount);
         string AssetBased(decimal amount) => assetsPending ? PendingText : FormatCurrencyWithSign(amount);
-        string TotalBased(decimal amount) => cashPending || assetsPending ? PendingText : FormatCurrencyWithSign(amount);
+        string TotalBased(decimal amount) => cashPending || assetsPending || payrollPending ? PendingText : FormatCurrencyWithSign(amount);
+        string EarningsBased(decimal amount) => earningsPending ? PendingText : FormatCurrencyWithSign(amount);
 
         // ASSETS
         data.Rows.Add(new AccountingRow
@@ -828,10 +907,21 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             });
         }
 
+        if (payrollOwing != 0 || payrollPending)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Payroll Remittances Owing",
+                Values = [payrollPending ? PendingText : FormatCurrencyWithSign(payrollOwing)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
         data.Rows.Add(new AccountingRow
         {
             Label = "TOTAL LIABILITIES",
-            Values = [FormatCurrencyWithSign(totalLiabilities)],
+            Values = [payrollPending ? PendingText : FormatCurrencyWithSign(totalLiabilities)],
             RowType = AccountingRowType.TotalRow
         });
 
@@ -858,8 +948,16 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         data.Rows.Add(new AccountingRow
         {
+            Label = "Owner's Equity",
+            Values = [earningsPending ? PendingText : TotalBased(ownersEquity)],
+            IndentLevel = 1,
+            RowType = AccountingRowType.DataRow
+        });
+
+        data.Rows.Add(new AccountingRow
+        {
             Label = "Retained Earnings",
-            Values = [TotalBased(retainedEarnings)],
+            Values = [EarningsBased(retainedEarnings)],
             IndentLevel = 1,
             RowType = AccountingRowType.DataRow
         });
@@ -947,7 +1045,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // The share of an expense that bought a fixed asset is an investment rather than a running cost.
         var cashPaidForAssets = companyData.Expenses
             .Where(e => IsInDateRange(e.Date) && CapitalizedShares.ContainsKey(e.Id))
-            .Sum(e => ToDisplay(e.EffectiveSubtotalUSD * CapitalizedShares[e.Id], e.Date));
+            .Sum(e => ToDisplay(PurchaseTax.CostUSD(e, Rule) * CapitalizedShares[e.Id], e.Date));
         var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, RangeStart, RangeEnd, ToDisplay)
                                   - cashPaidForAssets;
         var (cashFromAssetSales, salesPending) = AssetSaleProceeds(RangeStart, RangeEnd);
@@ -1119,12 +1217,13 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Expense transactions (debits), all amounts in USD
         foreach (var exp in companyData.Expenses.Where(e => IsInDateRange(e.Date)))
         {
-            var allocation = LineAllocation.Allocate(exp, LineAllocationBasis.PreTax);
+            var payroll = PayrollExpenseIds.Contains(exp.Id);
+            var allocation = LineAllocation.Allocate(exp.LineItems, PurchaseTax.CostUSD(exp, Rule));
             if (allocation.IsSplit)
             {
                 foreach (var (li, lineUSD) in allocation.Shares)
                 {
-                    AddLedgerEntry(entries, GetCategoryNameForProduct(li.ProductId), new LedgerEntry
+                    AddLedgerEntry(entries, payroll ? "Payroll" : GetCategoryNameForProduct(li.ProductId), new LedgerEntry
                     {
                         Date = exp.Date,
                         Description = li.Description.Length > 0 ? li.Description : exp.Description,
@@ -1136,7 +1235,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             }
             else
             {
-                AddLedgerEntry(entries, t.ExpensesCategory, new LedgerEntry
+                AddLedgerEntry(entries, payroll ? "Payroll" : t.ExpensesCategory, new LedgerEntry
                 {
                     Date = exp.Date,
                     Description = exp.Description,
@@ -1308,6 +1407,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             RowType = AccountingRowType.GrandTotalRow
         });
 
+        data.Footnote = "Revenue includes the tax charged on each sale.";
         return data;
     }
 
@@ -1765,20 +1865,16 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             ColumnWidthRatios = [0.36, 0.13, 0.17, 0.17, 0.17]
         };
 
-        // Wages are paid to employees, not to a supplier, so they get a row of their own rather than counting as missing one.
+        // Wages and remittances are paid to employees and the tax agencies, not to a supplier, so they get a row of their own rather than counting as missing one.
         const string payrollKey = "\0payroll";
-        var wageIds = (companyData?.PayRuns ?? [])
-            .SelectMany(r => r.Lines)
-            .Select(l => l.ExpenseId)
-            .Where(id => !string.IsNullOrEmpty(id))
-            .ToHashSet();
+        var wageIds = companyData == null ? [] : PayrollExpenseIds;
 
         var rows = (companyData?.Expenses ?? [])
             .Where(e => IsInDateRange(e.Date))
             .GroupBy(e => wageIds.Contains(e.Id) ? payrollKey : e.SupplierId ?? "")
             .Select(g => (
                 Name: g.Key == payrollKey
-                    ? "(Payroll wages)"
+                    ? "(Payroll)"
                     : string.IsNullOrEmpty(g.Key)
                         ? "(Expenses with no supplier)"
                         : companyData!.GetSupplier(g.Key)?.Name ?? "(Supplier no longer on file)",
@@ -2002,7 +2098,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             Title = "Asset Register",
             Subtitle = GetCurrencySubtitle(),
             ColumnHeaders = ["Asset", "Type", "Purchased", "Cost", "This Period", "Accumulated", "Book Value"],
-            ColumnWidthRatios = [0.22, 0.14, 0.12, 0.13, 0.13, 0.13, 0.13]
+            ColumnWidthRatios = [0.19, 0.21, 0.11, 0.1225, 0.1225, 0.1225, 0.1225]
         };
 
         var end = EndDateForValuation;
@@ -2105,7 +2201,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             }
         }
 
-        data.Footnote = "Cost is before tax. Land is not depreciated. Depreciation is booked at the end of each month, and not in the month an asset is sold or disposed of.";
+        data.Footnote = "Cost leaves out any tax on the purchase that is claimed back. Land is not depreciated. Depreciation is booked at the end of each month, and not in the month an asset is sold or disposed of.";
         return data;
     }
 
@@ -2315,7 +2411,13 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         var taxPaidByRate = new Dictionary<decimal, decimal>();
         foreach (var exp in filteredExpenses)
-            AddTaxByRate(taxPaidByRate, exp);
+        {
+            var claimableUSD = PurchaseTax.ClaimableUSD(exp, Rule);
+            if (claimableUSD == exp.EffectiveTaxAmountUSD)
+                AddTaxByRate(taxPaidByRate, exp);
+            else if (claimableUSD != 0 && Rule.ClaimableRate is { } rate)
+                taxPaidByRate[rate] = taxPaidByRate.GetValueOrDefault(rate) + ToDisplay(claimableUSD, exp.Date);
+        }
 
         // Tax handed back on refunds in range is no longer owed (docs/Calculations.md §8).
         var taxRefunded = RefundAggregator.GetRefundedTaxInDateRangeDisplay(
@@ -2365,34 +2467,37 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
 
-        // Tax Paid section
-        data.Rows.Add(new AccountingRow
+        // Where no tax on purchases is claimed back, as with US sales tax, there is nothing to set against the tax collected.
+        if (Rule.ClaimableRate != 0)
         {
-            Label = t.TaxPaidHeader,
-            RowType = AccountingRowType.SectionHeader,
-            Values = [""]
-        });
-
-        foreach (var kvp in taxPaidByRate.OrderBy(k => k.Key))
-        {
-            var ratePercent = kvp.Key * 100;
             data.Rows.Add(new AccountingRow
             {
-                Label = string.Format(t.TaxPaidLineFormat, ratePercent.ToString("0.##")),
-                Values = [FormatCurrency(kvp.Value)],
-                IndentLevel = 1,
-                RowType = AccountingRowType.DataRow
+                Label = t.TaxPaidHeader,
+                RowType = AccountingRowType.SectionHeader,
+                Values = [""]
             });
+
+            foreach (var kvp in taxPaidByRate.OrderBy(k => k.Key))
+            {
+                var ratePercent = kvp.Key * 100;
+                data.Rows.Add(new AccountingRow
+                {
+                    Label = string.Format(t.TaxPaidLineFormat, ratePercent.ToString("0.##")),
+                    Values = [FormatCurrency(kvp.Value)],
+                    IndentLevel = 1,
+                    RowType = AccountingRowType.DataRow
+                });
+            }
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = t.TaxPaidTotal,
+                Values = [FormatCurrency(totalTaxPaid)],
+                RowType = AccountingRowType.SubtotalRow
+            });
+
+            data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
         }
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = t.TaxPaidTotal,
-            Values = [FormatCurrency(totalTaxPaid)],
-            RowType = AccountingRowType.SubtotalRow
-        });
-
-        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
 
         // Net Tax Liability
         data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = [""] });

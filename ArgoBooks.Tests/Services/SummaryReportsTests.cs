@@ -160,7 +160,7 @@ public class SummaryReportsTests
 
         var result = Report(data, AccountingReportType.ExpensesBySupplier);
 
-        Assert.Equal(["Paper Mill", "(Payroll wages)", "(Expenses with no supplier)"], DataRows(result).Select(r => r.Label));
+        Assert.Equal(["Paper Mill", "(Payroll)", "(Expenses with no supplier)"], DataRows(result).Select(r => r.Label));
     }
 
     #endregion

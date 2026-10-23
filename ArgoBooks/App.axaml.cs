@@ -2664,6 +2664,9 @@ public partial class App : Application
             ErrorLogger?.LogWarning($"Could not fetch the sample company's rates: {ex.Message}", "ExchangeRate");
         }
 
+        if (shifted)
+            SampleCompanyService.ConvertAtShiftedDates(data);
+
         return shifted;
     }
 

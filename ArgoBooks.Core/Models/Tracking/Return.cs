@@ -63,6 +63,13 @@ public class Return : IRecord
     public decimal RestockingFee { get; set; }
 
     /// <summary>
+    /// The refund recorded with the return: a refund payment for a sale, or a supplier credit (an expense
+    /// below zero) for a purchase. Null when nothing was paid back, as for a sale that was never paid.
+    /// </summary>
+    [JsonPropertyName("refundRecordId")]
+    public string? RefundRecordId { get; set; }
+
+    /// <summary>
     /// Return status.
     /// </summary>
     [JsonPropertyName("status")]

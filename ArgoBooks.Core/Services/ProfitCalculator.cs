@@ -10,7 +10,7 @@ namespace ArgoBooks.Core.Services;
 /// Profit = pre-tax revenue (collected) − expenses other than tracked stock bought − cost of
 /// goods sold − pre-tax refunds + what fixed assets sold for.
 /// Sales tax we collect is owed to the government, so it isn't profit;
-/// tax we paid suppliers is real cash out, so expenses stay gross. See
+/// tax we paid suppliers is a cost unless the company claims it back (PurchaseTax). See
 /// docs/Calculations.md §2 and §8 for the full rules.
 /// </summary>
 public static class ProfitCalculator
@@ -25,7 +25,7 @@ public static class ProfitCalculator
     {
         var revenuePreTax = RevenueAggregator.SumCollectedRevenuePreTaxUSD(
             data.Revenues, start, end);
-        var expenses = CostOfGoodsAggregator.SumOperatingExpensesUSD(data.Expenses, start, end);
+        var expenses = CostOfGoodsAggregator.SumOperatingExpensesUSD(data.Expenses, start, end, PurchaseTax.RuleFor(data));
         var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldUSD(data.Revenues, start, end, collectedOnly: true);
         var refundsPreTax = RefundAggregator.GetRefundedPreTaxInDateRangeUSD(
             data.Payments, BuildInvoiceLookup(data.Invoices), start, end);
@@ -44,7 +44,7 @@ public static class ProfitCalculator
     {
         var revenuePreTax = RevenueAggregator.SumCollectedRevenuePreTaxDisplay(
             data.Revenues, start, end, toDisplay);
-        var expenses = CostOfGoodsAggregator.SumOperatingExpensesDisplay(data.Expenses, start, end, toDisplay);
+        var expenses = CostOfGoodsAggregator.SumOperatingExpensesDisplay(data.Expenses, start, end, PurchaseTax.RuleFor(data), toDisplay);
         var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldDisplay(
             data.Revenues, start, end, collectedOnly: true, toDisplay);
         var refundsPreTax = RefundAggregator.GetRefundedPreTaxInDateRangeDisplay(
@@ -62,11 +62,12 @@ public static class ProfitCalculator
         CompanyData data, DateTime start, DateTime end)
     {
         var revenueByDay = RevenueAggregator.GroupCollectedRevenuePreTaxByDayUSD(data.Revenues, start, end);
+        var rule = PurchaseTax.RuleFor(data);
 
         var expensesByDay = data.Expenses
             .Where(p => p.Date >= start && p.Date <= end)
             .GroupBy(p => p.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(CostOfGoodsAggregator.OperatingExpenseUSD));
+            .ToDictionary(g => g.Key, g => g.Sum(e => CostOfGoodsAggregator.OperatingExpenseUSD(e, rule)));
 
         var refundsByDay = RefundAggregator.GroupPreTaxRefundsByDayUSD(data.Payments, BuildInvoiceLookup(data.Invoices), start, end);
 

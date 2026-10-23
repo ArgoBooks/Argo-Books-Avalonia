@@ -33,13 +33,14 @@ public static class ExpenseAssetLink
     }
 
     /// <summary>Adds, updates or removes the asset bought with <paramref name="expense"/> to match the form, or returns null when nothing changed.</summary>
-    /// <param name="preTaxBeforeEdit">The expense's cost before tax as it was before this save, or null for a new expense.</param>
+    /// <param name="costBeforeEdit">What the expense cost the business before this save (<see cref="PurchaseTax.Cost"/>), or null for a new expense.</param>
     /// <param name="currencyBeforeEdit">The expense's currency as it was before this save, or null for a new expense.</param>
     /// <param name="cca">The CRA class picked, which depreciates it by CRA's method, or null to depreciate it over <paramref name="usefulLifeYears"/>.</param>
-    public static Change? Apply(CompanyData data, Expense expense, decimal? preTaxBeforeEdit, string? currencyBeforeEdit,
+    public static Change? Apply(CompanyData data, Expense expense, decimal? costBeforeEdit, string? currencyBeforeEdit,
         bool isAsset, AssetType type, decimal? usefulLifeYears, CcaChoice? cca = null)
     {
         var existing = AssetFor(data, expense.Id);
+        var rule = PurchaseTax.RuleFor(data);
 
         if (!isAsset)
         {
@@ -57,7 +58,7 @@ public static class ExpenseAssetLink
                 Name = string.IsNullOrWhiteSpace(expense.Description) ? expense.Id : expense.Description,
                 Type = type,
                 PurchaseDate = expense.Date,
-                Cost = AssetDepreciation.PreTaxCost(expense),
+                Cost = PurchaseTax.Cost(expense, rule),
                 Currency = expense.OriginalCurrency,
                 ExpenseId = expense.Id,
                 Method = DepreciationMethod.StraightLine,
@@ -90,10 +91,10 @@ public static class ExpenseAssetLink
         existing.PurchaseDate = expense.Date;
 
         // An asset that took the whole expense follows its new amount; one that took only part of it keeps the cost it was given.
-        if (preTaxBeforeEdit is { } oldPreTax && existing.Cost == oldPreTax
+        if (costBeforeEdit is { } oldCost && existing.Cost == oldCost
             && string.Equals(existing.Currency, currencyBeforeEdit, StringComparison.OrdinalIgnoreCase))
         {
-            existing.Cost = AssetDepreciation.PreTaxCost(expense);
+            existing.Cost = PurchaseTax.Cost(expense, rule);
             existing.Currency = expense.OriginalCurrency;
         }
 

@@ -275,7 +275,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         _currency = expense.OriginalCurrency;
         ModalName = expense.Description;
         ModalPurchaseDate = new DateTimeOffset(expense.Date);
-        ModalCost = AssetDepreciation.PreTaxCost(expense);
+        ModalCost = PurchaseTax.Cost(expense, PurchaseTax.RuleFor(data));
         SourceExpenseText = "From expense {0}. The reports count this cost as depreciation instead of as an expense.".TranslateFormat(expense.Id);
         UseTypeRate();
         UpdatePreview();

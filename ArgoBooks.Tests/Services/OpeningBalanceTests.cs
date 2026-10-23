@@ -56,7 +56,9 @@ public class OpeningBalanceTests
 
         Assert.Equal(5500m, Row(sheet, "Cash"));
         Assert.Equal(5000m, Row(sheet, "Opening Balance"));
-        Assert.Equal(500m, Row(sheet, "Retained Earnings"));
+        // A payment for no sale isn't profit, so it is the owner's equity rather than retained earnings.
+        Assert.Equal(0m, Row(sheet, "Retained Earnings"));
+        Assert.Equal(500m, Row(sheet, "Owner's Equity"));
         Assert.Equal(Row(sheet, "TOTAL ASSETS"), Row(sheet, "TOTAL LIABILITIES & EQUITY"));
     }
 

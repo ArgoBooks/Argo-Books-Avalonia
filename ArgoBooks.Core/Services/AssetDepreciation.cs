@@ -163,25 +163,22 @@ public static class AssetDepreciation
         return years;
     }
 
-    /// <summary>An expense's cost before tax, in its own currency, which is what an asset bought with it costs.</summary>
-    public static decimal PreTaxCost(Expense expense) => expense.Total - expense.TaxAmount;
-
     /// <summary>The share of an expense, from 0 to 1, that bought assets, which the reports count as depreciation over the years instead.</summary>
-    public static decimal CapitalizedShare(Expense expense, IEnumerable<FixedAsset> assets)
+    public static decimal CapitalizedShare(Expense expense, IEnumerable<FixedAsset> assets, PurchaseTaxRule rule)
     {
-        var preTax = PreTaxCost(expense);
-        if (preTax <= 0)
+        var cost = PurchaseTax.Cost(expense, rule);
+        if (cost <= 0)
             return 0m;
 
         var capitalized = assets
             .Where(a => a.ExpenseId == expense.Id
                         && string.Equals(a.Currency, expense.OriginalCurrency, StringComparison.OrdinalIgnoreCase))
             .Sum(a => a.Cost);
-        return Math.Clamp(capitalized / preTax, 0m, 1m);
+        return Math.Clamp(capitalized / cost, 0m, 1m);
     }
 
     /// <summary>Each expense that bought an asset, with the share of it that did, for looking up while adding up expenses.</summary>
-    public static Dictionary<string, decimal> CapitalizedShares(IEnumerable<Expense> expenses, IReadOnlyCollection<FixedAsset> assets)
+    public static Dictionary<string, decimal> CapitalizedShares(IEnumerable<Expense> expenses, IReadOnlyCollection<FixedAsset> assets, PurchaseTaxRule rule)
     {
         var linked = assets.Where(a => !string.IsNullOrEmpty(a.ExpenseId)).Select(a => a.ExpenseId!).ToHashSet();
         var shares = new Dictionary<string, decimal>();
@@ -190,7 +187,7 @@ public static class AssetDepreciation
 
         foreach (var expense in expenses.Where(e => linked.Contains(e.Id)))
         {
-            var share = CapitalizedShare(expense, assets);
+            var share = CapitalizedShare(expense, assets, rule);
             if (share > 0)
                 shares[expense.Id] = share;
         }

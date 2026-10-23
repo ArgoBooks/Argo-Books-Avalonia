@@ -48,33 +48,19 @@ public class ReportRenderer : IDisposable
     /// <summary>
     /// Determines if a chart type should display currency formatting on the Y-axis.
     /// </summary>
-    private static bool ShouldShowCurrency(ChartDataType chartType)
-    {
-        return chartType switch
-        {
-            // Count-based charts (no currency)
-            ChartDataType.TotalTransactions => false,
-            ChartDataType.CustomerGrowth => false,
-            ChartDataType.ActiveVsInactiveCustomers => false,
-            ChartDataType.RentalsPerCustomer => false,
-            ChartDataType.AccountantsTransactions => false,
-            ChartDataType.CountriesOfOrigin => false,
-            ChartDataType.CountriesOfDestination => false,
-            ChartDataType.CompaniesOfOrigin => false,
-            ChartDataType.CompaniesOfDestination => false,
-            ChartDataType.ReturnsOverTime => false,
-            ChartDataType.ExpenseVsRevenueReturns => false,
-            ChartDataType.LossesOverTime => false,
-            ChartDataType.ExpenseVsRevenueLosses => false,
-            ChartDataType.CustomerLifetimeValue => false,
-            ChartDataType.TaxRateDistribution => false,
-            // All other charts show currency
-            _ => true
-        };
-    }
+    private static bool ShouldShowCurrency(ChartDataType chartType) => !chartType.IsCount();
 
     private double ConvertFromUSD(double amountUSD, DateTime? date = null) =>
         (double)DisplayCurrency.FromUSD((decimal)amountUSD, _currencyCode, date ?? DateTime.Today);
+
+    // The chart data service keeps its USD points for the next render, so a converted copy is made rather than changing them.
+    private ChartDataPoint InDisplayCurrency(ChartDataPoint point) => new()
+    {
+        Label = point.Label,
+        Value = ConvertFromUSD(point.Value, point.Date),
+        Date = point.Date,
+        Color = point.Color
+    };
 
     /// <summary>
     /// A single USD amount in the report's display currency at its own date (docs/Calculations.md Rule 4).
@@ -618,7 +604,7 @@ public class ReportRenderer : IDisposable
 
                 // Reserve space for footnote on last page
                 var footnoteHeight = !string.IsNullOrEmpty(tableData.Footnote)
-                    ? dataRowHeight * 1.3f
+                    ? dataRowHeight * 1.3f + (FootnoteLines(element, tableData.Footnote, rect.Width).Count - 1) * FootnoteLineStep(element)
                     : 0f;
 
                 int currentRowIndex = firstPageRowCount;
@@ -1163,9 +1149,19 @@ public class ReportRenderer : IDisposable
     /// which falls back to the raw USD figure). Calculations.md Rule 4.
     /// </summary>
     private static bool ConvertsPerTransaction(ChartDataType chartType) => chartType is
-        ChartDataType.AverageTransactionValue
+        ChartDataType.RevenueDistribution
+        or ChartDataType.ExpensesDistribution
+        or ChartDataType.AverageTransactionValue
         or ChartDataType.AverageShippingCosts
+        or ChartDataType.CountriesOfOrigin
+        or ChartDataType.CountriesOfDestination
+        or ChartDataType.CompaniesOfOrigin
+        or ChartDataType.CompaniesOfDestination
+        or ChartDataType.TopCustomersByRevenue
+        or ChartDataType.CustomerLifetimeValue
         or ChartDataType.TaxCollectedVsPaid
+        or ChartDataType.TaxByCategory
+        or ChartDataType.TaxByProduct
         or ChartDataType.ExpenseVsRevenueTax;
 
     private List<ChartDataPoint>? GetChartDataPoints(ChartDataType chartType, GeoLevel level)
@@ -1193,15 +1189,7 @@ public class ReportRenderer : IDisposable
         var data = _chartDataService.GetChartData(chartType, null, level, _regionName);
 
         if (data is List<ChartDataPoint> dataPoints)
-        {
-            // Chart data is computed in USD, convert to display currency for monetary charts
-            if (ShouldShowCurrency(chartType))
-            {
-                foreach (var point in dataPoints)
-                    point.Value = ConvertFromUSD(point.Value, point.Date);
-            }
-            return dataPoints;
-        }
+            return ShouldShowCurrency(chartType) ? dataPoints.Select(InDisplayCurrency).ToList() : dataPoints;
 
         return null;
     }
@@ -1248,14 +1236,9 @@ public class ReportRenderer : IDisposable
 
         if (data is List<ChartSeriesData> seriesData)
         {
-            // Chart data is computed in USD, convert to display currency for monetary charts
-            if (ShouldShowCurrency(chartType))
-            {
-                foreach (var series in seriesData)
-                    foreach (var point in series.DataPoints)
-                        point.Value = ConvertFromUSD(point.Value, point.Date);
-            }
-            return seriesData;
+            return ShouldShowCurrency(chartType)
+                ? seriesData.Select(s => new ChartSeriesData { Name = s.Name, Color = s.Color, DataPoints = s.DataPoints.Select(InDisplayCurrency).ToList() }).ToList()
+                : seriesData;
         }
 
         return null;
@@ -1324,9 +1307,14 @@ public class ReportRenderer : IDisposable
         using var labelPaint = new SKPaint { Color = ChartAxisColor, IsAntialias = true };
 
         var steps = (int)Math.Round((axis.Max - axis.Min) / axis.Step);
+        var stepPixels = Math.Abs(axis.ToY(axis.Min, area) - axis.ToY(axis.Min + axis.Step, area));
+        // A short chart labels only every few steps, counted from zero, so its labels never overlap.
+        var every = Math.Max(1, (int)Math.Ceiling(labelFont.Size * 1.5f / stepPixels));
         for (var i = 0; i <= steps; i++)
         {
             var value = axis.Min + i * axis.Step;
+            if (Math.Round(value / axis.Step) % every != 0)
+                continue;
             var y = axis.ToY(value, area);
             canvas.DrawLine(area.Left, y, area.Right, y, gridPaint);
             canvas.DrawText(FormatAxisValue(value, axis, chart.ChartType), area.Left - 5 * _renderScale, y + 4 * _renderScale, SKTextAlign.Right, labelFont, labelPaint);
@@ -1897,6 +1885,8 @@ public class ReportRenderer : IDisposable
 
         try
         {
+            // The map needs LiveCharts started, which creating its first axis does, and a report can be drawn before any chart on screen has made one.
+            _ = new Axis();
             var geoMap = new SKGeoMap
             {
                 Width = width,
@@ -3435,14 +3425,10 @@ public class ReportRenderer : IDisposable
 
                 case AccountingRowType.TotalRow:
                 {
-                    // Fill first (extending up to cover any grid line from the previous row), then draw border on top
+                    // The filled bar marks the total on its own, so it extends up over the previous row's grid line rather than adding a border.
                     var fillTop = currentY > rect.Top + 1 * _renderScale ? currentY - 1 * _renderScale : currentY;
                     var rowRect = new SKRect(rect.Left, fillTop, rect.Right, currentY + dataRowHeight * 1.1f);
                     canvas.DrawRect(rowRect, new SKPaint { Color = ParseColor(element.TotalBackgroundColor), Style = SKPaintStyle.Fill });
-
-                    // Top border (thicker), drawn after fill so it's visible on the background
-                    canvas.DrawLine(rect.Left, currentY, rect.Right, currentY,
-                        new SKPaint { Color = ParseColor(element.DataRowTextColor), StrokeWidth = 1.5f * _renderScale, Style = SKPaintStyle.Stroke });
 
                     using var totalPaint = new SKPaint { Color = ParseColor(element.TotalTextColor), IsAntialias = true };
                     canvas.DrawText(row.Label, contentLeft + cellPadding, currentY + dataRowHeight * 0.75f, SKTextAlign.Left, boldDataFont, totalPaint);
@@ -3461,36 +3447,36 @@ public class ReportRenderer : IDisposable
 
                 case AccountingRowType.GrandTotalRow:
                 {
-                    var grandRowHeight = dataRowHeight * 1.3f;
+                    var barTop = currentY;
+                    var barHeight = dataRowHeight * 1.3f;
 
-                    // Fill first (extending up to cover any grid/separator lines from previous rows)
+                    // The filled bar marks the total on its own, so it extends up over the previous row's grid line rather than adding a border.
                     var fillTop = currentY > rect.Top + 1 * _renderScale ? currentY - 1 * _renderScale : currentY;
-                    var rowRect = new SKRect(rect.Left, fillTop, rect.Right, currentY + grandRowHeight);
+                    var rowRect = new SKRect(rect.Left, fillTop, rect.Right, barTop + barHeight);
                     canvas.DrawRect(rowRect, new SKPaint { Color = ParseColor(element.TotalBackgroundColor), Style = SKPaintStyle.Fill });
 
-                    // Double top border, drawn after fill so it's visible on the background
-                    canvas.DrawLine(rect.Left, currentY, rect.Right, currentY,
-                        new SKPaint { Color = ParseColor(element.DataRowTextColor), StrokeWidth = 1 * _renderScale, Style = SKPaintStyle.Stroke });
-                    canvas.DrawLine(rect.Left, currentY + 3 * _renderScale, rect.Right, currentY + 3 * _renderScale,
-                        new SKPaint { Color = ParseColor(element.DataRowTextColor), StrokeWidth = 1 * _renderScale, Style = SKPaintStyle.Stroke });
-
                     using var grandPaint = new SKPaint { Color = ParseColor(element.TotalTextColor), IsAntialias = true };
-                    canvas.DrawText(row.Label, contentLeft + cellPadding, currentY + grandRowHeight * 0.65f, SKTextAlign.Left, grandTotalFont, grandPaint);
+                    canvas.DrawText(row.Label, contentLeft + cellPadding, barTop + barHeight * 0.65f, SKTextAlign.Left, grandTotalFont, grandPaint);
 
                     var valX = contentLeft + columnWidths[0];
                     for (int i = 0; i < row.Values.Count && i + 1 < columnWidths.Length; i++)
                     {
-                        var cellClip = new SKRect(valX, currentY, valX + columnWidths[i + 1], currentY + grandRowHeight);
-                        DrawClippedText(canvas, row.Values[i], valX + columnWidths[i + 1] - cellPadding, currentY + grandRowHeight * 0.65f, SKTextAlign.Right, grandTotalFont, grandPaint, cellClip);
+                        var cellClip = new SKRect(valX, barTop, valX + columnWidths[i + 1], barTop + barHeight);
+                        DrawClippedText(canvas, row.Values[i], valX + columnWidths[i + 1] - cellPadding, barTop + barHeight * 0.65f, SKTextAlign.Right, grandTotalFont, grandPaint, cellClip);
                         valX += columnWidths[i + 1];
                     }
 
-                    currentY += grandRowHeight;
+                    currentY = barTop + barHeight;
                     break;
                 }
 
                 case AccountingRowType.SeparatorLine:
                 {
+                    // A subtotal's rule or a total's bar already sets it apart, so a separator just above it would be a second line.
+                    if (rowIdx + 1 < endRowIndex && tableData.Rows[rowIdx + 1].RowType
+                            is AccountingRowType.SubtotalRow or AccountingRowType.TotalRow or AccountingRowType.GrandTotalRow)
+                        break;
+
                     currentY += dataRowHeight * 0.25f;
                     canvas.DrawLine(rect.Left + cellPadding, currentY, rect.Right - cellPadding, currentY,
                         new SKPaint { Color = ParseColor(element.GridLineColor), StrokeWidth = 1 * _renderScale, Style = SKPaintStyle.Stroke });
@@ -3511,11 +3497,46 @@ public class ReportRenderer : IDisposable
         {
             currentY += dataRowHeight * 0.3f;
             using var footnotePaint = new SKPaint { Color = ParseColor(element.DataRowTextColor), IsAntialias = true };
-            canvas.DrawText(tableData.Footnote, rect.MidX, currentY + dataFontSize, SKTextAlign.Center, italicFont, footnotePaint);
+            var baseline = currentY + dataFontSize;
+            foreach (var line in FootnoteLines(element, tableData.Footnote, rect.Width))
+            {
+                if (baseline > rect.Bottom - 2 * _renderScale)
+                    break;
+                canvas.DrawText(line, rect.MidX, baseline, SKTextAlign.Center, italicFont, footnotePaint);
+                baseline += FootnoteLineStep(element);
+            }
         }
 
         // --- Draw Outer Border ---
         canvas.DrawRect(rect, new SKPaint { Color = ParseColor(element.GridLineColor), Style = SKPaintStyle.Stroke, StrokeWidth = 1 * _renderScale });
+    }
+
+    private float FootnoteLineStep(AccountingTableReportElement element) => (float)element.FontSize * _renderScale * 1.25f;
+
+    /// <summary>An accounting table's footnote broken into lines that fit inside the table, in the italic font it is drawn in.</summary>
+    private List<string> FootnoteLines(AccountingTableReportElement element, string footnote, float tableWidth)
+    {
+        using var font = new SKFont(PlatformTypefaces.Resolve(element.FontFamily, SKFontStyle.Italic), (float)element.FontSize * _renderScale * 0.9f);
+        var maxWidth = tableWidth - (float)element.CellPadding * _renderScale * 2;
+
+        var lines = new List<string>();
+        var line = "";
+        foreach (var word in footnote.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = line.Length == 0 ? word : line + " " + word;
+            if (line.Length > 0 && font.MeasureText(candidate) > maxWidth)
+            {
+                lines.Add(line);
+                line = word;
+            }
+            else
+            {
+                line = candidate;
+            }
+        }
+        if (line.Length > 0)
+            lines.Add(line);
+        return lines;
     }
 
     #endregion

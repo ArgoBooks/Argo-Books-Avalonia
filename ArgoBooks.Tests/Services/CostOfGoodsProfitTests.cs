@@ -49,7 +49,7 @@ public class CostOfGoodsProfitTests
         var expense = StockAndDeliveryPurchase();
 
         Assert.Equal(100m, CostOfGoodsAggregator.StockPurchaseUSD(expense));
-        Assert.Equal(20m, CostOfGoodsAggregator.OperatingExpenseUSD(expense));
+        Assert.Equal(20m, CostOfGoodsAggregator.OperatingExpenseUSD(expense, PurchaseTaxRule.All));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class CostOfGoodsProfitTests
         foreach (var line in expense.LineItems)
             line.IsStockPurchase = false;
 
-        Assert.Equal(expense.EffectiveTotalUSD, CostOfGoodsAggregator.OperatingExpenseUSD(expense));
+        Assert.Equal(expense.EffectiveTotalUSD, CostOfGoodsAggregator.OperatingExpenseUSD(expense, PurchaseTaxRule.All));
     }
 
     [Fact]

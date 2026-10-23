@@ -68,7 +68,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         return categoryTotals
             .Select(kvp => new ChartDataPoint { Label = kvp.Key, Value = (double)kvp.Value })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -112,18 +111,28 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         foreach (var p in companyData.Expenses.Where(p => p.Date >= startDate && p.Date <= endDate))
         {
-            AddGrossByCategory(categoryTotals, p, toDisplay);
+            // Wages and remittances have no product to take a category from, so they get their own slice.
+            if (PayrollExpenseIds.Contains(p.Id))
+                categoryTotals[Payroll] = categoryTotals.GetValueOrDefault(Payroll) + (toDisplay != null ? toDisplay(p.EffectiveTotalUSD, p.Date) : p.EffectiveTotalUSD);
+            else
+                AddGrossByCategory(categoryTotals, p, toDisplay);
         }
 
         return categoryTotals
             .Select(kvp => new ChartDataPoint { Label = kvp.Key, Value = (double)kvp.Value })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
     /// <summary>The group for money no category can take. Not "Other", which pie charts already use for their smallest slices put together.</summary>
     private const string Uncategorized = "Uncategorized";
+
+    private const string Payroll = "Payroll";
+
+    private HashSet<string>? _payrollExpenseIds;
+
+    /// <summary>Every expense a pay run recorded: wages paid to employees and remittances paid to the tax agencies.</summary>
+    private HashSet<string> PayrollExpenseIds => _payrollExpenseIds ??= PayrollBooks.ExpenseIds(companyData!);
 
     /// <summary>
     /// Adds a transaction's gross USD amount to its lines' product categories, shared out by
@@ -562,7 +571,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             // Filter out "Unknown" entries with zero or negligible value
             .Where(p => p.Label != "Unknown" || p.Value > 0.01)
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -631,7 +639,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 
         return companyData.Expenses
-            .Where(p => p.Date >= startDate && p.Date <= endDate)
+            // Wages and remittances are not bought from a supplier anywhere.
+            .Where(p => p.Date >= startDate && p.Date <= endDate && !PayrollExpenseIds.Contains(p.Id))
             .GroupBy(p =>
             {
                 var supplier = companyData.GetSupplier(p.SupplierId ?? "");
@@ -643,7 +652,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                 Value = (double)g.Sum(p => Display(p.EffectiveTotalUSD, p.Date))
             })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -671,7 +679,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                 Value = (double)g.Sum(p => Display(p.EffectiveTotalUSD, p.Date))
             })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -702,7 +709,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                 Value = (double)g.Sum(x => Display(x.Revenue.EffectiveTotalUSD, x.Revenue.Date))
             })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -856,7 +862,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                     Value = (double)c.Amount
                 };
             })
-            .Take(10)
             .ToList();
     }
 
@@ -922,7 +927,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     /// <summary>
     /// Gets customer lifetime value (average revenue per customer).
     /// </summary>
-    public List<ChartDataPoint> GetCustomerLifetimeValue()
+    /// <param name="toDisplay">Converts each sale at its own date, so customers are sorted into the bands in the currency the bands are labelled in. Null keeps USD.</param>
+    public List<ChartDataPoint> GetCustomerLifetimeValue(Func<decimal, DateTime, decimal>? toDisplay = null)
     {
         if (companyData?.Revenues == null)
             return [];
@@ -937,7 +943,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .Select(g => new
             {
                 CustomerId = g.Key,
-                TotalRevenue = g.Sum(s => s.EffectiveTotalUSD)
+                TotalRevenue = g.Sum(s => toDisplay != null ? toDisplay(s.EffectiveTotalUSD, s.Date) : s.EffectiveTotalUSD)
             })
             .ToList();
 
@@ -1143,7 +1149,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                 Value = g.Count()
             })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -1165,7 +1170,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                 Value = g.Count()
             })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -1338,7 +1342,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                 Value = g.Count()
             })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -1358,7 +1361,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                 Value = g.Count()
             })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -1430,6 +1432,10 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
     private decimal RefundTaxUSD(Payment refund) => RefundAggregator.TaxPortionUSD(refund, InvoicesById);
 
+    private PurchaseTaxRule? _purchaseTaxRule;
+
+    private PurchaseTaxRule ClaimRule => _purchaseTaxRule ??= PurchaseTax.RuleFor(companyData);
+
     private decimal NetTaxCollected(DateTime start, DateTime end, Func<decimal, DateTime, decimal>? toDisplay)
     {
         decimal Display(decimal usd, DateTime date) => toDisplay != null ? toDisplay(usd, date) : usd;
@@ -1439,7 +1445,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
     private bool HasTaxData(DateTime start, DateTime end) =>
         CollectedRevenues.Any(r => r.Date >= start && r.Date <= end && (r.TaxAmountUSD > 0 || r.TaxAmount > 0)) ||
-        companyData!.Expenses.Any(e => e.Date >= start && e.Date <= end && (e.TaxAmountUSD > 0 || e.TaxAmount > 0)) ||
+        companyData!.Expenses.Any(e => e.Date >= start && e.Date <= end && (e.TaxAmountUSD != 0 || e.TaxAmount != 0)) ||
         Refunds.Any(p => p.Date >= start && p.Date <= end && RefundTaxUSD(p) != 0);
 
     /// <summary>
@@ -1499,7 +1505,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     }
 
     /// <summary>
-    /// Gets net tax liability (collected - paid) over time as daily data points.
+    /// Gets net tax liability (collected less the tax on expenses claimed back) over time as daily data points.
     /// </summary>
     public List<ChartDataPoint> GetTaxLiabilityOverTime()
     {
@@ -1513,7 +1519,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .Where(r => r.Date >= startDate && r.Date <= endDate && (r.TaxAmountUSD > 0 || r.TaxAmount > 0))
             .Select(r => r.Date.Date);
         var expenseDates = companyData.Expenses
-            .Where(e => e.Date >= startDate && e.Date <= endDate && (e.TaxAmountUSD > 0 || e.TaxAmount > 0))
+            .Where(e => e.Date >= startDate && e.Date <= endDate && (e.TaxAmountUSD != 0 || e.TaxAmount != 0))
             .Select(e => e.Date.Date);
         var refundDates = Refunds
             .Where(p => p.Date >= startDate && p.Date <= endDate && RefundTaxUSD(p) != 0)
@@ -1534,7 +1540,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         {
             var collected = revenuesByDay[date].Sum(r => r.EffectiveTaxAmountUSD)
                             - refundsByDay[date].Sum(p => RefundTaxUSD(p));
-            var paid = expensesByDay[date].Sum(e => e.EffectiveTaxAmountUSD);
+            var paid = expensesByDay[date].Sum(e => PurchaseTax.ClaimableUSD(e, ClaimRule));
 
             return new ChartDataPoint
             {
@@ -1569,7 +1575,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
         var taxed = CollectedRevenues.Cast<Transaction>().Concat(companyData.Expenses)
-            .Where(t => t.Date >= startDate && t.Date <= endDate && (t.TaxAmountUSD > 0 || t.TaxAmount > 0))
+            .Where(t => t.Date >= startDate && t.Date <= endDate && (t.TaxAmountUSD != 0 || t.TaxAmount != 0))
             .ToList();
         if (taxed.Count == 0)
             return [];
@@ -1604,7 +1610,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         return byGroup
             .Select(kv => new ChartDataPoint { Label = kv.Key == other ? noGroupLabel : nameOf(kv.Key)!, Value = (double)kv.Value })
             .OrderByDescending(p => p.Value)
-            .Take(10)
             .ToList();
     }
 
@@ -1934,7 +1939,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             ChartDataType.TopCustomersByRevenue => GetTopCustomersByRevenue(toDisplay),
             ChartDataType.CustomerPaymentStatus => GetCustomerPaymentStatus(),
             ChartDataType.CustomerGrowth => GetCustomerGrowth(),
-            ChartDataType.CustomerLifetimeValue => GetCustomerLifetimeValue(),
+            ChartDataType.CustomerLifetimeValue => GetCustomerLifetimeValue(toDisplay),
             ChartDataType.ActiveVsInactiveCustomers => GetActiveVsInactiveCustomers(),
             ChartDataType.RentalsPerCustomer => GetRentalsPerCustomer(),
 

@@ -81,6 +81,10 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private string _remittanceScheduleHint = string.Empty;
 
+    /// <summary>Whether any pay run paid by today still has a remittance with no payment recorded for it.</summary>
+    [ObservableProperty]
+    private bool _hasRemittanceOwing;
+
     #endregion
 
     [ObservableProperty]
@@ -195,6 +199,65 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
     /// </summary>
     [RelayCommand]
     private void OpenYearEnd() => App.YearEndModalViewModel?.Open();
+
+    /// <summary>
+    /// Records paying the remittance owed for every pay run paid by today, as one expense per agency, so the
+    /// Balance Sheet stops showing it as owed and the cash leaves the books on the day it was paid.
+    /// </summary>
+    [RelayCommand]
+    private async Task RecordRemittanceAsync()
+    {
+        var data = App.CompanyManager?.CompanyData;
+        if (data == null)
+            return;
+
+        var today = DateTime.Today;
+        var cra = PayrollBooks.Unremitted(data, PayrollBooks.Agency.Cra, today).Sum(r => r.CraRemittance);
+        var quebec = PayrollBooks.Unremitted(data, PayrollBooks.Agency.Quebec, today).Sum(r => r.QuebecRemittance);
+        if (cra == 0 && quebec == 0)
+            return;
+
+        if (App.ConfirmationDialog is { } confirm)
+        {
+            var amounts = quebec == 0
+                ? "{0} to CRA".TranslateFormat(CurrencyService.Format(cra))
+                : cra == 0
+                    ? "{0} to Revenu Quebec".TranslateFormat(CurrencyService.Format(quebec))
+                    : "{0} to CRA and {1} to Revenu Quebec".TranslateFormat(CurrencyService.Format(cra), CurrencyService.Format(quebec));
+            var result = await confirm.ShowAsync(new ConfirmationDialogOptions
+            {
+                Title = "Record remittance paid?".Translate(),
+                Message = ("This records {0} as paid today, as an expense, and takes it off what the Balance Sheet " +
+                           "shows as owed. Record it on the day the payment leaves your bank.").TranslateFormat(amounts),
+                PrimaryButtonText = "Record payment".Translate(),
+                CancelButtonText = "Cancel".Translate(),
+            });
+            if (result != ConfirmationResult.Primary)
+                return;
+        }
+
+        var recorded = PayrollBooks.RecordRemittance(data, today);
+        if (recorded.Count == 0)
+            return;
+
+        App.CompanyManager?.MarkAsChanged();
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            "Record payroll remittance",
+            () =>
+            {
+                PayrollBooks.UndoRemittance(data, recorded);
+                App.CompanyManager?.MarkAsChanged();
+                Load();
+            },
+            () =>
+            {
+                PayrollBooks.RedoRemittance(data, recorded);
+                App.CompanyManager?.MarkAsChanged();
+                Load();
+            }));
+
+        Load();
+    }
 
     [RelayCommand]
     private void RunPayroll()
@@ -509,6 +572,11 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
 
         (decimal due, decimal quebec, DateTime dueDate) =
             PayrollService.NextRemittanceByAgency(_all, DateTime.Today, remitter);
+
+        // A voided run and its reversal cancel out, so it is what they add up to that says whether anything is owed.
+        HasRemittanceOwing = App.CompanyManager?.CompanyData is { } data
+                             && (PayrollBooks.Unremitted(data, PayrollBooks.Agency.Cra, DateTime.Today).Sum(r => r.CraRemittance) != 0
+                                 || PayrollBooks.Unremitted(data, PayrollBooks.Agency.Quebec, DateTime.Today).Sum(r => r.QuebecRemittance) != 0);
 
         RemittanceDue = CurrencyService.Format(due);
         RemittanceDueLabel = $"Due to CRA by {dueDate:d MMMM}";

@@ -97,6 +97,12 @@
                                                SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
                                                SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
 
+                        <table:ArgoTableHeader Header="{loc:Loc 'Sold for'}" ColumnName="SoldFor" SortProperty="SoldFor"
+                                               ColumnWidth="{Binding ColumnWidths.SoldForColumnWidth}"
+                                               IsColumnVisible="{Binding ShowSoldForColumn}"
+                                               SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                               SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
                         <table:ArgoTableHeader Header="{loc:Loc Status}" ColumnName="Status" SortProperty="Status"
                                                ColumnWidth="{Binding ColumnWidths.StatusColumnWidth}"
                                                IsColumnVisible="{Binding ShowStatusColumn}"
@@ -141,6 +147,25 @@
                                         <table:ArgoTableCell Text="{Binding BookValueFormatted}"
                                                              ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.BookValueColumnWidth}"
                                                              IsColumnVisible="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ShowBookValueColumn}" />
+
+                                        <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.SoldForColumnWidth}"
+                                                             IsColumnVisible="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ShowSoldForColumn}">
+                                            <table:ArgoTableCell.CellContent>
+                                                <Panel>
+                                                    <TextBlock Text="{Binding SoldForFormatted}"
+                                                               FontSize="14"
+                                                               FontWeight="Medium"
+                                                               Foreground="{DynamicResource SuccessBrush}"
+                                                               VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsSold}" />
+                                                    <TextBlock Text="{Binding SoldForFormatted}"
+                                                               FontSize="14"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center"
+                                                               IsVisible="{Binding !IsSold}" />
+                                                </Panel>
+                                            </table:ArgoTableCell.CellContent>
+                                        </table:ArgoTableCell>
 
                                         <table:ArgoTableCell Text="{Binding Status, Converter={StaticResource TranslateConverter}}"
                                                              ColumnWidth="{Binding $parent[ItemsControl].((vm:AssetsPageViewModel)DataContext).ColumnWidths.StatusColumnWidth}"
@@ -198,6 +223,7 @@
                 <CheckBox IsChecked="{Binding ShowCostColumn}" Content="{loc:Loc Cost}" Classes="column-toggle" />
                 <CheckBox IsChecked="{Binding ShowThisYearColumn}" Content="{loc:Loc 'This year'}" Classes="column-toggle" />
                 <CheckBox IsChecked="{Binding ShowBookValueColumn}" Content="{loc:Loc 'Book value'}" Classes="column-toggle" />
+                <CheckBox IsChecked="{Binding ShowSoldForColumn}" Content="{loc:Loc 'Sold for'}" Classes="column-toggle" />
                 <CheckBox IsChecked="{Binding ShowStatusColumn}" Content="{loc:Loc Status}" Classes="column-toggle" />
             </StackPanel>
         </controls:ColumnVisibilityMenu.ColumnsContent>

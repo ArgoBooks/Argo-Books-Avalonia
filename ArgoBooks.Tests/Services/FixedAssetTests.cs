@@ -134,13 +134,14 @@ public class FixedAssetTests
     }
 
     [Fact]
-    public void CapitalizedShare_IsTheAssetsCostOverThePreTaxExpense()
+    public void CapitalizedShare_IsTheAssetsCostOverWhatTheExpenseCost()
     {
         var expense = Purchase("EXP-1", 1100m, 100m, new DateTime(2024, 1, 1));
-        var part = Asset(600m, expense.Date);
+        var part = Asset(550m, expense.Date);
         part.ExpenseId = expense.Id;
 
-        Assert.Equal(0.6m, AssetDepreciation.CapitalizedShare(expense, [part]));
+        Assert.Equal(0.55m, AssetDepreciation.CapitalizedShare(expense, [part], PurchaseTaxRule.All));
+        Assert.Equal(0.5m, AssetDepreciation.CapitalizedShare(expense, [part], PurchaseTaxRule.None));
     }
 
     #endregion

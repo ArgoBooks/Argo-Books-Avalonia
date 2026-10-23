@@ -27,18 +27,28 @@ Symbols used below: § means "section" (§4 is section 4), and Σ means "the sum
 
 ### Rule 1: Revenue includes tax; profit doesn't.
 
-Sales tax collected from customers is owed to the government, so it is shown as part of revenue but never counted as profit. Tax the business pays on its own purchases is a real cost, so expenses include it.
+Sales tax collected from customers is owed to the government, so it is shown as part of revenue but never counted as profit. Tax the business pays on its own purchases is set against that tax when the business can claim it back, and is a cost when it can't. `PurchaseTax.RuleFor` decides which from the company's country and province:
+
+| Company | Tax on purchases claimed back |
+|---|---|
+| United States and Puerto Rico | None. The sales tax paid is part of what the purchase cost. |
+| British Columbia, Saskatchewan, Manitoba | The 5% GST only, so at most 5% of the purchase's amount before tax. The provincial sales tax is a cost. |
+| Anywhere else, including the rest of Canada and every VAT or GST country | All of it. |
+
+What a purchase cost the business is `PurchaseTax.CostUSD`, its `EffectiveTotalUSD` less `PurchaseTax.ClaimableUSD` (`PurchaseTax.Cost` in its own currency).
+
+A Canadian company needs its province for this, so the create wizard and Edit Company require one. A Canadian company saved before then, with no province, claims all of it. A purchase keeps one tax amount, so in the three provinces above a purchase taxed only by the GST is read correctly, but one charged HST in another province is read as claiming only 5% of its amount.
 
 - **Total Revenue** card and charts, and customer billings, use `EffectiveTotalUSD` (tax included).
-- **Net Profit**, **Profit Margin** and **Profit Over Time** use `EffectiveSubtotalUSD` (tax excluded) for revenue.
-- **Expenses** use `EffectiveTotalUSD` (tax included).
+- **Net Profit**, **Profit Margin** and **Profit Over Time** use `EffectiveSubtotalUSD` (tax excluded) for revenue, and what each expense cost the business (`PurchaseTax.CostUSD`).
+- **Total Expenses** cards and charts use `EffectiveTotalUSD` (tax included), since they show what was spent.
 - **Tracked stock** is the one exception, on the profit side only (§14).
 
 ```
 Total Revenue  = Σ Revenue.EffectiveTotalUSD − Refunds(full)
-Net Profit     = Σ Revenue.EffectiveSubtotalUSD − Σ OperatingExpenseUSD(expense) − Σ CostOfGoodsSoldUSD(revenue) − Refunds(pre-tax) + Σ asset sale price (§16)
+Net Profit     = Σ Revenue.EffectiveSubtotalUSD − Σ OperatingExpenseUSD(expense, rule) − Σ CostOfGoodsSoldUSD(revenue) − Refunds(pre-tax) + Σ asset sale price (§16)
 Profit Margin  = Net Profit / Σ Revenue.EffectiveSubtotalUSD
-Tax Owed       = Σ Revenue.EffectiveTaxAmountUSD − Refunds(tax part) − Σ Expense.EffectiveTaxAmountUSD
+Tax Owed       = Σ Revenue.EffectiveTaxAmountUSD − Refunds(tax part) − Σ PurchaseTax.ClaimableUSD(expense, rule)
 ```
 
 The refund terms are defined in §8.
@@ -213,7 +223,9 @@ Part of every refund is tax being handed back. Profit only loses the part that w
 Per refund:   pre-tax part = |Payment.EffectiveAmountUSD| × Payment.RevenueShare
                              × ((Invoice.Total − Invoice.SecurityDeposit − Invoice.TaxAmount) / (Invoice.Total − Invoice.SecurityDeposit))
               tax part     = |Payment.EffectiveAmountUSD| × Payment.RevenueShare − pre-tax part
-Fallback:     if the refund isn't linked to an invoice, or the invoice is all deposit, the whole amount counts as pre-tax
+Recorded tax: a refund that stores its own tax (`Payment.RefundTaxAmount`, set by marking a sale returned) uses it instead:
+              tax part     = |Payment.EffectiveAmountUSD| × |RefundTaxAmount| / |Payment.Amount|
+Fallback:     if the refund has neither, or its invoice is all deposit, the whole amount counts as pre-tax
 ```
 
 The pre-tax share is taken from the invoice's total less its deposit and tax, not from `Subtotal / Total`, because `Subtotal` leaves out the invoice-wide discount, shipping and fees (§4). Helpers: `RefundAggregator.PreTaxShare`, `PreTaxPortionUSD`, `TaxPortionUSD`, `GetRefundedPreTaxInDateRangeUSD`.
@@ -234,7 +246,11 @@ A deposit was never revenue (§4), so the part of a refund that returns it doesn
 
 Expenses have no paid or unpaid status, so every expense counts. Expense totals include tax (`EffectiveTotalUSD`, Rule 1). Profit uses `OperatingExpenseUSD` instead, which leaves out tracked stock (§14).
 
-**Payroll.** Approving a pay run records each employee's net pay as an expense dated on the pay date (`PayrollService.ApproveAndRecord`). Wages are worked out in the company's currency, and each wage expense is stored in USD like any other expense, at the pay date's rate (Rule 4). A pay run approved ahead of its pay date has no rate yet, so its expenses wait for that date's rate and convert once it can be fetched; until then they count as 0 (§3) and totals that include them show Pending. Voiding a pay run removes its expenses, and undoing the void puts them back waiting again if they still are.
+A **supplier credit** is an expense below zero: every amount on it, tax included, is negative, so it comes off expenses, cash paid and the tax claimed back on its own date, as standard bookkeeping takes a credit note off the purchase it refunds. Marking a purchase returned records one (Returns and Losses, §10). Its lines are copies of the purchase's, so it comes off the same categories, and the tax it gives back is the purchase's tax in the share of the purchase's whole refund that the credit is (`PurchaseTax.Claimable` mirrors the purchase's claim).
+
+**Payroll.** Approving a pay run records each employee's net pay as an expense dated on the pay date (`PayrollService.ApproveAndRecord`), the money that leaves the bank that day. What was withheld from employees and the employer's own CPP, EI and QPIP are owed to CRA, and Revenu Quebec for Quebec employees, until they are paid. Recording that payment on the Pay Runs page (Record remittance, `PayrollBooks.RecordRemittance`) adds one expense per agency for every run paid by that day that has none yet, and links those runs to it. Wages are worked out in the company's currency, and each wage and remittance expense is stored in USD like any other expense, at its own date's rate (Rule 4). A pay run approved ahead of its pay date has no rate yet, so its expenses wait for that date's rate and convert once it can be fetched; until then they count as 0 (§3) and totals that include them show Pending. Voiding a pay run removes its expenses, and undoing the void puts them back waiting again if they still are.
+
+Expenses count money as it leaves, so the dashboard, Analytics and the Cash Flow Statement count a pay run's net pay on its pay date and its remittance on the day it is paid. The formal reports count payroll on the accrual basis instead (§10).
 
 ---
 
@@ -242,11 +258,14 @@ Expenses have no paid or unpaid status, so every expense counts. Expense totals 
 
 `AccountingReportDataService` builds the formal reports (Income Statement, Balance Sheet, Cash Flow, General Ledger, and similar), and `ReportTableDataService` fills the transaction tables in the Report Builder. Both deliberately follow accounting conventions instead of the dashboard rules:
 
-- The Income Statement, General Ledger and Report Builder revenue and expense tables show amounts without tax (`EffectiveSubtotalUSD`), because the Balance Sheet shows tax separately as Sales Tax Payable. Cash figures and Sales by Product (§13) include tax (`EffectiveTotalUSD`).
+- The Income Statement, General Ledger and Report Builder revenue tables show revenue without tax (`EffectiveSubtotalUSD`), because the Balance Sheet shows tax separately as Sales Tax Payable. Their expense amounts are what each expense cost the business (`PurchaseTax.CostUSD`, Rule 1), so tax claimed back comes off Sales Tax Payable instead and tax that can't be claimed is an expense. Cash figures and Sales by Product (§13) include tax (`EffectiveTotalUSD`).
+- The Tax Summary and the Balance Sheet set only the tax claimed back against the tax collected. Where none is claimed back, the Tax Summary leaves out its tax paid section.
 - They count all revenue in the date range, paid or not. Accountants call this the accrual basis.
 - Cash (on the Cash Flow Statement and the Balance Sheet's Cash line) includes tax: paid revenue that has no invoice, plus every payment (refunds count as negative), minus every expense.
 - The Balance Sheet lists **Inventory** as a current asset (`InventoryValuationService.TotalValueAsOf`). It counts each item's stock on hand as of the report's end date, placing each stock change on the date of its sale or purchase, or on its own date when it has neither. Stock is valued at the item's current `UnitCost` in USD, because the app doesn't keep a history of costs, and converted at the end date's rate (§14, Stock value). The Income Statement shows a Cost of Goods Sold line and Gross Profit whenever a sale in the date range has a cost (§14).
 - The Balance Sheet lists **Security Deposits** as a liability: the deposit on every invoice issued by the end date, less what refunds by then gave back and any part kept by then (`SecurityDeposits.StillHeld`).
+- **Payroll** counts on the pay date, as a cost incurred then whenever it is paid. The Income Statement shows each pay run's gross pay as Wages and Salaries and the employer's contributions as Employer Payroll Contributions, converted from the company's currency at the pay date, and leaves out the expenses that recorded the net pay and the remittances, which would count it again (`PayrollBooks.ExpenseIds`). The Balance Sheet lists **Payroll Remittances Owing** as a liability: each pay run's remittance, run by run at its pay date, until an expense dated by the end date records paying it (`PayrollBooks.OwingAsOf`). The General Ledger lists the wage and remittance expenses under Payroll, and Expenses by Supplier gives them one Payroll row.
+- **Equity** has three lines. The opening bank balance, when one is set. **Retained Earnings**, the profit to date: the Income Statement's net income from the first record to the end date. **Owner's Equity**, whatever is left of total assets less total liabilities: what the business owned before these books, such as land or stock already on hand, and money the owner put in or took out, which the app doesn't record separately. It is worked out last, so the Balance Sheet always balances.
 
 ### Insights tab (`InsightsService`)
 
@@ -262,9 +281,14 @@ The Insights tab (trends, anomalies, forecasts, recommendations) uses collected 
 
 ### Returns and Losses
 
-Returns (items returned by customers or sent back to suppliers) and Losses (lost or damaged stock) don't change revenue, profit or expenses; it is the refund payment (§8) that reduces revenue and profit. The Financial Impact charts and stat cards add up `Return.RefundAmount` and `LostDamaged.ValueLost`. The Returns page shows `Return.NetRefund`, which is the refund less any restocking fee.
+A return (items returned by customers or sent back to suppliers) and a loss (lost or damaged stock) are records of goods. A return's money reaches the books through the refund recorded with it (`ReturnRefunds`, `Return.RefundRecordId`), which is what changes revenue, expenses, tax and cash; a loss changes none of them. The Financial Impact charts and stat cards add up `Return.RefundAmount` and `LostDamaged.ValueLost`. The Returns page shows `Return.NetRefund`, which is the refund less any restocking fee.
 
-Marking a sale or purchase as returned records its items after the transaction's discount, plus the tax charged, as the refund (`ReturnLossAmounts.RefundFor`). Shipping and fees are left out, since a shop keeps them when goods come back. Sales and purchases follow the same rule.
+Marking a sale or purchase as returned records its items after the transaction's discount, plus the tax charged, as the refund (`ReturnLossAmounts.RefundFor`). Shipping and fees are left out, since a shop keeps them when goods come back. Sales and purchases follow the same rule. It also records the refund, dated on the return:
+
+- **A returned sale** records a refund payment (§8) for `NetRefund`, at most what the customer paid toward the sale: the sale's total when it was collected, or its invoice's net paid. Its `RefundTaxAmount` is the sale's tax in the share of the sale's whole refund (`RefundFor`) that the refund is, so returning part of a sale gives back part of its tax. That tax comes off tax collected and the rest off revenue. It is linked to the sale's invoice when there is one, so the invoice shows as refunded. A sale nobody has paid for gets no refund, since no money changed hands, and neither does one paid online, whose refund is made through the payment provider and arrives with the payment sync.
+- **A returned purchase** records a supplier credit (§9) for `NetRefund`.
+
+Undoing the return removes its refund too.
 
 Neither record stores a USD amount or its own currency. The amount is in the currency of the sale or purchase it came from (`Return.OriginalTransactionId`, `LostDamaged.InventoryItemId`), or in the company's currency if there is none, and it is converted from that currency at the record's own date (`ReturnLossAmounts.CurrencyOf`, `DisplayCurrency.FromNative`). An amount already in the display currency is used as it is. If the rate is missing, the amount counts as 0 on a chart and shows Pending on a stat card or page total.
 
@@ -291,17 +315,17 @@ Use this table to check where a number on screen comes from. For a new chart or 
 | Total Revenue card (dashboard, Analytics and the Revenue page's Monthly Revenue card), Revenue Over Time, Revenue Growth (Analytics) | `EffectiveTotalUSD` | — | Yes | Yes, in full |
 | Top Customers (the Analytics chart and the dashboard widget, both over the selected date range, `TopCustomers.Rank`) | `EffectiveTotalUSD` | — | Yes | Yes, in full, the refunds issued in the range. A customer left at or below 0 is not listed |
 | Total Expenses card (dashboard, Analytics and the Expenses page's Monthly Expenses card), Expenses Over Time | — | `EffectiveTotalUSD` | n/a | n/a |
-| Net Profit card, Profit Margin (Analytics), Profit Over Time | `EffectiveSubtotalUSD`, plus fixed asset sale prices (§16) | `OperatingExpenseUSD`, plus cost of goods sold (§14) | Yes | Yes, the pre-tax part |
+| Net Profit card, Profit Margin (Analytics), Profit Over Time | `EffectiveSubtotalUSD`, plus fixed asset sale prices (§16) | `OperatingExpenseUSD` (`PurchaseTax.CostUSD` less tracked stock), plus cost of goods sold (§14) | Yes | Yes, the pre-tax part |
 | Revenue vs Expenses | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue) | Yes, in full (revenue) |
 | Report Summary box total | The same as the Total Revenue card (Revenue reports), the Total Expenses card (Expenses reports) or the Net Profit card (all other reports) | | | |
-| Tax charts and Analytics tax cards | `EffectiveTaxAmountUSD` | `EffectiveTaxAmountUSD` | Yes (revenue) | Yes, the tax part (except the by-category, by-product and Effective Tax Rate figures) |
+| Tax charts and Analytics tax cards | `EffectiveTaxAmountUSD` | `EffectiveTaxAmountUSD`, but `PurchaseTax.ClaimableUSD` for net tax liability and tax owed over time | Yes (revenue) | Yes, the tax part (except the by-category, by-product and Effective Tax Rate figures) |
 | Avg Shipping Cost (Analytics) | `EffectiveShippingCostUSD` | `EffectiveShippingCostUSD` | Yes (revenue) | n/a |
 | Return / Loss Financial Impact | `Return.RefundAmount` (§10) | `LostDamaged.ValueLost` (§10) | n/a | n/a |
 | Forecasts, backtests and accuracy checks (Insights) | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue) | No |
-| Geographic / Country charts | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue) | No |
+| Geographic / Country charts | `EffectiveTotalUSD` | `EffectiveTotalUSD`, leaving out wages and remittances, which no supplier was paid | Yes (revenue) | No |
 | Outstanding and Overdue Invoices cards | `BalanceUSD` | — | **No** (they show what's unpaid) | n/a |
 | Revenue page list | `EffectiveTotalUSD` | — | **No** (it lists everything) | n/a |
-| Income Statement / General Ledger | `EffectiveSubtotalUSD` | `EffectiveSubtotalUSD` (Income Statement: without tracked stock, plus cost of goods sold, §14, and without the share that bought fixed assets, plus their depreciation, §16) | No (all revenue) | Yes, the pre-tax part |
+| Income Statement / General Ledger | `EffectiveSubtotalUSD` | `PurchaseTax.CostUSD` (Income Statement: payroll from its pay runs instead, §10; without tracked stock, plus cost of goods sold, §14, and without the share that bought fixed assets, plus their depreciation, §16) | No (all revenue) | Yes, the pre-tax part |
 | Sales by Product (Analytics tab) | `EffectiveTotalUSD`, shared out per line | — | Yes | No (§13) |
 | Sales by Product (report) | `EffectiveTotalUSD`, shared out per line | — | No (all revenue) | No (§13) |
 
@@ -347,10 +371,10 @@ Lines with no product are grouped under "Unknown". A transaction with no lines a
 | Screen | Amount shared out | When the lines can't take it |
 |---|---|---|
 | Sales by Product (both), Top Performing Product (Insights) | `EffectiveTotalUSD` | Left out, since it can't be put on any product |
-| Revenue and expense by-category charts | `EffectiveTotalUSD` | "Uncategorized", kept apart from the "Other" slice that pie charts make of their smallest slices |
-| Income Statement categories, General Ledger | `EffectiveSubtotalUSD` | The transaction's own line ("Uncategorized" on the Income Statement, the Revenue or Expenses heading in the General Ledger), so the report still balances |
+| Revenue and expense by-category charts | `EffectiveTotalUSD` | "Uncategorized", kept apart from the "Other" slice that pie charts make of their smallest slices. Wage and remittance expenses have no product and go under "Payroll" instead |
+| Income Statement categories, General Ledger | `EffectiveSubtotalUSD` for revenue, `PurchaseTax.CostUSD` for expenses | The transaction's own line ("Uncategorized" on the Income Statement, the Revenue or Expenses heading in the General Ledger), so the report still balances |
 | Tax by category and tax by product charts | `EffectiveTaxAmountUSD`, as tax | "Uncategorized" by category, "No product" by product |
-| Tax Summary report, by rate | `EffectiveTaxAmountUSD`, as tax, grouped by each line's own rate | The transaction's own rate, which is also where its tax goes when no line carries a rate of its own |
+| Tax Summary report, by rate | `EffectiveTaxAmountUSD`, as tax, grouped by each line's own rate. An expense counts only the tax claimed back (Rule 1); when that is less than its whole tax, it goes under the rate claimed, such as 5% | The transaction's own rate, which is also where its tax goes when no line carries a rate of its own |
 | Refunds by product | Each invoice's refunds, in the display currency | Left out |
 
 On the Income Statement, an expense that bought tracked stock shares out only what is left after the stock (§14) across its other lines. When those lines can't take it, as when every line bought stock and only shipping or fees are left, it goes under "Uncategorized" like any transaction whose lines can't.
@@ -488,7 +512,7 @@ A fixed asset is something the business keeps for years: land, a building, a veh
 
 ### Cost
 
-- **Bought with an expense** (`FixedAsset.ExpenseId`): the expense's pre-tax amount, `Total − TaxAmount`, so shipping and fees are part of the cost, in the expense's currency. When the expense changes, an asset that took all of it follows its new amount and one given a smaller cost keeps its own (`ExpenseAssetLink`). An asset whose expense is deleted counts as one owned before.
+- **Bought with an expense** (`FixedAsset.ExpenseId`): what the expense cost the business, `PurchaseTax.Cost` (its total less the tax claimed back, Rule 1), so shipping, fees and any tax not claimed back are part of the cost, in the expense's currency. A cost already saved stays as it is when the company's country or province changes. When the expense changes, an asset that took all of it follows its new amount and one given a smaller cost keeps its own (`ExpenseAssetLink`). An asset whose expense is deleted counts as one owned before.
 - **Owned before the books started:** it can carry `PriorDepreciation`, the depreciation claimed in earlier books up to `TrackedFrom` (1 January of the year it was added). These books depreciate it from that date.
 
 ### Depreciation
@@ -527,7 +551,7 @@ gain on disposal  = sale price (0 when scrapped) − book value when it left
 
 Each asset amount is converted at the asset's purchase date (Rule 4), and a sale price at the sale date. A missing rate shows Pending.
 
-- **Income Statement:** the share of an expense that bought an asset (`AssetDepreciation.CapitalizedShare`: the assets' cost over the expense's pre-tax amount, at most 1) comes out of its categories. A **Depreciation** line adds the months booked in the range, and a **Gain** or **Loss on Sale of Assets** line adds disposals in the range.
+- **Income Statement:** the share of an expense that bought an asset (`AssetDepreciation.CapitalizedShare`: the assets' cost over what the expense cost the business, `PurchaseTax.Cost`, at most 1) comes out of its categories. A **Depreciation** line adds the months booked in the range, and a **Gain** or **Loss on Sale of Assets** line adds disposals in the range.
 - **Balance Sheet:** **Fixed Assets** lists the cost of assets held at the end date and the depreciation booked on them so far. A sale price is cash on the sale date. The sale isn't also recorded as revenue.
 - **Cash Flow Statement:** the asset share of an expense moves from operating to **Investing Activities**, with sale prices.
 - **Asset Register:** each asset held at the end date with its cost, the depreciation in the range, the total so far and its book value, then the ones that left the books in the range.

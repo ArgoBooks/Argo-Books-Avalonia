@@ -91,11 +91,15 @@ public class ProfitCalculatorTests
             $"Expected profit ≈ 0 for fully refunded invoice; got {profit}");
     }
 
-    [Fact]
-    public void CalculateNetProfitUSD_SubtractsGrossExpenses()
+    [Theory]
+    [InlineData("United States", null, 70)]
+    [InlineData("Canada", "ON", 75)]
+    [InlineData("Canada", "BC", 71.25)]
+    public void CalculateNetProfitUSD_CountsPurchaseTaxOnlyWhereItIsNotClaimedBack(string country, string? province, decimal expected)
     {
-        // Expenses use Total (gross). Tax paid to suppliers is real cash out.
         var data = new CompanyData();
+        data.Settings.Company.Country = country;
+        data.Settings.Company.ProvinceState = province;
         data.Revenues.Add(new Revenue
         {
             Date = new DateTime(2026, 5, 11),
@@ -114,8 +118,8 @@ public class ProfitCalculatorTests
 
         var profit = ProfitCalculator.CalculateNetProfitUSD(data, Start, End);
 
-        // 100 - 30 = 70 (gross expense, not 100 - 25)
-        Assert.Equal(70m, profit);
+        // US sales tax is a cost, so 100 - 30. Ontario's HST is claimed back, so 100 - 25. In BC only the 5% GST on the 25 is, so 100 - 28.75.
+        Assert.Equal(expected, profit);
     }
 
     [Fact]

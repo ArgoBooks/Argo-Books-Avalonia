@@ -571,7 +571,8 @@ public partial class App
             {
                 Name = args.CompanyName,
                 Industry = args.Industry,
-                Country = args.Country
+                Country = args.Country,
+                ProvinceState = args.ProvinceState
             };
 
             // Keep the loading overlay up across the close-then-open transition inside

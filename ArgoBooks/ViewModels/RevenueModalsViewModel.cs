@@ -333,17 +333,20 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             case ArgoBooks.Core.Enums.ItemStatusAction.Returned:
             {
                 var record = CreateReturnRecord(companyData, revenue);
+                var refund = ReturnRefunds.Record(companyData, record);
                 App.UndoRedoManager.RecordAction(new DelegateAction(
                     $"Mark revenue '{revenue.Id}' as returned",
                     () =>
                     {
                         companyData.Returns.RemoveRecord(record);
+                        if (refund != null) ReturnRefunds.Remove(companyData, refund);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
                         companyData.Returns.RestoreRecord(record);
+                        if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -377,18 +380,22 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 var record = companyData.Returns.FirstOrDefault(r => r.OriginalTransactionId == revenue.Id);
                 if (record != null)
                 {
+                    var refund = ReturnRefunds.Find(companyData, record);
                     companyData.Returns.RemoveRecord(record);
+                    if (refund != null) ReturnRefunds.Remove(companyData, refund);
                     RecordStatusUndo(new DelegateAction(
                         $"Undo returned status for revenue '{revenue.Id}'",
                         () =>
                         {
                             companyData.Returns.RestoreRecord(record);
+                            if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
                             companyData.Returns.RemoveRecord(record);
+                            if (refund != null) ReturnRefunds.Remove(companyData, refund);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));

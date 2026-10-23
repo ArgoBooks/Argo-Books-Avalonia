@@ -295,7 +295,10 @@ public class PayrollService(PayrollRateService? rateService = null)
                         && r.PayDate.Date <= end)
             .ToList();
 
-        return (inPeriod.Sum(r => r.CraRemittance), inPeriod.Sum(r => r.QuebecRemittance), dueDate);
+        // A remittance already recorded as paid is no longer due.
+        return (inPeriod.Where(r => string.IsNullOrEmpty(r.CraRemittanceExpenseId)).Sum(r => r.CraRemittance),
+            inPeriod.Where(r => string.IsNullOrEmpty(r.QuebecRemittanceExpenseId)).Sum(r => r.QuebecRemittance),
+            dueDate);
     }
 
     /// <summary>

@@ -51,6 +51,7 @@ public partial class AssetsPageViewModel : SortablePageViewModelBase
         ["Cost"] = true,
         ["ThisYear"] = true,
         ["BookValue"] = true,
+        ["SoldFor"] = true,
         ["Status"] = true,
     });
 
@@ -73,6 +74,9 @@ public partial class AssetsPageViewModel : SortablePageViewModelBase
 
     [ObservableProperty]
     private bool _showBookValueColumn = ColumnDefaults.Load("BookValue");
+
+    [ObservableProperty]
+    private bool _showSoldForColumn = ColumnDefaults.Load("SoldFor");
 
     [ObservableProperty]
     private bool _showStatusColumn = ColumnDefaults.Load("Status");
@@ -159,6 +163,7 @@ public partial class AssetsPageViewModel : SortablePageViewModelBase
                 Cost = asset.Cost,
                 ThisYear = AssetDepreciation.Between(asset, yearStart, yearEnd),
                 BookValue = AssetDepreciation.BookValueAsOf(asset, today),
+                SoldFor = asset.Proceeds,
                 Status = asset.DisposalKind switch
                 {
                     AssetDisposalKind.Sold => "Sold",
@@ -211,6 +216,7 @@ public partial class AssetsPageViewModel : SortablePageViewModelBase
                     ["Cost"] = a => a.Cost,
                     ["ThisYear"] = a => a.ThisYear,
                     ["BookValue"] = a => a.IsDisposed ? -1m : a.BookValue,
+                    ["SoldFor"] = a => a.IsSold ? a.SoldFor : -1m,
                     ["Status"] = a => a.Status
                 },
                 a => a.Name);
@@ -283,9 +289,13 @@ public class AssetDisplayItem
 
     public decimal BookValue { get; init; }
 
+    public decimal SoldFor { get; init; }
+
     public string Status { get; init; } = "In use";
 
     public bool IsDisposed => Status != "In use";
+
+    public bool IsSold => Status == "Sold";
 
     public string PurchaseDateFormatted => DateFormatService.Format(PurchaseDate);
 
@@ -294,4 +304,6 @@ public class AssetDisplayItem
     public string ThisYearFormatted => IsLand ? "-" : CurrencyInfo.FormatAmount(ThisYear, Currency);
 
     public string BookValueFormatted => IsDisposed ? "-" : CurrencyInfo.FormatAmount(BookValue, Currency);
+
+    public string SoldForFormatted => IsSold ? CurrencyInfo.FormatAmount(SoldFor, Currency) : "-";
 }

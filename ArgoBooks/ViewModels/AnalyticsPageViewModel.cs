@@ -2254,6 +2254,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         // Paid sales only (Rule 2), and the tax a refund handed back comes off tax collected on the
         // refund's date, as in the Tax Summary report (docs/Calculations.md §8).
         var invoicesById = ProfitCalculator.BuildInvoiceLookup(data.Invoices);
+        var rule = PurchaseTax.RuleFor(data);
 
         var revenues = data.Revenues.Where(r => r.Date >= StartDate && r.Date <= EndDate).Where(RevenueAggregator.IsCollected).ToList();
         var expenses = data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate).ToList();
@@ -2263,7 +2264,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         var taxCollectedUSD = grossTaxCollectedUSD
             - RefundAggregator.GetRefundedTaxInDateRangeUSD(data.Payments, invoicesById, StartDate, EndDate);
         var taxPaidUSD = expenses.Sum(e => e.EffectiveTaxAmountUSD);
-        var netLiability = taxCollectedUSD - taxPaidUSD;
+        var netLiability = taxCollectedUSD - expenses.Sum(e => PurchaseTax.ClaimableUSD(e, rule));
 
         // Calculate effective tax rate (weighted average across all transactions)
         var totalPreTax = revenues.Sum(r => r.EffectiveSubtotalUSD) + expenses.Sum(e => e.EffectiveSubtotalUSD);
@@ -2280,7 +2281,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         var prevTaxCollected = prevGrossTaxCollected
             - RefundAggregator.GetRefundedTaxInDateRangeUSD(data.Payments, invoicesById, prevStartDate, prevEndDate);
         var prevTaxPaid = prevExpenses.Sum(e => e.EffectiveTaxAmountUSD);
-        var prevNetLiability = prevTaxCollected - prevTaxPaid;
+        var prevNetLiability = prevTaxCollected - prevExpenses.Sum(e => PurchaseTax.ClaimableUSD(e, rule));
         var prevTotalPreTax = prevRevenues.Sum(r => r.EffectiveSubtotalUSD) + prevExpenses.Sum(e => e.EffectiveSubtotalUSD);
         var prevTotalTax = prevGrossTaxCollected + prevTaxPaid;
         var prevEffectiveRate = prevTotalPreTax > 0 ? (prevTotalTax / prevTotalPreTax) * 100 : 0;
@@ -2304,7 +2305,9 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         var taxCollectedDisplay = grossTaxCollectedDisplay - taxRefundedDisplay;
         var paidComplete = CurrencyService.TrySumDisplayFromUSD(
             expenses, e => e.TaxAmount, e => e.OriginalCurrency, e => e.EffectiveTaxAmountUSD, e => e.Date, out var taxPaidDisplay);
-        var netLiabilityDisplay = taxCollectedDisplay - taxPaidDisplay;
+        var claimableComplete = CurrencyService.TrySumDisplayFromUSD(
+            expenses, e => PurchaseTax.Claimable(e, rule), e => e.OriginalCurrency, e => PurchaseTax.ClaimableUSD(e, rule), e => e.Date, out var claimableDisplay);
+        var netLiabilityDisplay = taxCollectedDisplay - claimableDisplay;
 
         // Show Pending while any component is still awaiting its exact-date rate.
         TotalTaxCollected = collectedComplete ? CurrencyService.Format(taxCollectedDisplay) : CurrencyService.PendingMarker;
@@ -2315,7 +2318,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         TaxPaidChangeValue = hasPrevPeriodData && prevTaxPaid > 0 ? (double)paidChange : null;
         TaxPaidChangeText = hasPrevPeriodData && prevTaxPaid > 0 ? $"{Math.Abs(paidChange):F1}%" : null;
 
-        NetTaxLiability = collectedComplete && paidComplete ? CurrencyService.Format(netLiabilityDisplay) : CurrencyService.PendingMarker;
+        NetTaxLiability = collectedComplete && claimableComplete ? CurrencyService.Format(netLiabilityDisplay) : CurrencyService.PendingMarker;
         TaxLiabilityChangeValue = hasPrevPeriodData && prevNetLiability != 0 ? (double)liabilityChange : null;
         TaxLiabilityChangeText = hasPrevPeriodData && prevNetLiability != 0 ? $"{Math.Abs(liabilityChange):F1}%" : null;
 

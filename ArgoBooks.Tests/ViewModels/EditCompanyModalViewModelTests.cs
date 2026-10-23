@@ -210,6 +210,19 @@ public class EditCompanyModalViewModelTests
         Assert.False(_viewModel.CanSave);
     }
 
+    // A Canadian company's province decides how much of the tax on its purchases it claims back.
+    [Fact]
+    public void CanSave_CanadaNeedsAProvince()
+    {
+        _viewModel.Open("Test Company", country: "Canada");
+
+        Assert.True(_viewModel.IsProvinceRequired);
+        Assert.False(_viewModel.CanSave);
+
+        _viewModel.ProvinceState = "BC";
+        Assert.True(_viewModel.CanSave);
+    }
+
     #endregion
 
     #region Opening balance
@@ -265,7 +278,7 @@ public class EditCompanyModalViewModelTests
     {
         CompanyEditedEventArgs? saved = null;
         _viewModel.CompanySaved += (_, e) => saved = e;
-        _viewModel.Open("Test Company", country: "Canada", currencyCode: "USD", openingBalance: Opening);
+        _viewModel.Open("Test Company", country: "Canada", provinceState: "ON", currencyCode: "USD", openingBalance: Opening);
         _viewModel.CompanyName = "Renamed Company";
 
         await _viewModel.SaveCommand.ExecuteAsync(null);
@@ -278,7 +291,7 @@ public class EditCompanyModalViewModelTests
     {
         CompanyEditedEventArgs? saved = null;
         _viewModel.CompanySaved += (_, e) => saved = e;
-        _viewModel.Open("Test Company", country: "Canada", currencyCode: "USD", openingBalance: Opening);
+        _viewModel.Open("Test Company", country: "Canada", provinceState: "ON", currencyCode: "USD", openingBalance: Opening);
         _viewModel.OpeningBalanceText = "6000";
 
         await _viewModel.SaveCommand.ExecuteAsync(null);
@@ -291,7 +304,7 @@ public class EditCompanyModalViewModelTests
     {
         CompanyEditedEventArgs? saved = null;
         _viewModel.CompanySaved += (_, e) => saved = e;
-        _viewModel.Open("Test Company", country: "Canada", currencyCode: "CAD", openingBalance: Opening);
+        _viewModel.Open("Test Company", country: "Canada", provinceState: "ON", currencyCode: "CAD", openingBalance: Opening);
 
         _viewModel.OpeningBalanceText = "";
         Assert.True(_viewModel.HasChanges);

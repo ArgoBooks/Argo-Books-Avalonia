@@ -4,7 +4,7 @@ namespace ArgoBooks.Controls.ColumnWidths;
 
 /// <summary>
 /// Manages column widths for the Assets table.
-/// Columns: Asset | Type | Purchased | Cost | This year | Book value | Status | Actions
+/// Columns: Asset | Type | Purchased | Cost | This year | Book value | Sold for | Status | Actions
 /// </summary>
 public partial class AssetsTableColumnWidths : TableColumnWidthsBase
 {
@@ -27,6 +27,9 @@ public partial class AssetsTableColumnWidths : TableColumnWidthsBase
     private double _bookValueColumnWidth = 110;
 
     [ObservableProperty]
+    private double _soldForColumnWidth = 110;
+
+    [ObservableProperty]
     private double _statusColumnWidth = 100;
 
     [ObservableProperty]
@@ -34,7 +37,7 @@ public partial class AssetsTableColumnWidths : TableColumnWidthsBase
 
     public AssetsTableColumnWidths()
     {
-        ColumnOrder = ["Asset", "Type", "Purchased", "Cost", "ThisYear", "BookValue", "Status", "Actions"];
+        ColumnOrder = ["Asset", "Type", "Purchased", "Cost", "ThisYear", "BookValue", "SoldFor", "Status", "Actions"];
 
         RegisterColumn("Asset", new ColumnDef { StarValue = 1.6, MinWidth = 150, PreferredWidth = 200 }, w => AssetColumnWidth = w);
         RegisterColumn("Type", new ColumnDef { StarValue = 1.0, MinWidth = 100, PreferredWidth = 130 }, w => TypeColumnWidth = w);
@@ -42,6 +45,7 @@ public partial class AssetsTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("Cost", new ColumnDef { StarValue = 0.9, MinWidth = 80, PreferredWidth = 110 }, w => CostColumnWidth = w);
         RegisterColumn("ThisYear", new ColumnDef { StarValue = 0.9, MinWidth = 80, PreferredWidth = 110 }, w => ThisYearColumnWidth = w);
         RegisterColumn("BookValue", new ColumnDef { StarValue = 0.9, MinWidth = 80, PreferredWidth = 110 }, w => BookValueColumnWidth = w);
+        RegisterColumn("SoldFor", new ColumnDef { StarValue = 0.9, MinWidth = 80, PreferredWidth = 110 }, w => SoldForColumnWidth = w);
         RegisterColumn("Status", new ColumnDef { StarValue = 0.8, MinWidth = 80, PreferredWidth = 100 }, w => StatusColumnWidth = w);
         RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(3), MinWidth = ActionsWidth(3) }, w => ActionsColumnWidth = w);
 
