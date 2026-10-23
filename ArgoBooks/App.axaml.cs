@@ -2245,10 +2245,11 @@ public partial class App : Application
         var file = shell.FileMenuPanelViewModel;
 
         // macOS lists the application's menu under the app's name, and only a window's menu as menus in the bar itself.
-        NativeMenu.SetMenu(this,
-        [
-            Item("Settings...", "Cmd+,", () => shell.SettingsModalViewModel.OpenCommand.Execute(null)),
-        ]);
+        var settings = Item("Settings...", "Cmd+,", () => shell.SettingsModalViewModel.OpenCommand.Execute(null));
+        if (NativeMenu.GetMenu(this) is { } appMenu)
+            appMenu.Items.Add(settings);
+        else
+            NativeMenu.SetMenu(this, [settings]);
 
         NativeMenu.SetMenu(window,
         [
