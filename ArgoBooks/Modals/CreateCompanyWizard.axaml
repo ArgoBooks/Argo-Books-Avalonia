@@ -177,7 +177,7 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- Country and Industry (side by side) -->
+                            <!-- Country and, where it is needed, province (side by side) -->
                             <Grid ColumnDefinitions="*,16,*">
                                 <StackPanel Grid.Column="0" Spacing="6">
                                     <StackPanel Orientation="Horizontal">
@@ -187,23 +187,31 @@
                                     <controls:CountryInput SelectedCountryName="{Binding Country, Mode=TwoWay}" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc Industry}"
-                                               FontSize="13"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <ComboBox ItemsSource="{Binding Industries}"
-                                              SelectedItem="{Binding Industry}"
-                                              Classes="form-combobox"
-                                              PlaceholderText="{loc:Loc 'Select industry'}"
-                                              HorizontalAlignment="Stretch" />
+                                <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding IsProvinceRequired}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Text="{Binding Country, Converter={x:Static controls:RegionInput.LabelConverter}}" />
+                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource ErrorBrush}" Text=" *" />
+                                    </StackPanel>
+                                    <controls:RegionInput Country="{Binding Country}" Value="{Binding ProvinceState, Mode=TwoWay}" />
                                 </StackPanel>
                             </Grid>
 
-                            <!-- Bank balance today, kept to the left column like the fields above it -->
+                            <!-- Industry and bank balance today (side by side) -->
                             <StackPanel Spacing="6">
                                 <Grid ColumnDefinitions="*,16,*">
                                     <StackPanel Grid.Column="0" Spacing="6">
+                                        <TextBlock Text="{loc:Loc Industry}"
+                                                   FontSize="13"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <ComboBox ItemsSource="{Binding Industries}"
+                                                  SelectedItem="{Binding Industry}"
+                                                  Classes="form-combobox"
+                                                  PlaceholderText="{loc:Loc 'Select industry'}"
+                                                  HorizontalAlignment="Stretch" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="6">
                                         <TextBlock Text="{loc:Loc 'Bank balance today'}"
                                                    FontSize="13"
                                                    FontWeight="Medium"
@@ -263,6 +271,39 @@
                                                    IsVisible="{Binding HasLogo}" />
                                         </Panel>
                                     </Border>
+
+                                    <StackPanel Grid.Column="1" Spacing="4" Margin="16,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:Loc 'Company Logo'}"
+                                                   FontSize="13"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Shown on your invoices and reports.'}"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'PNG, JPG up to 5MB'}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                                        <Button Classes="secondary-button"
+                                                Command="{Binding BrowseLogoCommand}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <PathIcon Data="{x:Static icons:Icons.ImportData}"
+                                                          Width="16" Height="16" />
+                                                <TextBlock Text="{loc:Loc 'Upload Logo'}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="text-button"
+                                                HorizontalAlignment="Center"
+                                                Command="{Binding RemoveLogoCommand}"
+                                                IsVisible="{Binding HasLogo}">
+                                            <TextBlock Text="{loc:Loc Remove}" Foreground="{DynamicResource DangerBrush}" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
 
                             <!-- Password protection -->
                             <Border Background="{DynamicResource SurfaceAltBrush}"
@@ -364,39 +405,6 @@
                                         </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
-                            </Border>
-
-                                    <StackPanel Grid.Column="1" Spacing="4" Margin="16,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{loc:Loc 'Company Logo'}"
-                                                   FontSize="13"
-                                                   FontWeight="Medium"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="{loc:Loc 'Shown on your invoices and reports.'}"
-                                                   FontSize="12"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
-                                        <TextBlock Text="{loc:Loc 'PNG, JPG up to 5MB'}"
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
-                                        <Button Classes="secondary-button"
-                                                Command="{Binding BrowseLogoCommand}">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <PathIcon Data="{x:Static icons:Icons.ImportData}"
-                                                          Width="16" Height="16" />
-                                                <TextBlock Text="{loc:Loc 'Upload Logo'}" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="text-button"
-                                                HorizontalAlignment="Center"
-                                                Command="{Binding RemoveLogoCommand}"
-                                                IsVisible="{Binding HasLogo}">
-                                            <TextBlock Text="{loc:Loc Remove}" Foreground="{DynamicResource DangerBrush}" />
-                                        </Button>
-                                    </StackPanel>
-                                </Grid>
                             </Border>
                         </StackPanel>
                     </StackPanel>

@@ -3,6 +3,7 @@
              xmlns:local="using:ArgoBooks"
              xmlns:loc="using:ArgoBooks.Localization"
              x:Class="ArgoBooks.App"
+             Name="Argo Books"
              RequestedThemeVariant="Default">
     <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 

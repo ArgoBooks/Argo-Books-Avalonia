@@ -217,6 +217,33 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     #endregion
 
+    #region Bulk Edit
+
+    protected override string BulkNoun(int count) => count == 1 ? "sale" : "sales";
+
+    protected override IEnumerable<Transaction> BulkRecords(CompanyData data) => data.Revenues;
+
+    protected override void BulkRemove(CompanyData data, Transaction record) => data.Revenues.RemoveRecord((Revenue)record);
+
+    protected override void BulkRestore(CompanyData data, Transaction record) => data.Revenues.RestoreRecord((Revenue)record);
+
+    protected override string? CounterpartyIdOf(Transaction record) => ((Revenue)record).CustomerId;
+
+    protected override void SetCounterpartyId(Transaction record, string? id) => ((Revenue)record).CustomerId = id;
+
+    // A sale an invoice or a rental made stays in step with it, so only that record changes it.
+    protected override Func<Transaction, bool> MadeElsewhere(CompanyData data)
+    {
+        var rentalRevenueIds = data.Rentals.Select(r => r.RevenueId).Where(id => !string.IsNullOrEmpty(id)).ToHashSet();
+        return record => record is Revenue revenue
+                         && (!string.IsNullOrEmpty(revenue.InvoiceId)
+                             || revenue.IsKeptDeposit
+                             || rentalRevenueIds.Contains(revenue.Id)
+                             || revenue.LineItems.Any(l => !string.IsNullOrEmpty(l.RentalRecordId)));
+    }
+
+    #endregion
+
     #region Item Status Modal
 
     public void OpenMarkAsLostDamagedModal(RevenueDisplayItem? item)
@@ -306,17 +333,20 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             case ArgoBooks.Core.Enums.ItemStatusAction.Returned:
             {
                 var record = CreateReturnRecord(companyData, revenue);
+                var refund = ReturnRefunds.Record(companyData, record);
                 App.UndoRedoManager.RecordAction(new DelegateAction(
                     $"Mark revenue '{revenue.Id}' as returned",
                     () =>
                     {
                         companyData.Returns.RemoveRecord(record);
+                        if (refund != null) ReturnRefunds.Remove(companyData, refund);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
                         companyData.Returns.RestoreRecord(record);
+                        if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -350,18 +380,22 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 var record = companyData.Returns.FirstOrDefault(r => r.OriginalTransactionId == revenue.Id);
                 if (record != null)
                 {
+                    var refund = ReturnRefunds.Find(companyData, record);
                     companyData.Returns.RemoveRecord(record);
+                    if (refund != null) ReturnRefunds.Remove(companyData, refund);
                     RecordStatusUndo(new DelegateAction(
                         $"Undo returned status for revenue '{revenue.Id}'",
                         () =>
                         {
                             companyData.Returns.RestoreRecord(record);
+                            if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
                             companyData.Returns.RemoveRecord(record);
+                            if (refund != null) ReturnRefunds.Remove(companyData, refund);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));

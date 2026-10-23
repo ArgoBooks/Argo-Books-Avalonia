@@ -414,4 +414,19 @@ public class ReportChartDataServiceTests
     }
 
     #endregion
+
+    [Fact]
+    public void TaxRateDistribution_TransactionWithTaxButNoRate_UsesTheRateItsTaxWorksOutTo()
+    {
+        // An imported sale of $100 plus $13 tax, with no rate saved: 13%.
+        var data = new CompanyData();
+        data.Revenues.Add(new Revenue { Id = "REV-1", Date = new DateTime(2024, 3, 5), OriginalCurrency = "USD", Total = 113m, TaxAmount = 13m });
+        data.Revenues.Add(new Revenue { Id = "REV-2", Date = new DateTime(2024, 3, 6), OriginalCurrency = "USD", Total = 50m });
+        var filters = new ReportFilters { StartDate = new DateTime(2024, 3, 1), EndDate = new DateTime(2024, 3, 31) };
+
+        var (revenueRates, _, labels) = new ReportChartDataService(data, filters).GetTaxRateDistribution();
+
+        Assert.Equal(new[] { "0%", "11-15%" }, labels);
+        Assert.Equal(new[] { 1d, 1d }, revenueRates.Select(p => p.Value));
+    }
 }

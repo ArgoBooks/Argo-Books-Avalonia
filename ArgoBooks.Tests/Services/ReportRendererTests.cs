@@ -70,6 +70,52 @@ public class ReportRendererTests
         Assert.Equal(250m, (decimal)method.Invoke(renderer, [summary])!);
     }
 
+    [Theory]
+    [InlineData(ReportChartStyle.Area)]
+    [InlineData(ReportChartStyle.Line)]
+    [InlineData(ReportChartStyle.Bar)]
+    public void ProfitChart_WithOnlyLosses_StaysInsideItsBoxAndIsRed(ReportChartStyle style)
+    {
+        // Two days of expenses and no sales, as in a new company: every point is a loss.
+        var data = new CompanyData();
+        data.Expenses.Add(new Expense { Id = "EXP-1", Date = new DateTime(2026, 10, 20), OriginalCurrency = "USD", Total = 200m });
+        data.Expenses.Add(new Expense { Id = "EXP-2", Date = new DateTime(2026, 10, 21), OriginalCurrency = "USD", Total = 20m });
+
+        var config = ReportTemplateFactory.CreateFromTemplate(ReportTemplateFactory.TemplateNames.FinancialOverview);
+        config.Filters.DatePresetName = DatePresetNames.Custom;
+        config.Filters.StartDate = new DateTime(2026, 10, 1);
+        config.Filters.EndDate = new DateTime(2026, 10, 31);
+        var chart = config.Elements.OfType<ChartReportElement>().Single(c => c.ChartType == ChartDataType.TotalProfits);
+        chart.ChartStyle = style;
+
+        using var renderer = new ReportRenderer(config, data);
+        renderer.ComputeContinuationPlan();
+        using var page = renderer.RenderEffectivePageToBitmap(renderer.GetContinuationPlan()!.Pages[0]);
+
+        int left = (int)chart.X, right = (int)(chart.X + chart.Width), top = (int)chart.Y, bottom = (int)(chart.Y + chart.Height);
+
+        // Zero used to be placed above the chart, so the bars and fill reached up into the report's title.
+        Assert.False(Any(page, left, right, 0, top, IsColoured), "The chart drew above its own box.");
+        Assert.False(Any(page, left, right, top, bottom, IsGreen), "A loss was drawn in the profit colour.");
+        Assert.True(Any(page, left, right, top, bottom, IsRed), "The losses were not drawn in red.");
+    }
+
+    private static bool Any(SkiaSharp.SKBitmap bitmap, int left, int right, int top, int bottom, Func<SkiaSharp.SKColor, bool> match)
+    {
+        for (var y = Math.Max(0, top); y < Math.Min(bitmap.Height, bottom); y++)
+            for (var x = Math.Max(0, left); x < Math.Min(bitmap.Width, right); x++)
+                if (match(bitmap.GetPixel(x, y)))
+                    return true;
+        return false;
+    }
+
+    // Text, grid lines and borders are black, grey or white, so any strongly tinted pixel is part of a chart.
+    private static bool IsColoured(SkiaSharp.SKColor c) => Math.Max(c.Red, Math.Max(c.Green, c.Blue)) - Math.Min(c.Red, Math.Min(c.Green, c.Blue)) > 25;
+
+    private static bool IsGreen(SkiaSharp.SKColor c) => c.Green - c.Red > 60 && c.Green - c.Blue > 30;
+
+    private static bool IsRed(SkiaSharp.SKColor c) => c.Red - c.Green > 100 && c.Red - c.Blue > 100;
+
     [Fact]
     public void GeneralLedgerOverSeveralPages_DrawsEveryRow()
     {

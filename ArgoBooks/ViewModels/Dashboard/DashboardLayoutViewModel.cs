@@ -284,12 +284,10 @@ public partial class DashboardLayoutViewModel : ObservableObject
         WireUpWidgetEvents(host);
         host.IsEditMode = true;
 
-        // Position after existing widgets so they don't stack at offset 0
-        double usedFraction = targetRow.Widgets.Sum(w => w.Size.ToFraction());
-        host.StartOffset = usedFraction;
+        host.StartOffset = targetRow.FreeOffset(size.ToFraction());
 
         host.LoadData();
-        targetRow.Widgets.Add(host);
+        targetRow.Widgets.Insert(targetRow.IndexForOffset(host.StartOffset), host);
         Catalog.Refresh(Rows.SelectMany(r => r.Widgets));
         _targetRowForAdd = null;
         OnPropertyChanged(nameof(HasWidgets));
@@ -325,9 +323,6 @@ public partial class DashboardLayoutViewModel : ObservableObject
             targetRow.Widgets.Insert(insertIndex, widget);
         else
             targetRow.Widgets.Add(widget);
-
-        if (sourceRow.Widgets.Count == 0)
-            Rows.Remove(sourceRow);
 
         OnPropertyChanged(nameof(HasWidgets));
         return true;

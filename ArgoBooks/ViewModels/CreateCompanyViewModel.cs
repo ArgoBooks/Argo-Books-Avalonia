@@ -79,6 +79,12 @@ public partial class CreateCompanyViewModel : ViewModelBase
     [ObservableProperty]
     private string? _country;
 
+    /// <summary>Asked only where it decides how much of the tax on purchases is claimed back.</summary>
+    [ObservableProperty]
+    private string? _provinceState;
+
+    public bool IsProvinceRequired => Core.Services.PurchaseTax.NeedsProvince(Country);
+
     #endregion
 
     #region Step 2: Security & Logo
@@ -147,7 +153,8 @@ public partial class CreateCompanyViewModel : ViewModelBase
 
     #region Validation
 
-    public bool IsStep1Valid => !string.IsNullOrWhiteSpace(CompanyName) && !string.IsNullOrWhiteSpace(Country);
+    public bool IsStep1Valid => !string.IsNullOrWhiteSpace(CompanyName) && !string.IsNullOrWhiteSpace(Country)
+                                && (!IsProvinceRequired || !string.IsNullOrWhiteSpace(ProvinceState));
 
     // Applies the same strength rules as Settings > Security, so a company file cannot be
     // created with a password that would be rejected if set later.
@@ -166,6 +173,7 @@ public partial class CreateCompanyViewModel : ViewModelBase
         SelectedCurrency != "CAD - Canadian Dollar ($)" ||
         !string.IsNullOrWhiteSpace(OpeningBalanceText) ||
         !string.IsNullOrEmpty(Country) ||
+        !string.IsNullOrEmpty(ProvinceState) ||
         EnablePassword ||
         !string.IsNullOrEmpty(Password) ||
         !string.IsNullOrEmpty(ConfirmPassword) ||
@@ -311,6 +319,7 @@ public partial class CreateCompanyViewModel : ViewModelBase
             CompanyName = CompanyName!,
             Industry = Industry,
             Country = Country,
+            ProvinceState = IsProvinceRequired ? ProvinceState : null,
             DefaultCurrency = CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency),
             Password = EnablePassword ? Password : null,
             LogoPath = LogoPath,
@@ -356,6 +365,7 @@ public partial class CreateCompanyViewModel : ViewModelBase
         OpeningBalanceText = "";
         OpeningBalanceError = null;
         Country = null;
+        ProvinceState = null;
         EnablePassword = false;
         Password = null;
         ConfirmPassword = null;
@@ -435,6 +445,13 @@ public partial class CreateCompanyViewModel : ViewModelBase
 
     partial void OnCountryChanged(string? value)
     {
+        OnPropertyChanged(nameof(IsProvinceRequired));
+        OnPropertyChanged(nameof(IsStep1Valid));
+        OnPropertyChanged(nameof(CanCreate));
+    }
+
+    partial void OnProvinceStateChanged(string? value)
+    {
         OnPropertyChanged(nameof(IsStep1Valid));
         OnPropertyChanged(nameof(CanCreate));
     }
@@ -457,6 +474,7 @@ public class CompanyCreatedEventArgs : EventArgs
     public required string CompanyName { get; init; }
     public string? Industry { get; init; }
     public string? Country { get; init; }
+    public string? ProvinceState { get; init; }
     public string? DefaultCurrency { get; init; }
     public string? Password { get; init; }
     public string? LogoPath { get; init; }

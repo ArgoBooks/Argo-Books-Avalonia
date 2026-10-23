@@ -1862,6 +1862,9 @@ public class CompanyManager : IDisposable
             foreach (var line in run.Lines)
                 if (line.ExpenseId == oldId) line.ExpenseId = trimmed;
 
+        foreach (var asset in CompanyData.Assets)
+            if (asset.ExpenseId == oldId) asset.ExpenseId = trimmed;
+
         CascadeTransactionId(oldId, trimmed, "Expense", BookRecordType.Expense);
 
         expense.Id = trimmed;

@@ -67,10 +67,17 @@
                              EmptyMessage="{loc:Loc 'Run payroll to work out deductions, produce pay stubs and record the wages. Payroll is Canada only: it uses CRA rates for every province and territory.'}">
 
                 <table:ArgoTable.ExtraButtonsContent>
-                    <Button Classes="secondary-button"
-                            Content="{loc:Loc 'Year end'}"
-                            ToolTip.Tip="{loc:Loc 'T4 slips and the file CRA needs'}"
-                            Command="{Binding OpenYearEndCommand}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="secondary-button"
+                                Content="{loc:Loc 'Record remittance'}"
+                                ToolTip.Tip="{loc:Loc 'Record what you paid CRA, so it is no longer shown as owed'}"
+                                IsVisible="{Binding HasRemittanceOwing}"
+                                Command="{Binding RecordRemittanceCommand}" />
+                        <Button Classes="secondary-button"
+                                Content="{loc:Loc 'Year end'}"
+                                ToolTip.Tip="{loc:Loc 'T4 slips and the file CRA needs'}"
+                                Command="{Binding OpenYearEndCommand}" />
+                    </StackPanel>
                 </table:ArgoTable.ExtraButtonsContent>
 
                 <!-- Only for a lapsed subscriber, who keeps a usable page because their real runs and their T4s are still here. A free user who has never run payroll gets the teaser overlay instead. -->

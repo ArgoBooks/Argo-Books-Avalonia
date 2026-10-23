@@ -131,7 +131,7 @@ public partial class App
 
             // Load company-specific chart settings (date range, chart type, etc.)
             // before navigating so the dashboard renders with the right range.
-            ChartSettingsService.Instance.LoadForCompany(args.FilePath);
+            ChartSettingsService.Instance.LoadForCompany(args.FilePath, CompanyManager.IsSampleCompany);
 
             // This handler is async void, so nothing above it would catch a failure here; it would leave the loading overlay up.
             var sampleShifted = false;
@@ -571,7 +571,8 @@ public partial class App
             {
                 Name = args.CompanyName,
                 Industry = args.Industry,
-                Country = args.Country
+                Country = args.Country,
+                ProvinceState = args.ProvinceState
             };
 
             // Keep the loading overlay up across the close-then-open transition inside
@@ -1411,16 +1412,6 @@ public partial class App
                         _ = TelemetryManager.TrackFeatureAsync(FeatureName.BackupCreated);
                     }
 
-                    // Open the containing folder
-                    try
-                    {
-                        Core.Platform.FileManager.ShowFile(backupPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        ErrorLogger?.LogWarning($"Failed to open folder after backup export: {ex.Message}", "BackupExportFolder");
-                    }
-
                     _appShellViewModel.AddNotification(
                         "Backup Complete".Translate(),
                         "Company backup exported successfully.".Translate(),
@@ -1528,16 +1519,6 @@ public partial class App
                 };
                 if (TelemetryManager != null)
                     await TelemetryManager.TrackExportAsync(exportType, stopwatch.ElapsedMilliseconds, fileSize);
-
-                // Open the containing folder
-                try
-                {
-                    Core.Platform.FileManager.ShowFile(filePath);
-                }
-                catch (Exception ex)
-                {
-                    ErrorLogger?.LogWarning($"Failed to open folder after export: {ex.Message}", "ExportFolder");
-                }
             }
             catch (Exception ex)
             {

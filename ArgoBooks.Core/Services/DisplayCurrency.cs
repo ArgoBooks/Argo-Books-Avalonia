@@ -78,6 +78,11 @@ public static class DisplayCurrency
         foreach (var i in data.Invoices) yield return i.IssueDate;
         foreach (var r in data.Returns) yield return r.ReturnDate;
         foreach (var l in data.LostDamaged) yield return l.DateDiscovered;
+        foreach (var a in data.Assets)
+        {
+            yield return a.PurchaseDate;
+            if (a.DisposedDate is { } disposed) yield return disposed;
+        }
         yield return endDate ?? DateTime.Today;
     }
 

@@ -98,24 +98,25 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
+        var rule = PurchaseTax.RuleFor(companyData);
         var query = companyData.Expenses
             .Where(p => p.Date >= startDate && p.Date <= endDate);
 
-        // Apply data selection (using USD-converted pre-tax amounts for consistent ranking)
+        // Apply data selection (using what each cost the business in USD, for consistent ranking)
         query = tableConfig.DataSelection switch
         {
-            TableDataSelection.TopByAmount => query.OrderByDescending(p => p.EffectiveSubtotalUSD),
-            TableDataSelection.BottomByAmount => query.OrderBy(p => p.EffectiveSubtotalUSD),
+            TableDataSelection.TopByAmount => query.OrderByDescending(p => PurchaseTax.CostUSD(p, rule)),
+            TableDataSelection.BottomByAmount => query.OrderBy(p => PurchaseTax.CostUSD(p, rule)),
             _ => query.OrderByDescending(p => p.Date)
         };
 
-        // Apply sort order (using USD-converted pre-tax amounts)
+        // Apply sort order (using what each cost the business in USD)
         query = tableConfig.SortOrder switch
         {
             TableSortOrder.DateAscending => query.OrderBy(p => p.Date),
             TableSortOrder.DateDescending => query.OrderByDescending(p => p.Date),
-            TableSortOrder.AmountAscending => query.OrderBy(p => p.EffectiveSubtotalUSD),
-            TableSortOrder.AmountDescending => query.OrderByDescending(p => p.EffectiveSubtotalUSD),
+            TableSortOrder.AmountAscending => query.OrderBy(p => PurchaseTax.CostUSD(p, rule)),
+            TableSortOrder.AmountDescending => query.OrderByDescending(p => PurchaseTax.CostUSD(p, rule)),
             _ => query
         };
 
@@ -124,10 +125,10 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
             query = query.Take(tableConfig.MaxRows);
         }
 
-        return query.Select(CreateExpenseRow).ToList();
+        return query.Select(e => CreateExpenseRow(e, rule)).ToList();
     }
 
-    private TransactionTableRow CreateExpenseRow(Expense expense)
+    private TransactionTableRow CreateExpenseRow(Expense expense, PurchaseTaxRule rule)
     {
         var supplier = companyData?.GetSupplier(expense.SupplierId ?? "");
         var accountant = companyData?.GetAccountant(expense.AccountantId ?? "");
@@ -142,7 +143,7 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
             ProductName = expense.Description,
             Quantity = expense.Quantity,
             UnitPrice = expense.UnitPrice,
-            Total = expense.EffectiveSubtotalUSD,
+            Total = PurchaseTax.CostUSD(expense, rule),
             Status = "Completed",
             AccountantName = accountant?.Name ?? "Unknown",
             // USD-normalized like Total; the renderer converts it at the row's date.

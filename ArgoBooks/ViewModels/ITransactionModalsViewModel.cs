@@ -65,6 +65,14 @@ public interface ITransactionModalsViewModel
     IRelayCommand<TransactionAttachment?> RemoveAttachmentCommand { get; }
 
     bool ModalPaid { get; set; }
+    bool ModalIsAsset { get; set; }
+    Services.AssetTypeOption? ModalAssetType { get; set; }
+    decimal? ModalAssetUsefulLife { get; set; }
+    bool ModalAssetIsLand { get; }
+    bool ShowAssetUsefulLife { get; }
+    bool ShowAssetUsesRateHint { get; }
+    string? AssetClassHint { get; }
+    IReadOnlyList<Services.AssetTypeOption> AssetTypeOptions { get; }
     string ModalNotes { get; set; }
 
     string SubtotalFormatted { get; }
@@ -90,6 +98,7 @@ public interface ITransactionModalsViewModel
     string FilterStatus { get; set; }
     CounterpartyOption? FilterSelectedCounterparty { get; set; }
     CategoryOption? FilterSelectedCategory { get; set; }
+    ProductOption? FilterSelectedProduct { get; set; }
     DateTimeOffset? FilterDateFrom { get; set; }
     DateTimeOffset? FilterDateTo { get; set; }
     string? FilterAmountMin { get; set; }

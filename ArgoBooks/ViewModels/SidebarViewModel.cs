@@ -159,6 +159,7 @@ public partial class SidebarViewModel : ViewModelBase
         ExpenseItems.Add(CreateItem("Expense categories", "ExpenseCategories", Icons.Categories));
         ExpenseItems.Add(CreateItem("Expense products", "ExpenseProducts", Icons.Products));
         ExpenseItems.Add(CreateItem("Suppliers", "Suppliers", Icons.Suppliers));
+        ExpenseItems.Add(CreateItem("Assets", "Assets", Icons.Assets));
 
         // Revenue Section
         RevenueItems.Add(CreateItem("Revenue", "Revenue", Icons.Revenue));

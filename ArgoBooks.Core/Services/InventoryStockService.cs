@@ -510,6 +510,13 @@ public static class InventoryStockService
         SetUnitCost(data, item, product.CostPrice, CompanyCurrency(data), date, null);
 
     /// <summary>
+    /// Sets a stock record's unit cost from a cost in the company's currency at <paramref name="date"/>'s
+    /// rate, or leaves it pending until that rate can be had (docs/Calculations.md §14).
+    /// </summary>
+    public static void SetCostInCompanyCurrency(CompanyData data, InventoryItem item, decimal unitCost, DateTime date) =>
+        SetUnitCost(data, item, unitCost, CompanyCurrency(data), date, null);
+
+    /// <summary>
     /// A new stock record for <paramref name="product"/>, added to the company, starting at the
     /// product's cost price as of <paramref name="costDate"/>.
     /// </summary>

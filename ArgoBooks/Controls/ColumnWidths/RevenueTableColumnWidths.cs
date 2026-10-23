@@ -12,6 +12,9 @@ public partial class RevenueTableColumnWidths : TableColumnWidthsBase
     private double _idColumnWidth = 80;
 
     [ObservableProperty]
+    private double _selectColumnWidth = TableColumnWidths.SelectWidth;
+
+    [ObservableProperty]
     private double _customerColumnWidth = 150;
 
     [ObservableProperty]
@@ -52,8 +55,10 @@ public partial class RevenueTableColumnWidths : TableColumnWidthsBase
 
     public RevenueTableColumnWidths()
     {
-        ColumnOrder = ["Id", "Customer", "Product", "Date", "Quantity", "Amount", "Tax", "Shipping", "Discount", "Total", "Receipt", "Status", "Invoice", "Actions"];
+        ColumnOrder = ["Select", "Id", "Customer", "Product", "Date", "Quantity", "Amount", "Tax", "Shipping", "Discount", "Total", "Receipt", "Status", "Invoice", "Actions"];
 
+        // Shown only in select mode, as a column of its own so the others shrink to make room for the checkboxes.
+        RegisterColumn("Select", new ColumnDef { IsFixed = true, FixedWidth = TableColumnWidths.SelectWidth, MinWidth = TableColumnWidths.SelectWidth, IsVisible = false }, w => SelectColumnWidth = w);
         RegisterColumn("Id", new ColumnDef { StarValue = 0.8, MinWidth = 60, PreferredWidth = 80 }, w => IdColumnWidth = w);
         RegisterColumn("Customer", new ColumnDef { StarValue = 1.2, MinWidth = 100, PreferredWidth = 150 }, w => CustomerColumnWidth = w);
         RegisterColumn("Product", new ColumnDef { StarValue = 1.5, MinWidth = 120, PreferredWidth = 180 }, w => ProductColumnWidth = w);

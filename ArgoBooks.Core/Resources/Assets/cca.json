@@ -1,0 +1,109 @@
+{
+  "revision": 1,
+  "reviewedOn": "2026-10-20",
+  "classes": [
+    {
+      "number": "1",
+      "description": "Buildings bought after 1987, with their wiring, plumbing, heating and elevators",
+      "rates": [ { "percent": 4 } ]
+    },
+    {
+      "number": "6",
+      "description": "Frame, log, stucco-on-frame and metal buildings with no footings below ground, or used for farming or fishing",
+      "assetType": "Building",
+      "label": "Frame or metal building",
+      "rates": [ { "percent": 10 } ]
+    },
+    {
+      "number": "8",
+      "description": "Furniture, appliances and equipment not in another class",
+      "rates": [ { "percent": 20 } ]
+    },
+    {
+      "number": "10",
+      "description": "Vans, trucks and other motor vehicles, and passenger vehicles up to the class 10.1 limit",
+      "rates": [ { "percent": 30 } ]
+    },
+    {
+      "number": "10.1",
+      "description": "Passenger vehicles costing more than CRA's limit",
+      "assetType": "Vehicle",
+      "label": "Passenger vehicle over CRA's limit",
+      "rates": [ { "percent": 30 } ]
+    },
+    {
+      "number": "12",
+      "description": "Tools, kitchen utensils and medical or dental instruments costing less than $500 each",
+      "assetType": "Equipment",
+      "label": "Small tool under $500",
+      "rates": [ { "percent": 100 } ]
+    },
+    {
+      "number": "50",
+      "description": "Computers and the system software bought with them",
+      "rates": [ { "percent": 55 } ]
+    }
+  ],
+  "firstYearRules": [
+    {
+      "name": "Half-year rule",
+      "factor": 0.5,
+      "to": "2018-11-20"
+    },
+    {
+      "name": "Accelerated Investment Incentive",
+      "factor": 1.5,
+      "from": "2018-11-21",
+      "to": "2023-12-31"
+    },
+    {
+      "name": "Accelerated Investment Incentive, phase-out",
+      "factor": 1.0,
+      "from": "2024-01-01",
+      "to": "2024-12-31"
+    },
+    {
+      "name": "Reaccelerated Investment Incentive (Budget 2025)",
+      "factor": 1.5,
+      "from": "2025-01-01",
+      "to": "2029-12-31"
+    },
+    {
+      "name": "Reaccelerated Investment Incentive, phase-out",
+      "factor": 1.0,
+      "from": "2030-01-01",
+      "to": "2033-12-31"
+    },
+    {
+      "name": "Half-year rule",
+      "factor": 0.5,
+      "from": "2034-01-01"
+    },
+    {
+      "name": "Small tools and utensils are not subject to the half-year rule",
+      "factor": 1.0,
+      "classes": [ "12" ]
+    },
+    {
+      "name": "Immediate expensing for productivity-enhancing assets (Budget 2024)",
+      "factor": 1.8182,
+      "from": "2024-04-16",
+      "to": "2026-12-31",
+      "classes": [ "50" ]
+    }
+  ],
+  "typeDefaults": {
+    "Building": "1",
+    "Vehicle": "10",
+    "Equipment": "8",
+    "FurnitureAndFixtures": "8",
+    "ComputerEquipment": "50",
+    "Other": "8"
+  },
+  "sources": [
+    "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/claiming-capital-cost-allowance/classes-depreciable-property.html",
+    "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/claiming-capital-cost-allowance/accelerated-investment-incentive.html",
+    "https://www.canada.ca/en/department-finance/services/publications/federal-tax-expenditures/2026/part-4.html",
+    "https://www.parl.ca/legisinfo/en/bill/45-1/c-15"
+  ]
+}

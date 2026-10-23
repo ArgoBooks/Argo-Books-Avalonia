@@ -460,6 +460,9 @@ public class FileService(
         var employeesTask         = ReadJsonAsync<List<Models.Payroll.Employee>>(tempDirectory, "employees.json", cancellationToken);
         var payRunsTask           = ReadJsonAsync<List<Models.Payroll.PayRun>>(tempDirectory, "payRuns.json", cancellationToken);
 
+        // Absent from every file written before assets shipped, which ReadJsonAsync handles by returning null.
+        var assetsTask            = ReadJsonAsync<List<Models.Assets.FixedAsset>>(tempDirectory, "assets.json", cancellationToken);
+
         // Mobile sync. Absent from every file written before they were persisted, which
         // ReadJsonAsync handles by returning null.
         var pairedDevicesTask     = ReadJsonAsync<List<Models.Tracking.PairedDevice>>(tempDirectory, "pairedDevices.json", cancellationToken);
@@ -476,7 +479,7 @@ public class FileService(
             rentalInventoryTask, rentalsTask, returnsTask, lostDamagedTask, receiptsTask,
             invoiceTemplatesTask, eventLogTask, pendingConversionsTask,
             forecastRecordsTask, bankImportSessionsTask,
-            employeesTask, payRunsTask,
+            employeesTask, payRunsTask, assetsTask,
             pairedDevicesTask, ingestedScanUidsTask
         ];
 
@@ -528,6 +531,7 @@ public class FileService(
             BankImportSessions = bankImportSessionsTask.Result ?? [],
             Employees = employeesTask.Result ?? [],
             PayRuns = payRunsTask.Result ?? [],
+            Assets = assetsTask.Result ?? [],
             PairedDevices = pairedDevicesTask.Result ?? [],
             IngestedScanUids = ingestedScanUidsTask.Result ?? []
         };
@@ -596,6 +600,7 @@ public class FileService(
         Add("bankImportSessions.json", data.BankImportSessions);
         Add("employees.json", data.Employees);
         Add("payRuns.json", data.PayRuns);
+        Add("assets.json", data.Assets);
         Add("pairedDevices.json", data.PairedDevices);
         Add("ingestedScanUids.json", data.IngestedScanUids);
 

@@ -10,7 +10,7 @@ namespace ArgoBooks.Utilities;
 /// among everything else already there is the behaviour this exists to prevent.
 ///
 /// A single file is written straight into the chosen folder: wrapping one PDF in a folder is
-/// just an extra click on the way to it.
+/// just an extra click on the way to it. Callers give that file an unused name with <see cref="UnusedPath"/>.
 /// </summary>
 public static class ExportFolderHelper
 {
@@ -27,9 +27,8 @@ public static class ExportFolderHelper
             return chosen;
         }
 
-        // Re-exporting the same run lands in the same folder and overwrites, which is what
-        // someone correcting a mistake expects. Matches the receipts bulk export.
-        string path = Path.Combine(chosen, SafeFileName.Create(folderName, "export", replaceSpaces: true));
+        // Exporting the same run again gets a folder of its own, so the files from the first export, such as slips already filed, are kept.
+        string path = UnusedPath.ForFolder(Path.Combine(chosen, SafeFileName.Create(folderName, "export", replaceSpaces: true)));
         Directory.CreateDirectory(path);
         return path;
     }

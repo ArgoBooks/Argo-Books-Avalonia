@@ -269,7 +269,6 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
                 RememberAccountant();
                 StatusMessage = "Saved {0}.".TranslateFormat(Path.GetFileName(path));
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.AccountantPackSent, "zip");
-                ShowInFolder(path);
             }
             finally
             {
@@ -488,18 +487,6 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             App.ErrorLogger?.LogWarning($"Could not delete accountant pack staging folder: {ex.Message}", "SendToAccountant");
-        }
-    }
-
-    private static void ShowInFolder(string path)
-    {
-        try
-        {
-            Core.Platform.FileManager.ShowFile(path);
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogWarning($"Failed to open folder after saving accountant pack: {ex.Message}", "SendToAccountant");
         }
     }
 }

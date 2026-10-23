@@ -181,6 +181,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             // Contacts
             new QuickActionItem("Customers", "Manage customers", Icons.Customers, QuickActionType.Navigation, "Customers"),
             new QuickActionItem("Suppliers", "Manage suppliers", Icons.Suppliers, QuickActionType.Navigation, "Suppliers"),
+            new QuickActionItem("Assets", "Land, buildings, vehicles and equipment", Icons.Assets, QuickActionType.Navigation, "Assets"),
 
             // Inventory
             new QuickActionItem("Products", "Manage products and services", Icons.Products, QuickActionType.Navigation, "Products"),

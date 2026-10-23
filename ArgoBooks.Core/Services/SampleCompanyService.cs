@@ -112,29 +112,7 @@ public class SampleCompanyService
                 importOptions,
                 cancellationToken);
 
-            // The spreadsheet importer auto-creates Revenue records for paid invoices, but the XLSX Revenue sheet already contains all the financial data we need.
-            RemoveAutoCreatedInvoiceRevenues(context.CompanyData);
-
-            // Patch rental records with financial data from rental items
-            // (the XLSX may not include rate/deposit columns)
-            PatchRentalRecordFinancials(context.CompanyData);
-
-            // Link invoices to existing revenue records by customer + closest date.
-            LinkInvoicesToRevenues(context.CompanyData);
-
-            // Dated from the data's own max date rather than today, so TimeShiftSampleData moves these along with everything else.
-            var maxDate = FindMaxDate(context.CompanyData);
-            if (maxDate == DateTime.MinValue)
-                maxDate = DateTime.Today;
-            AddSampleActiveRentals(context.CompanyData, maxDate);
-
-            // After the rentals, and off the same reference date, so the pay dates land inside
-            // the window the rest of the sample already occupies.
-            AddSamplePayroll(context.CompanyData, maxDate);
-
-            // One quote per state, so the Quotes page shows what the feature does instead of an
-            // empty table to someone who opened the sample to look around.
-            AddSampleQuotes(context.CompanyData, maxDate);
+            CompleteImportedData(context.CompanyData);
 
             // Save company data to temp directory
             await _fileService.SaveCompanyDataAsync(companyDir, context.CompanyData, cancellationToken);
@@ -181,10 +159,41 @@ public class SampleCompanyService
         }
     }
 
+    /// <summary>Turns the imported workbook into the finished sample company, before it is saved.</summary>
+    internal static void CompleteImportedData(CompanyData data)
+    {
+        // The spreadsheet importer auto-creates Revenue records for paid invoices, but the XLSX Revenue sheet already contains all the financial data we need.
+        RemoveAutoCreatedInvoiceRevenues(data);
+        ConvertStockCostsToUsd(data);
+
+        // Patch rental records with financial data from rental items
+        // (the XLSX may not include rate/deposit columns)
+        PatchRentalRecordFinancials(data);
+
+        // Link invoices to existing revenue records by customer + closest date.
+        LinkInvoicesToRevenues(data);
+        MatchInvoicesToTheirSales(data);
+        RecordReturnRefunds(data);
+
+        // Dated from the data's own max date rather than today, so TimeShiftSampleData moves these along with everything else.
+        var maxDate = FindMaxDate(data);
+        if (maxDate == DateTime.MinValue)
+            maxDate = DateTime.Today;
+        AddSampleActiveRentals(data, maxDate);
+
+        // After the rentals, and off the same reference date, so the pay dates land inside
+        // the window the rest of the sample already occupies.
+        AddSamplePayroll(data, maxDate);
+
+        // One quote per state, so the Quotes page shows what the feature does instead of an
+        // empty table to someone who opened the sample to look around.
+        AddSampleQuotes(data, maxDate);
+    }
+
     /// <summary>
     /// Creates the sample company data with default settings.
     /// </summary>
-    private static CompanyData CreateSampleCompanyData()
+    internal static CompanyData CreateSampleCompanyData()
     {
         var companyData = new CompanyData();
 
@@ -196,7 +205,8 @@ public class SampleCompanyService
             Industry = "Technology",
             Email = "example@samplecompany.com",
             Phone = "+1 5551000000",
-            Country = "Canada"
+            Country = "Canada",
+            ProvinceState = "ON"
         };
 
         companyData.Settings.AppVersion = AppInfo.VersionNumber;
@@ -308,6 +318,16 @@ public class SampleCompanyService
     }
 
     /// <summary>
+    /// The sample sheet gives its stock costs in Canadian dollars, while a stock record keeps its cost
+    /// in USD, so each is converted at its record's date or waits for that rate.
+    /// </summary>
+    internal static void ConvertStockCostsToUsd(CompanyData data)
+    {
+        foreach (var item in data.Inventory)
+            InventoryStockService.SetCostInCompanyCurrency(data, item, item.UnitCost, item.LastUpdated);
+    }
+
+    /// <summary>
     /// Links finalized invoices to existing revenue records by matching customer + closest date.
     /// Does NOT create new revenue records: the Revenue sheet is the single source of truth.
     /// </summary>
@@ -341,6 +361,87 @@ public class SampleCompanyService
                 matchedRevenueIds.Add(matchingRevenue.Id);
             }
             // If no match found, skip, don't create duplicate revenues
+        }
+    }
+
+    /// <summary>
+    /// Makes each linked invoice bill exactly the sale it is linked to, on the invoice's date, since the
+    /// spreadsheet's invoices are far larger than its sales. Its payments keep the share of the invoice they
+    /// paid, so the cash the reports count matches the revenue, and the sale counts as collected only once the invoice is paid.
+    /// </summary>
+    internal static void MatchInvoicesToTheirSales(CompanyData data)
+    {
+        foreach (var invoice in data.Invoices)
+        {
+            var sale = data.Revenues.FirstOrDefault(r => r.InvoiceId == invoice.Id);
+            if (sale == null || invoice.Total <= 0)
+                continue;
+
+            var scale = sale.Total / invoice.Total;
+            var invoiceRate = invoice.TotalUSD / invoice.Total;
+            var paidInFull = invoice.IsPaidInFull;
+
+            invoice.LineItems = sale.LineItems.Select(li => new LineItem
+            {
+                ProductId = li.ProductId,
+                Description = li.Description,
+                Quantity = li.Quantity,
+                Unit = li.Unit,
+                UnitPrice = li.UnitPrice,
+                TaxRate = li.TaxRate,
+                Discount = li.Discount
+            }).ToList();
+            invoice.Subtotal = invoice.LineItems.Sum(li => li.Subtotal);
+            invoice.DiscountAmount = sale.Discount;
+            invoice.DiscountIsPercent = false;
+            invoice.CustomFeeAmount = sale.Fee;
+            invoice.CustomFeeIsPercent = false;
+            invoice.ShippingAmount = sale.ShippingCost;
+            invoice.SecurityDeposit = 0m;
+            invoice.TaxRate = sale.TaxRate;
+            invoice.TaxIsFixed = false;
+            invoice.TaxAmount = sale.TaxAmount;
+            invoice.Total = sale.Total;
+            invoice.TotalUSD = sale.Total * invoiceRate;
+            invoice.OriginalCurrency = sale.OriginalCurrency;
+
+            // An invoice's revenue is dated on its issue date, as the app dates the revenue it records for an invoice.
+            sale.Date = invoice.IssueDate;
+
+            var payments = data.Payments.Where(p => p.InvoiceId == invoice.Id).ToList();
+            foreach (var payment in payments)
+            {
+                var amount = Math.Round(payment.Amount * scale, 2, MidpointRounding.AwayFromZero);
+                payment.AmountUSD = payment.Amount == 0 ? 0m : payment.AmountUSD * amount / payment.Amount;
+                payment.Amount = amount;
+            }
+
+            // Rounding each payment can leave a cent over or under, which would turn a paid invoice into a part-paid one.
+            var lastPayment = payments.LastOrDefault(p => !p.IsRefund);
+            if (paidInFull && lastPayment != null)
+            {
+                var correction = invoice.Total - payments.Where(p => !p.IsRefund).Sum(p => p.Amount);
+                var corrected = lastPayment.Amount + correction;
+                lastPayment.AmountUSD = lastPayment.Amount == 0 ? 0m : lastPayment.AmountUSD * corrected / lastPayment.Amount;
+                lastPayment.Amount = corrected;
+            }
+
+            InvoiceTotalsService.Recalculate(invoice, data.Payments);
+            InvoiceTotalsService.SyncLinkedRevenueStatus(invoice, data.Revenues);
+        }
+    }
+
+    /// <summary>
+    /// Records the refund for each completed return in the sheet, as marking a sale or purchase returned
+    /// does, so the money paid back reaches the books. A return never refunds more than its sale's items and tax.
+    /// </summary>
+    internal static void RecordReturnRefunds(CompanyData data)
+    {
+        foreach (var returnRecord in data.Returns.Where(r => r.Status == ReturnStatus.Completed && string.IsNullOrEmpty(r.RefundRecordId)))
+        {
+            if (data.Revenues.FirstOrDefault(s => s.Id == returnRecord.OriginalTransactionId) is { } sale)
+                returnRecord.RefundAmount = Math.Min(returnRecord.RefundAmount, ReturnLossAmounts.RefundFor(sale, ReturnRefunds.SaleItems(sale)));
+            ReturnRefunds.Record(data, returnRecord);
         }
     }
 
@@ -737,6 +838,41 @@ public class SampleCompanyService
         return true;
     }
 
+    /// <summary>
+    /// Stores every USD amount again at the rate for its moved date. They were worked out at the
+    /// spreadsheet's dates, and the reports convert them back at the new ones, so without this a
+    /// $1,287.12 sale would show as another amount. A record whose rate is not held yet waits in
+    /// the conversion queue. Money tied to an invoice converts at the invoice's rate (Rule 4).
+    /// </summary>
+    public static void ConvertAtShiftedDates(CompanyData data)
+    {
+        foreach (var invoice in data.Invoices)
+            UsdConversion.Apply(data, invoice, UsdConversion.CachedRate(invoice.OriginalCurrency, invoice.IssueDate));
+
+        var invoices = data.Invoices.ToDictionary(i => i.Id);
+        foreach (var revenue in data.Revenues)
+        {
+            if (revenue.InvoiceId is { } invoiceId && invoices.TryGetValue(invoiceId, out var invoice))
+                UsdConversion.Apply(data, revenue, UsdConversion.InvoiceRate(invoice), invoice.IssueDate);
+            else
+                UsdConversion.Apply(data, revenue, UsdConversion.CachedRate(revenue.OriginalCurrency, revenue.Date));
+        }
+
+        foreach (var expense in data.Expenses)
+            UsdConversion.Apply(data, expense, UsdConversion.CachedRate(expense.OriginalCurrency, expense.Date));
+
+        foreach (var payment in data.Payments)
+        {
+            if (payment.Source == PaymentSource.Online && payment.InvoiceId is { } invoiceId && invoices.TryGetValue(invoiceId, out var invoice))
+                UsdConversion.Apply(data, payment, UsdConversion.InvoiceRate(invoice), invoice.IssueDate);
+            else
+                UsdConversion.Apply(data, payment, UsdConversion.CachedRate(payment.OriginalCurrency, payment.Date));
+        }
+
+        foreach (var order in data.PurchaseOrders)
+            UsdConversion.Apply(data, order, UsdConversion.CachedRate(order.OriginalCurrency, order.OrderDate));
+    }
+
     private static DateTime FindMaxDate(CompanyData data)
     {
         var dates = new List<DateTime>();
@@ -889,6 +1025,19 @@ public class SampleCompanyService
             employee.EndDate = ShiftNullable(employee.EndDate);
             employee.CreatedAt = Shift(employee.CreatedAt);
             employee.UpdatedAt = Shift(employee.UpdatedAt);
+        }
+
+        // A CRA first-year share depends on the purchase date, so a moved asset takes the one for its new date.
+        var ccaRates = CcaRateService.BuiltIn();
+        foreach (var asset in data.Assets)
+        {
+            asset.PurchaseDate = Shift(asset.PurchaseDate);
+            asset.DisposedDate = ShiftNullable(asset.DisposedDate);
+            asset.TrackedFrom = ShiftNullable(asset.TrackedFrom);
+            asset.CreatedAt = Shift(asset.CreatedAt);
+            asset.UpdatedAt = Shift(asset.UpdatedAt);
+            if (asset.FollowsCca && ccaRates != null)
+                asset.FirstYearFactor = ccaRates.FirstYearFactorOn(asset.CcaClass!, asset.PurchaseDate);
         }
 
         // The wage expenses these produced were shifted above, so the runs move by the same offset or a run and its expense land on different days.

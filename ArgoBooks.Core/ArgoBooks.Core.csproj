@@ -19,15 +19,12 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- CRA payroll rate tables, one file per edition. Embedded so a fresh install can
-             calculate offline; PayrollRateService prefers a newer copy from the cache
-             directory, so a rate change can be delivered without a release. -->
+        <!-- The CRA rate files are built in so a fresh install works offline, and the app uses a newer downloaded copy when it has one. -->
         <EmbeddedResource Include="Resources\Payroll\*.json" />
+        <EmbeddedResource Include="Resources\Assets\*.json" />
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Note: System.Text.Json and System.Formats.Tar are built into .NET 7+ -->
-
         <!-- MVVM -->
         <PackageReference Include="CommunityToolkit.Mvvm" />
 
@@ -57,12 +54,7 @@
         <!-- Ed25519, to check the signature on every update before it is installed -->
         <PackageReference Include="BouncyCastle.Cryptography" />
 
-        <!-- Not referenced by our code. EPPlus and NPOI both depend on
-             System.Security.Cryptography.Xml at a version carrying known high-severity
-             advisories, so this pins the resolved version forward to a patched one.
-             Must stay outside any TargetFramework condition, or the non-Windows target
-             silently falls back to the vulnerable version. Drop it once both packages
-             depend on a patched version themselves. -->
+        <!-- EPPlus and NPOI ask for a version with known high-severity advisories, so this pulls in a patched one for every target framework. -->
         <PackageReference Include="System.Security.Cryptography.Xml" />
     </ItemGroup>
 

@@ -96,6 +96,20 @@ public partial class SkiaReportDesignCanvas : UserControl
         return (0, 0); // In a gap between pages
     }
 
+    /// <summary>
+    /// The designed page under a canvas point, or null in the gap between pages. A page a long table spilled onto counts as the page the table is on.
+    /// </summary>
+    private int? DesignPageAt(Point canvasPoint)
+    {
+        var (shownPage, _) = GetPageAtCanvasY(canvasPoint.Y);
+        if (shownPage == 0)
+            return null;
+
+        return _continuationPlan != null && shownPage <= _continuationPlan.Pages.Count
+            ? _continuationPlan.Pages[shownPage - 1].SourcePageNumber
+            : shownPage;
+    }
+
     #endregion
 
     #region Styled Properties
@@ -217,6 +231,21 @@ public partial class SkiaReportDesignCanvas : UserControl
     private ReportElementBase? _rightClickedElement;
     private const double PanThreshold = 5; // Minimum pixels to move before panning starts
 
+    // Screen pixels the pointer has to travel before a press moves or resizes anything, so the slight shift of a click does not nudge the element.
+    private const double MoveThreshold = 3;
+    private bool _pastMoveThreshold;
+
+    /// <summary>Whether the pointer has travelled far enough from where the press started to count as moving.</summary>
+    private bool PastMoveThreshold(Point canvasPoint)
+    {
+        if (!_pastMoveThreshold)
+        {
+            var delta = canvasPoint - _interactionStartPoint;
+            _pastMoveThreshold = Math.Sqrt(delta.X * delta.X + delta.Y * delta.Y) * ZoomLevel >= MoveThreshold;
+        }
+        return _pastMoveThreshold;
+    }
+
     // Overscroll (rubber-band) state
     private LayoutTransformControl? _zoomTransformControl;
     private OverscrollHelper? _overscrollHelper;
@@ -248,6 +277,9 @@ public partial class SkiaReportDesignCanvas : UserControl
 
     public event EventHandler<SelectionChangedEventArgs>? SelectionChanged;
     public event EventHandler<ContextMenuRequestedEventArgs>? ContextMenuRequested;
+
+    /// <summary>Raised when a page is right-clicked away from any element.</summary>
+    public event EventHandler<PageContextMenuRequestedEventArgs>? PageContextMenuRequested;
 
     /// <summary>
     /// Notifies listeners about selection changes.
@@ -346,13 +378,26 @@ public partial class SkiaReportDesignCanvas : UserControl
         else if (change.Property == CurrentDesignerPageProperty)
         {
             // Scroll to the target page
-            ScrollToPage(CurrentDesignerPage);
+            ScrollToPageWhenDrawn(CurrentDesignerPage);
         }
     }
 
     #endregion
 
     #region Rendering
+
+    private int? _pendingScrollPage;
+
+    /// <summary>
+    /// Scrolls to <paramref name="pageNumber"/>, waiting for a redraw that is on its way, since a page just added is not part of the canvas until then.
+    /// </summary>
+    public void ScrollToPageWhenDrawn(int pageNumber)
+    {
+        if (_needsRender)
+            _pendingScrollPage = pageNumber;
+        else
+            ScrollToPage(pageNumber);
+    }
 
     /// <summary>
     /// Marks the canvas as needing a re-render.
@@ -506,6 +551,12 @@ public partial class SkiaReportDesignCanvas : UserControl
 
         // Convert SKBitmap to Avalonia Bitmap
         UpdateCanvasImage(baseWidth, totalHeight);
+
+        if (_pendingScrollPage is { } scrollPage)
+        {
+            _pendingScrollPage = null;
+            ScrollToPage(scrollPage);
+        }
     }
 
     /// <summary>
@@ -922,11 +973,10 @@ public partial class SkiaReportDesignCanvas : UserControl
             }
         }
 
-        _canvasImage.Source = writeableBitmap;
-
-        // Set display size to base dimensions (zoom transform will scale it)
+        // Sized first, so a taller canvas, such as one with a page just added, is never drawn squeezed into the old height for a frame.
         _canvasImage.Width = displayWidth;
         _canvasImage.Height = displayHeight;
+        _canvasImage.Source = writeableBitmap;
     }
 
     #endregion
@@ -1429,10 +1479,13 @@ public partial class SkiaReportDesignCanvas : UserControl
             e.Pointer.Capture(null);
             FinishActiveInteraction();
 
-            if (!wasPanning && rightClickedElement != null)
+            if (!wasPanning)
             {
                 var screenPoint = e.GetPosition(this);
-                ContextMenuRequested?.Invoke(this, new ContextMenuRequestedEventArgs(screenPoint.X, screenPoint.Y, rightClickedElement));
+                if (rightClickedElement != null)
+                    ContextMenuRequested?.Invoke(this, new ContextMenuRequestedEventArgs(screenPoint.X, screenPoint.Y, rightClickedElement));
+                else if (DesignPageAt(_interactionStartPoint) is { } page)
+                    PageContextMenuRequested?.Invoke(this, new PageContextMenuRequestedEventArgs(screenPoint.X, screenPoint.Y, page));
             }
 
             e.Handled = true;
@@ -1523,6 +1576,7 @@ public partial class SkiaReportDesignCanvas : UserControl
     {
         _interactionMode = InteractionMode.Dragging;
         _interactionStartPoint = point;
+        _pastMoveThreshold = false;
 
         // Suppress property change undo recording during drag - EndDrag records the final action
         if (UndoRedoManager != null)
@@ -1540,6 +1594,8 @@ public partial class SkiaReportDesignCanvas : UserControl
 
     private void HandleDrag(Point canvasPoint)
     {
+        if (!PastMoveThreshold(canvasPoint)) return;
+
         var delta = canvasPoint - _interactionStartPoint;
         var (cLeft, cTop, cRight, cBottom) = GetContentBounds();
         var pageCount = GetPageCount();
@@ -1675,6 +1731,7 @@ public partial class SkiaReportDesignCanvas : UserControl
         _interactionMode = InteractionMode.Resizing;
         _activeResizeHandle = handle;
         _interactionStartPoint = point;
+        _pastMoveThreshold = false;
         _elementStartPosition = new Point(element.X, element.Y);
         _elementStartSize = new Size(element.Width, element.Height);
 
@@ -1689,7 +1746,7 @@ public partial class SkiaReportDesignCanvas : UserControl
 
     private void HandleResize(Point point)
     {
-        if (_selectedElements.Count != 1) return;
+        if (_selectedElements.Count != 1 || !PastMoveThreshold(point)) return;
 
         var element = _selectedElements[0];
         var delta = point - _interactionStartPoint;
@@ -2206,11 +2263,14 @@ public partial class SkiaReportDesignCanvas : UserControl
         // Account for margins - the LayoutTransformControl has 10px margin on each side (20px total)
         viewportWidth -= 20;
 
+        // Layout rounds the scaled page up to a whole pixel, so a zoom that fills the width exactly would leave a horizontal scroll bar that moves a pixel.
+        viewportWidth -= 2;
+
         if (viewportWidth <= 0) return;
 
         var (pageWidth, _) = GetPageDimensions();
 
-        ZoomLevel = Math.Clamp(viewportWidth / pageWidth, MinZoom, MaxZoom);
+        ZoomLevel = Math.Clamp(Math.Floor(viewportWidth / pageWidth * 1000) / 1000, MinZoom, MaxZoom);
 
         // Scroll to top after fitting
         Dispatcher.UIThread.Post(() =>
@@ -2239,6 +2299,8 @@ public partial class SkiaReportDesignCanvas : UserControl
         Dispatcher.UIThread.Post(() =>
         {
             if (_scrollViewer == null) return;
+            // The canvas may have just grown, and its new height is only in the scroll range once laid out.
+            _scrollViewer.UpdateLayout();
             var maxY = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
             _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, Math.Clamp(scrollY, 0, maxY));
             _isScrollingToPage = false;
@@ -2391,4 +2453,14 @@ public class ContextMenuRequestedEventArgs(double x, double y, ReportElementBase
     public double X { get; } = x;
     public double Y { get; } = y;
     public ReportElementBase Element { get; } = element;
+}
+
+/// <summary>
+/// Event args for when the menu for a page is requested.
+/// </summary>
+public class PageContextMenuRequestedEventArgs(double x, double y, int pageNumber) : EventArgs
+{
+    public double X { get; } = x;
+    public double Y { get; } = y;
+    public int PageNumber { get; } = pageNumber;
 }

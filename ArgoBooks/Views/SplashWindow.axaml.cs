@@ -18,5 +18,6 @@ public partial class SplashWindow : Window
     public SplashWindow()
     {
         InitializeComponent();
+        Utilities.AppWindowIcon.Apply(this);
     }
 }

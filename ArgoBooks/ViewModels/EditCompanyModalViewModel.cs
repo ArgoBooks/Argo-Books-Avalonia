@@ -200,7 +200,11 @@ public partial class EditCompanyModalViewModel : ViewModelBase
     /// <summary>
     /// Whether the form is valid for saving.
     /// </summary>
-    public bool CanSave => !string.IsNullOrWhiteSpace(CompanyName) && !string.IsNullOrWhiteSpace(Country);
+    public bool CanSave => !string.IsNullOrWhiteSpace(CompanyName) && !string.IsNullOrWhiteSpace(Country)
+                           && (!IsProvinceRequired || !string.IsNullOrWhiteSpace(ProvinceState));
+
+    /// <summary>Whether the country needs a province, which decides how much of the tax on purchases is claimed back.</summary>
+    public bool IsProvinceRequired => PurchaseTax.NeedsProvince(Country);
 
     /// <summary>
     /// Default constructor.
@@ -772,12 +776,17 @@ public partial class EditCompanyModalViewModel : ViewModelBase
     partial void OnSelectedPhoneCountryChanged(CountryDialCode? value) => OnPropertyChanged(nameof(HasChanges));
     partial void OnCountryChanged(string? value)
     {
+        OnPropertyChanged(nameof(IsProvinceRequired));
         OnPropertyChanged(nameof(CanSave));
         OnPropertyChanged(nameof(HasChanges));
     }
     partial void OnCityChanged(string? value) => OnPropertyChanged(nameof(HasChanges));
     partial void OnAddressChanged(string? value) => OnPropertyChanged(nameof(HasChanges));
-    partial void OnProvinceStateChanged(string? value) => OnPropertyChanged(nameof(HasChanges));
+    partial void OnProvinceStateChanged(string? value)
+    {
+        OnPropertyChanged(nameof(CanSave));
+        OnPropertyChanged(nameof(HasChanges));
+    }
     partial void OnEmailChanged(string value) => OnPropertyChanged(nameof(HasChanges));
     partial void OnSelectedCurrencyChanged(string value) => OnPropertyChanged(nameof(HasChanges));
     partial void OnIsSavingCurrencyChanged(bool value) => OnPropertyChanged(nameof(ShowCurrencyLoading));

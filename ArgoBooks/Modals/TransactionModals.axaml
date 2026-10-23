@@ -8,6 +8,7 @@
              xmlns:local="using:ArgoBooks.Converters"
              xmlns:icons="using:ArgoBooks"
              xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:services="using:ArgoBooks.Services"
              mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
              x:Class="ArgoBooks.Modals.TransactionModals"
              x:DataType="vm:ITransactionModalsViewModel">
@@ -415,6 +416,58 @@
                                       FontSize="13"
                                       Margin="0,4,0,0" />
 
+                            <!-- Asset (expense) -->
+                            <StackPanel Spacing="12" IsVisible="{Binding !IsRevenue}">
+                                <CheckBox IsChecked="{Binding ModalIsAsset}"
+                                          Content="{loc:Loc 'This is an asset I','ll keep for years (depreciate it)'}"
+                                          FontSize="13" />
+                                <Border BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="16"
+                                        IsVisible="{Binding ModalIsAsset}">
+                                    <StackPanel Spacing="10">
+                                        <Grid ColumnDefinitions="*,16,*">
+                                            <StackPanel Grid.Column="0" Spacing="6">
+                                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Text="{loc:Loc 'Type'}" />
+                                                <ComboBox ItemsSource="{Binding AssetTypeOptions}"
+                                                          SelectedItem="{Binding ModalAssetType}"
+                                                          Classes="form-combobox"
+                                                          HorizontalAlignment="Stretch">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="services:AssetTypeOption">
+                                                            <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding ShowAssetUsefulLife}">
+                                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Text="{loc:Loc 'Useful life (years)'}" />
+                                                <TextBox Text="{Binding ModalAssetUsefulLife, Mode=TwoWay, Converter={x:Static local:OptionalDecimalConverter.Instance}, ConverterParameter=0.##}"
+                                                         Classes="form-input"
+                                                         PlaceholderText="{loc:Loc 'e.g. 5'}"
+                                                         behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                         MaxLength="5" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   Text="{Binding AssetClassHint}"
+                                                   IsVisible="{Binding AssetClassHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   IsVisible="{Binding ShowAssetUsefulLife}"
+                                                   Text="{loc:Loc 'Use the lifetime your accountant gives you. You can change the method and see the schedule on the Assets page.'}" />
+                                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   IsVisible="{Binding ShowAssetUsesRateHint}"
+                                                   Text="{loc:Loc 'It depreciates by a yearly rate. You can change it and see the schedule on the Assets page.'}" />
+                                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   IsVisible="{Binding ModalAssetIsLand}"
+                                                   Text="{loc:Loc 'Land doesn','t depreciate. It stays on your books at what you paid.'}" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
                             <!-- Notes -->
                             <StackPanel Spacing="6">
                                 <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
@@ -590,6 +643,17 @@
                                                             SelectedItem="{Binding FilterSelectedCategory}"
                                                             DisplayMemberPath="Name"
                                                             Placeholder="{loc:Loc 'Select category...'}"
+                                                            ShowAddNew="False" />
+                            </StackPanel>
+
+                            <!-- Product -->
+                            <StackPanel Spacing="6">
+                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                           Text="{loc:Loc 'Product'}" />
+                                <controls:SearchableDropdown ItemsSource="{Binding ProductOptions}"
+                                                            SelectedItem="{Binding FilterSelectedProduct}"
+                                                            DisplayMemberPath="Name"
+                                                            Placeholder="{loc:Loc 'Select product...'}"
                                                             ShowAddNew="False" />
                             </StackPanel>
 

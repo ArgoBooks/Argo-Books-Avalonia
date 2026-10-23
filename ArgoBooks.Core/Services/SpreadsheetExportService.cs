@@ -300,6 +300,7 @@ public class SpreadsheetExportService
             "Purchase Order Line Items" => GetPurchaseOrderLineItemsData(data, startDate, endDate),
             "Employees" => GetEmployeesData(data),
             "Pay Runs" => GetPayRunsData(data, startDate, endDate),
+            "Assets" => GetAssetsData(data),
             _ => ([], [])
         };
     }
@@ -742,6 +743,45 @@ public class SpreadsheetExportService
     /// staff, which is what the rest of this export is too, but it is the most sensitive column
     /// the app writes and worth knowing is there before mailing a workbook to anyone.
     /// </summary>
+    /// <summary>Every fixed asset, with its depreciation to date and book value as of today, which an import works out again rather than reads.</summary>
+    private static (string[] Headers, List<object[]> Rows) GetAssetsData(CompanyData data)
+    {
+        var today = DateTime.Today;
+        var headers = new[]
+        {
+            "ID", "Name", "Type", "Purchase Date", "Cost", "Currency", "Expense ID", "Method", "Useful Life (Years)",
+            "Rate %", "CRA Class", "First-Year Factor", "Value at End", "Prior Depreciation", "Tracked From",
+            "Depreciation to Date", "Book Value", "Disposed Date", "Disposal", "Sale Price", "Notes"
+        };
+
+        var rows = data.Assets.Select(a => new object[]
+        {
+            a.Id,
+            a.Name,
+            a.Type.ToString(),
+            a.PurchaseDate,
+            a.Cost,
+            a.Currency,
+            a.ExpenseId ?? "",
+            a.Method.ToString(),
+            a.UsefulLifeYears.HasValue ? (object)a.UsefulLifeYears.Value : "",
+            a.RatePercent.HasValue ? (object)a.RatePercent.Value : "",
+            a.CcaClass ?? "",
+            a.FirstYearFactor.HasValue ? (object)a.FirstYearFactor.Value : "",
+            a.EndValue,
+            a.PriorDepreciation,
+            a.TrackedFrom ?? DateTime.MinValue,
+            a.IsDisposed ? a.Cost - AssetDepreciation.BookValueAtDisposal(a) : AssetDepreciation.AccumulatedAsOf(a, today),
+            a.IsDisposed ? "" : (object)AssetDepreciation.BookValueAsOf(a, today),
+            a.DisposedDate ?? DateTime.MinValue,
+            a.DisposalKind?.ToString() ?? "",
+            a.SalePrice,
+            a.Notes
+        }).ToList();
+
+        return (headers, rows);
+    }
+
     private (string[] Headers, List<object[]> Rows) GetEmployeesData(CompanyData data)
     {
         var (stateLabel, _, postalLabel, _) = ImportSchemaDefinition.GetAddressLabels(_country);

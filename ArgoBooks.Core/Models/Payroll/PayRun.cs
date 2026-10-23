@@ -56,6 +56,14 @@ public class PayRun : IRecord
     [JsonPropertyName("approvedAt")]
     public DateTime? ApprovedAt { get; set; }
 
+    /// <summary>The expense that paid this run's remittance to CRA, once it has been recorded.</summary>
+    [JsonPropertyName("craRemittanceExpenseId")]
+    public string? CraRemittanceExpenseId { get; set; }
+
+    /// <summary>The expense that paid this run's remittance to Revenu Quebec, once it has been recorded.</summary>
+    [JsonPropertyName("quebecRemittanceExpenseId")]
+    public string? QuebecRemittanceExpenseId { get; set; }
+
     /// <summary>What leaves the bank: the sum of every employee's net pay.</summary>
     public decimal TotalNetPay => Lines.Sum(l => l.NetPay);
 

@@ -52,6 +52,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Utilities.AppWindowIcon.Apply(this);
 
         // Count input for the session's active time. Tunnelling, so a click or key press still registers when a child control handles it and the event never bubbles back up here.
         AddHandler(KeyDownEvent, OnAnyInput, RoutingStrategies.Tunnel);

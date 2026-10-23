@@ -3,6 +3,7 @@ using ArgoBooks.Core;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using Avalonia.Media.Imaging;
@@ -63,12 +64,24 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Icons.DocumentStackAdd, AppColors.ReportSlate, AppColors.FlatSlateLight),
         new(ReportTemplateFactory.TemplateNames.ARaging, "AR Aging", "Who owes you and for how long",
             Icons.DollarCircleAlt, AppColors.FlatTeal, AppColors.FlatTealLight),
+        new(ReportTemplateFactory.TemplateNames.CustomerStatement, "Customer Statement", "What one customer owes you",
+            Icons.Receipts, AppColors.Violet, AppColors.VioletLight),
+        new(ReportTemplateFactory.TemplateNames.SalesByCustomer, "Sales by Customer", "How much each customer bought",
+            Icons.Customers, AppColors.Emerald, AppColors.EmeraldLight),
+        new(ReportTemplateFactory.TemplateNames.ExpensesBySupplier, "Expenses by Supplier", "How much you spent with each supplier",
+            Icons.Suppliers, AppColors.Pink, AppColors.PinkLight),
         new(ReportTemplateFactory.TemplateNames.TaxSummary, "Tax Summary", "Tax you collected vs. tax you paid",
             Icons.Bank, AppColors.FlatOrange, AppColors.FlatOrangeLight),
         new(ReportTemplateFactory.TemplateNames.ProductSales, "Sales by Product", "Units and revenue per product",
             Icons.Products, AppColors.FlatIndigo, AppColors.FlatIndigoLight),
         new(ReportTemplateFactory.TemplateNames.PayrollRemittance, "Payroll Remittance", "What you owe CRA for your payroll",
-            Icons.Bank, AppColors.MdBrown, AppColors.MdBrownLight)
+            Icons.Bank, AppColors.MdBrown, AppColors.MdBrownLight),
+        new(ReportTemplateFactory.TemplateNames.PayrollSummary, "Payroll Summary", "What each employee was paid",
+            Icons.Person, AppColors.Primary, AppColors.PrimaryLight),
+        new(ReportTemplateFactory.TemplateNames.Rentals, "Rentals", "What is rented out and what it earned",
+            Icons.RentalRecords, AppColors.MdCyan, AppColors.MdCyanLight),
+        new(ReportTemplateFactory.TemplateNames.AssetRegister, "Asset Register", "What your assets cost and are worth now",
+            Icons.Assets, AppColors.FlatTeal, AppColors.FlatTealLight)
     ];
 
     #endregion
@@ -212,6 +225,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             if (CurrentStep == 1)
             {
+                if (IsTemplatesTabSelected && IsCustomerStatement && SelectedStatementCustomer == null)
+                {
+                    HasStatementCustomerError = true;
+                    return;
+                }
+
                 Step1Completed = true;
                 ApplyFiltersToConfiguration();
             }
@@ -326,9 +345,78 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     // Chart categories for grouped display
     public ObservableCollection<ChartCategoryGroup> ChartCategories { get; } = [];
 
+    /// <summary>Whether the chosen template is the Customer Statement, which asks for a customer.</summary>
+    public bool IsCustomerStatement => SelectedTemplateName == ReportTemplateFactory.TemplateNames.CustomerStatement;
+
+    public ObservableCollection<CustomerOption> StatementCustomerOptions { get; } = [];
+
+    [ObservableProperty]
+    private CustomerOption? _selectedStatementCustomer;
+
+    [ObservableProperty]
+    private bool _hasStatementCustomerError;
+
+    public string StatementCustomerErrorMessage => "Please select a customer.".Translate();
+
+    partial void OnSelectedStatementCustomerChanged(CustomerOption? value)
+    {
+        if (value != null)
+            HasStatementCustomerError = false;
+    }
+
+    [ObservableProperty]
+    private bool _showStatementActivity;
+
+    partial void OnShowStatementActivityChanged(bool value)
+    {
+        if (!IsCustomerStatement)
+            return;
+
+        IsDateRangeEnabled = value;
+        if (value && !DatePresets.Any(o => o.IsSelected))
+            SelectDatePreset(DatePresets.FirstOrDefault(o => o.Name == DatePresetNames.LastMonth));
+    }
+
+    private void LoadStatementCustomers()
+    {
+        var selectedId = SelectedStatementCustomer?.Id;
+        OptionLoader.Fill(StatementCustomerOptions,
+            OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>());
+        SelectedStatementCustomer = StatementCustomerOptions.FirstOrDefault(c => c.Id == selectedId);
+    }
+
+    /// <summary>Whether the chosen template is Sales by Customer, which can narrow to one customer's sales.</summary>
+    public bool IsSalesByCustomer => SelectedTemplateName == ReportTemplateFactory.TemplateNames.SalesByCustomer;
+
+    public ObservableCollection<CustomerOption> SalesCustomerOptions { get; } = [];
+
+    [ObservableProperty]
+    private CustomerOption? _selectedSalesCustomer;
+
+    private void LoadSalesCustomers()
+    {
+        var selectedId = SelectedSalesCustomer?.Id;
+        OptionLoader.Fill(SalesCustomerOptions,
+            OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>(),
+            new CustomerOption { Name = "All Customers" });
+        SelectedSalesCustomer = SalesCustomerOptions.FirstOrDefault(c => c.Id == selectedId) ?? SalesCustomerOptions[0];
+    }
+
     partial void OnSelectedTemplateNameChanged(string value)
     {
-        IsDateRangeEnabled = value != ReportTemplateFactory.TemplateNames.BalanceSheet;
+        IsDateRangeEnabled = value switch
+        {
+            ReportTemplateFactory.TemplateNames.BalanceSheet => false,
+            ReportTemplateFactory.TemplateNames.CustomerStatement => ShowStatementActivity,
+            _ => true
+        };
+        OnPropertyChanged(nameof(IsCustomerStatement));
+        HasStatementCustomerError = false;
+        if (IsCustomerStatement)
+            LoadStatementCustomers();
+        OnPropertyChanged(nameof(IsSalesByCustomer));
+        if (IsSalesByCustomer)
+            LoadSalesCustomers();
         LoadTemplate(value);
 
         // Clear radio button selection for point-in-time reports where date range is disabled
@@ -592,13 +680,16 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// Whether the selected accounting table's report type produces section header rows.
     /// </summary>
     public bool ShowSectionHeaderColors => SelectedAccountingTableElement.ReportType
-        is not AccountingReportType.AccountsReceivableAging;
+        is not (AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement
+            or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary);
 
     /// <summary>
     /// Whether the selected accounting table's report type produces total/grand total rows.
     /// </summary>
     public bool ShowTotalColors => SelectedAccountingTableElement.ReportType
-        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging;
+        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement
+            or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary
+            or AccountingReportType.Rentals or AccountingReportType.AssetRegister;
 
     /// <summary>
     /// Gets or sets the selected chart style as a ChartStyleOption for the ComboBox binding.
@@ -725,21 +816,29 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     public bool CanDeletePage => Configuration.PageCount > 1;
 
     [RelayCommand]
-    private void AddPage()
+    private void AddPage() => InsertPage(Configuration.PageCount + 1);
+
+    /// <summary>Adds a blank page as page <paramref name="newPageNumber"/>, moving the pages from there on down one.</summary>
+    private void InsertPage(int newPageNumber)
     {
-        UndoRedoManager.RecordAction(new AddPageAction(Configuration));
-        Configuration.PageCount++;
-        CurrentDesignerPage = Configuration.PageCount;
+        var action = new AddPageAction(Configuration, newPageNumber);
+        UndoRedoManager.RecordAction(action);
+        action.Redo();
         OnPropertyChanged(nameof(CanDeletePage));
+
+        // The redraw is asked for first, so the canvas waits for the new page to exist before scrolling to it.
         CanvasRefreshRequested?.Invoke(this, EventArgs.Empty);
+        CurrentDesignerPage = newPageNumber;
+        PageScrollRequested?.Invoke(this, newPageNumber);
     }
 
-    [RelayCommand]
-    private void DeletePage()
+    /// <summary>Raised to bring a page into view, such as one just added.</summary>
+    public event EventHandler<int>? PageScrollRequested;
+
+    private void DeletePage(int pageToDelete)
     {
         if (Configuration.PageCount <= 1) return;
 
-        var pageToDelete = CurrentDesignerPage;
         var elementsOnPage = Configuration.Elements
             .Where(e => e.PageNumber == pageToDelete).ToList();
 
@@ -768,6 +867,43 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         SelectedElement = null;
         OnPropertyChanged(nameof(CanDeletePage));
         CanvasRefreshRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [ObservableProperty]
+    private bool _isPageContextMenuOpen;
+
+    [ObservableProperty]
+    private double _pageContextMenuX;
+
+    [ObservableProperty]
+    private double _pageContextMenuY;
+
+    private int _pageContextMenuPage;
+
+    /// <summary>Opens the page menu for <paramref name="pageNumber"/>, the page that was right-clicked.</summary>
+    public void ShowPageContextMenu(double x, double y, int pageNumber)
+    {
+        _pageContextMenuPage = pageNumber;
+        PageContextMenuX = x;
+        PageContextMenuY = y;
+        IsPageContextMenuOpen = true;
+    }
+
+    [RelayCommand]
+    private void HidePageContextMenu() => IsPageContextMenuOpen = false;
+
+    [RelayCommand]
+    private void PageContextMenuAddPage()
+    {
+        HidePageContextMenu();
+        InsertPage(_pageContextMenuPage + 1);
+    }
+
+    [RelayCommand]
+    private void PageContextMenuDeletePage()
+    {
+        HidePageContextMenu();
+        DeletePage(_pageContextMenuPage);
     }
 
     #endregion
@@ -1443,9 +1579,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     private bool _openAfterExport = true;
 
     [ObservableProperty]
-    private bool _includeMetadata = true;
-
-    [ObservableProperty]
     private double _previewZoom = 1.0;
 
     [ObservableProperty]
@@ -1519,6 +1652,21 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         }
     }
 
+    /// <summary>The path with " (2)", " (3)" and so on added to its name until nothing the export writes exists yet, so an export never replaces an earlier one.</summary>
+    private static string UnusedExportPath(string path, bool pageFiles)
+    {
+        if (!pageFiles)
+            return UnusedPath.ForFile(path);
+
+        // A report exported as one image per page writes name_p1, name_p2 and so on, so any of those counts as taken.
+        return UnusedPath.ForFile(path, candidate =>
+        {
+            var dir = Path.GetDirectoryName(candidate) ?? "";
+            return Directory.Exists(dir)
+                   && Directory.EnumerateFiles(dir, $"{Path.GetFileNameWithoutExtension(candidate)}_p*{Path.GetExtension(candidate)}").Any();
+        });
+    }
+
     [RelayCommand]
     private async Task ExportReportAsync()
     {
@@ -1541,10 +1689,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 Data.Regions.NameFor);
 
             bool success;
+            string exportPath;
             if (SelectedExportFormat == ExportFormat.PDF)
             {
                 // PDF handles multi-page internally
-                success = await renderer.ExportToPdfAsync(ExportFilePath);
+                exportPath = UnusedExportPath(ExportFilePath, pageFiles: false);
+                success = await renderer.ExportToPdfAsync(exportPath);
             }
             else
             {
@@ -1552,13 +1702,14 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 renderer.ComputeContinuationPlan();
                 var plan = renderer.GetContinuationPlan();
                 var effectivePageCount = renderer.EffectivePageCount;
+                exportPath = UnusedExportPath(ExportFilePath, pageFiles: effectivePageCount > 1);
 
                 if (effectivePageCount > 1)
                 {
                     // Multi-page image export: export each page as a separate file
-                    var dir = Path.GetDirectoryName(ExportFilePath) ?? "";
-                    var baseName = Path.GetFileNameWithoutExtension(ExportFilePath);
-                    var ext = Path.GetExtension(ExportFilePath);
+                    var dir = Path.GetDirectoryName(exportPath) ?? "";
+                    var baseName = Path.GetFileNameWithoutExtension(exportPath);
+                    var ext = Path.GetExtension(exportPath);
                     success = true;
 
                     if (plan?.Pages.Count > 0)
@@ -1582,14 +1733,17 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 }
                 else
                 {
-                    success = await renderer.ExportToImageAsync(ExportFilePath, SelectedExportFormat, ExportQuality);
+                    success = await renderer.ExportToImageAsync(exportPath, SelectedExportFormat, ExportQuality);
                 }
             }
 
             if (success)
             {
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReportGenerated);
-                ExportMessage = "Export completed successfully!";
+                var doneMessage = exportPath == ExportFilePath
+                    ? "Export completed successfully!"
+                    : $"{Path.GetFileName(ExportFilePath)} already exists, so this was saved as {Path.GetFileName(exportPath)}.";
+                ExportMessage = doneMessage;
 
                 // Auto-dismiss success message after 5 seconds
                 _ = Task.Run(async () =>
@@ -1599,7 +1753,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                         await Task.Delay(5000);
                         Dispatcher.UIThread.Post(() =>
                         {
-                            if (ExportMessage == "Export completed successfully!")
+                            if (ExportMessage == doneMessage)
                                 ExportMessage = string.Empty;
                         });
                     }
@@ -1612,9 +1766,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 // Save export settings for next time
                 await SaveExportSettingsAsync();
 
-                if (OpenAfterExport && File.Exists(ExportFilePath))
+                if (OpenAfterExport && File.Exists(exportPath))
                 {
-                    Core.Platform.UrlHelper.SafeOpenUrl(new Uri(ExportFilePath).AbsoluteUri);
+                    Core.Platform.UrlHelper.SafeOpenUrl(new Uri(exportPath).AbsoluteUri);
                 }
             }
             else
@@ -1624,7 +1778,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         }
         catch (Exception ex)
         {
-            ExportMessage = $"Export error: {ex.Message}";
+            App.ErrorLogger?.LogError(ex, ErrorCategory.Export, "Failed to export report");
+            ExportMessage = "The report couldn't be exported. Check that the folder still exists and try again.";
         }
         finally
         {
@@ -1683,7 +1838,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             settings.LastExportDirectory = Path.GetDirectoryName(ExportFilePath);
             settings.OpenAfterExport = OpenAfterExport;
-            settings.IncludeMetadata = IncludeMetadata;
             await App.SettingsService.SaveGlobalSettingsAsync();
         }
     }
@@ -1738,8 +1892,11 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         new(Enum.GetValues<PageOrientation>());
 
     // Element property enum collections - uses GetDisplayName() extension method for consistent naming
+    // Product Revenue Trend needs a product picked, which only the Analytics page offers, so a report has nothing to draw for it.
     public ObservableCollection<ChartDataTypeOption> ChartTypeOptions { get; } =
-        new(Enum.GetValues<ChartDataType>().Select(t => new ChartDataTypeOption(t, t.GetDisplayName().Translate())));
+        new(Enum.GetValues<ChartDataType>()
+            .Where(t => t != ChartDataType.ProductRevenueTrend)
+            .Select(t => new ChartDataTypeOption(t, t.GetDisplayName().Translate())));
 
     /// <summary>
     /// Gets or sets the selected chart data type option, syncing with SelectedChartElement.ChartType.
@@ -2262,10 +2419,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         // Load settings from persisted storage
         var settings = App.SettingsService?.GlobalSettings.ReportExport;
         if (settings != null)
-        {
             OpenAfterExport = settings.OpenAfterExport;
-            IncludeMetadata = settings.IncludeMetadata;
-        }
 
         // Set default export path to Desktop
         var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
@@ -2556,6 +2710,16 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
         Configuration.Title = ReportName;
         Configuration.Filters.TransactionType = SelectedTransactionType;
+
+        if (IsCustomerStatement)
+        {
+            Configuration.Filters.CustomerId = SelectedStatementCustomer?.Id;
+            Configuration.Filters.StatementShowsActivity = ShowStatementActivity;
+        }
+        else if (IsSalesByCustomer)
+        {
+            Configuration.Filters.CustomerId = SelectedSalesCustomer?.Id is { Length: > 0 } id ? id : null;
+        }
 
         // Set date format from DateFormatService for consistent X-axis labeling
         Configuration.Filters.DateFormat = DateFormatService.GetCurrentDotNetFormat();

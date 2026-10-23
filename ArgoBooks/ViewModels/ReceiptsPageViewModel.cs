@@ -734,7 +734,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     {
         if (string.IsNullOrEmpty(receipt.FileData)) return null;
 
-        var path = Path.Combine(folder, baseName + Path.GetExtension(receipt.FileName));
+        var path = UnusedPath.ForFile(Path.Combine(folder, baseName + Path.GetExtension(receipt.FileName)));
         File.WriteAllBytes(path, Convert.FromBase64String(receipt.FileData));
         return path;
     }
@@ -768,7 +768,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             // Create subfolder with company name and date
             var companyName = App.CompanyManager?.CurrentCompanyName ?? "Receipts";
             var exportFolderName = $"{SafeFileName.Create(companyName, "Receipts")}_{DateTime.Now:yyyy-MM-dd}";
-            var exportFolder = Path.Combine(baseFolder, exportFolderName);
+            var exportFolder = UnusedPath.ForFolder(Path.Combine(baseFolder, exportFolderName));
 
             Directory.CreateDirectory(exportFolder);
 

@@ -135,10 +135,14 @@
 
                             <!-- Province / State -->
                             <StackPanel Grid.Row="4" Grid.Column="2" Spacing="6">
-                                <TextBlock Text="{Binding Country, Converter={x:Static controls:RegionInput.LabelConverter}}"
-                                           FontSize="13"
-                                           FontWeight="Medium"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Country, Converter={x:Static controls:RegionInput.LabelConverter}}"
+                                               FontSize="13"
+                                               FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource ErrorBrush}" Text=" *"
+                                               IsVisible="{Binding IsProvinceRequired}" />
+                                </StackPanel>
                                 <controls:RegionInput Country="{Binding Country}" Value="{Binding ProvinceState, Mode=TwoWay}" />
                             </StackPanel>
 

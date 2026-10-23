@@ -115,6 +115,34 @@ public class AccountingReportCurrencyTests
         }
     }
 
+    // The chart data service keeps its USD points between renders, so the renderer must convert copies of them.
+    [Fact]
+    public async Task ReportChart_ReadTwiceBySameRenderer_IsConvertedOnce()
+    {
+        var service = await SeededServiceAsync(Date1, Date2, EndDate);
+        var prior = SetInstance(service);
+        try
+        {
+            var data = new CompanyData();
+            data.Settings.Localization.Currency = "CAD";
+            data.Revenues.Add(UsdRevenue("R1", Date1, 100m));
+            data.Revenues.Add(UsdRevenue("R2", Date2, 200m));
+
+            using var renderer = new ReportRenderer(new ReportConfiguration { Filters = Filters() }, data);
+            var points = typeof(ReportRenderer).GetMethod("GetChartDataPoints", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            List<double> Read() => ((List<Core.Models.Charts.ChartDataPoint>)points.Invoke(renderer, [ChartDataType.TotalRevenue, GeoLevel.Country])!)
+                .Select(p => p.Value).ToList();
+
+            var first = Read();
+            Assert.Equal([140d, 260d], first);
+            Assert.Equal(first, Read());
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
     [Fact]
     public async Task IncomeStatement_MissingExactDateRate_FallsBackToUsdForWholeReport()
     {

@@ -818,7 +818,8 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
         }
         catch (Exception ex)
         {
-            DataMonthsNote = $"Error refreshing forecast: {ex.Message}";
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Unknown, "Failed to refresh the forecast");
+            DataMonthsNote = "The forecast couldn't be updated. Try again in a moment.";
         }
     }
 
@@ -882,8 +883,9 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
         }
         catch (Exception ex)
         {
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Unknown, "Failed to generate insights");
             HasInsufficientData = true;
-            InsufficientDataMessage = $"Error generating insights: {ex.Message}";
+            InsufficientDataMessage = "Insights couldn't be worked out right now. Try again, or pick a different date range.";
         }
         finally
         {

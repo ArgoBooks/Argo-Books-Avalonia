@@ -700,6 +700,22 @@ public partial class ProductModalsViewModel : ViewModelBase
 
     #region Delete Product
 
+    /// <summary>Each kind of record that can name a product, and whether one names this product.</summary>
+    private static (bool Used, string Label)[] UsageChecks(CompanyData companyData, string productId) =>
+    [
+        (companyData.Revenues.Any(r => r.LineItems.Any(li => li.ProductId == productId)), "Revenue".Translate()),
+        (companyData.Expenses.Any(e => e.LineItems.Any(li => li.ProductId == productId)), "Expense".Translate()),
+        (companyData.Invoices.Any(i => i.LineItems.Any(li => li.ProductId == productId)), "Invoice".Translate()),
+        (companyData.Inventory.Any(i => i.ProductId == productId), "Inventory".Translate()),
+        (companyData.PurchaseOrders.Any(po => po.LineItems.Any(li => li.ProductId == productId)), "Purchase Order".Translate()),
+        (companyData.Returns.Any(r => r.Items.Any(ri => ri.ProductId == productId)), "Return".Translate()),
+        (companyData.LostDamaged.Any(ld => ld.ProductId == productId), "Lost / Damaged".Translate()),
+        // Both kinds of schedule clone their template's line items into every occurrence, so a product either of them names is still in use.
+        (companyData.RecurringInvoices.Any(ri => ri.Template != null
+            && ri.Template.LineItems.Any(li => li.ProductId == productId)), "Recurring Invoice".Translate()),
+        (RecurringTransactionService.IsProductInUse(companyData, productId), "Recurring Transaction".Translate())
+    ];
+
     public async void OpenDeleteConfirm(ProductDisplayItem? item)
     {
         try
@@ -713,18 +729,7 @@ public partial class ProductModalsViewModel : ViewModelBase
 
             if (await BlockIfInUseAsync(
                     usages => "This product cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
-                    (companyData.Revenues.Any(r => r.LineItems.Any(li => li.ProductId == item.Id)), "Revenue".Translate()),
-                    (companyData.Expenses.Any(e => e.LineItems.Any(li => li.ProductId == item.Id)), "Expense".Translate()),
-                    (companyData.Invoices.Any(i => i.LineItems.Any(li => li.ProductId == item.Id)), "Invoice".Translate()),
-                    (companyData.Inventory.Any(i => i.ProductId == item.Id), "Inventory".Translate()),
-                    (companyData.PurchaseOrders.Any(po => po.LineItems.Any(li => li.ProductId == item.Id)), "Purchase Order".Translate()),
-                    (companyData.Returns.Any(r => r.Items.Any(ri => ri.ProductId == item.Id)), "Return".Translate()),
-                    (companyData.LostDamaged.Any(ld => ld.ProductId == item.Id), "Lost / Damaged".Translate()),
-                    // Both kinds of schedule clone their template's line items into every
-                    // occurrence, so a product either of them names is still in use.
-                    (companyData.RecurringInvoices.Any(ri => ri.Template != null
-                        && ri.Template.LineItems.Any(li => li.ProductId == item.Id)), "Recurring Invoice".Translate()),
-                    (RecurringTransactionService.IsProductInUse(companyData, item.Id), "Recurring Transaction".Translate())))
+                    UsageChecks(companyData, item.Id)))
                 return;
 
             if (!await ConfirmDeleteAsync("Delete Product".Translate(),
@@ -745,6 +750,83 @@ public partial class ProductModalsViewModel : ViewModelBase
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Product.OpenDeleteConfirm");
         }
+    }
+
+    #endregion
+
+    #region Bulk Edit
+
+    /// <summary>Puts each product in the category, or in none when <paramref name="categoryId"/> is null, as one undo step.</summary>
+    public BulkEditResult SetCategory(IReadOnlyCollection<string> ids, string? categoryId)
+    {
+        var data = App.CompanyManager?.CompanyData;
+        if (data == null || (categoryId != null && data.GetCategory(categoryId) == null)) return BulkEditResult.Nothing;
+
+        var selected = data.Products.Where(p => ids.Contains(p.Id)).ToList();
+        var changed = selected.Where(p => p.CategoryId != categoryId).ToList();
+        if (changed.Count == 0)
+            return new BulkEditResult(0, selected.Count, 0, 0, 0, null);
+
+        var before = changed.Select(p => p.CategoryId).ToList();
+
+        void Apply(Func<int, string?> categoryOf)
+        {
+            for (var i = 0; i < changed.Count; i++)
+            {
+                changed[i].CategoryId = categoryOf(i);
+                changed[i].UpdatedAt = DateTime.UtcNow;
+            }
+            data.MarkAsModified();
+        }
+
+        Apply(_ => categoryId);
+        var action = new DelegateAction(
+            changed.Count == 1 ? "Change the category of 1 product" : $"Change the category of {changed.Count} products",
+            () => { Apply(i => before[i]); ProductSaved?.Invoke(this, EventArgs.Empty); },
+            () => { Apply(_ => categoryId); ProductSaved?.Invoke(this, EventArgs.Empty); });
+
+        App.UndoRedoManager.RecordAction(action);
+        App.CompanyManager?.MarkAsChanged();
+        ProductSaved?.Invoke(this, EventArgs.Empty);
+        return new BulkEditResult(changed.Count, selected.Count - changed.Count, 0, 0, 0, action);
+    }
+
+    /// <summary>Deletes each product nothing names any more, as one undo step; one still in use is left, as deleting it alone would refuse.</summary>
+    public BulkEditResult DeleteMany(IReadOnlyCollection<string> ids)
+    {
+        var data = App.CompanyManager?.CompanyData;
+        if (data == null) return BulkEditResult.Nothing;
+
+        var selected = data.Products.Where(p => ids.Contains(p.Id)).ToList();
+        var targets = selected.Where(p => !UsageChecks(data, p.Id).Any(c => c.Used)).ToList();
+        var inUse = selected.Count - targets.Count;
+        if (targets.Count == 0)
+            return new BulkEditResult(0, 0, inUse, 0, 0, null);
+
+        void Remove()
+        {
+            foreach (var product in targets)
+                data.Products.RemoveRecord(product);
+            data.MarkAsModified();
+        }
+
+        void Restore()
+        {
+            foreach (var product in targets)
+                data.Products.RestoreRecord(product);
+            data.MarkAsModified();
+        }
+
+        Remove();
+        var action = new DelegateAction(
+            targets.Count == 1 ? "Delete 1 product" : $"Delete {targets.Count} products",
+            () => { Restore(); ProductDeleted?.Invoke(this, EventArgs.Empty); },
+            () => { Remove(); ProductDeleted?.Invoke(this, EventArgs.Empty); });
+
+        App.UndoRedoManager.RecordAction(action);
+        App.CompanyManager?.MarkAsChanged();
+        ProductDeleted?.Invoke(this, EventArgs.Empty);
+        return new BulkEditResult(targets.Count, 0, inUse, 0, 0, action);
     }
 
     #endregion

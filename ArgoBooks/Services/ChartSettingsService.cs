@@ -106,15 +106,16 @@ public partial class ChartSettingsService : ObservableObject
     /// Should be called when a company is opened.
     /// </summary>
     /// <param name="companyPath">File path of the company being opened.</param>
-    public void LoadForCompany(string? companyPath)
+    /// <param name="isSampleCompany">Whether it is the sample company, which starts on Area charts rather than bars.</param>
+    public void LoadForCompany(string? companyPath, bool isSampleCompany)
     {
         _currentCompanyPath = companyPath;
 
         _isLoading = true;
         try
         {
-            // Reset to defaults before loading company-specific settings
-            SelectedChartType = "Area";
+            // An area chart reads well over the sample company's months of data, but a new company's handful of points draws better as bars.
+            SelectedChartType = isSampleCompany ? "Area" : "Column";
             SelectedDateRange = DateRangePreset.ThisMonth.GetDisplayName();
             HasAppliedCustomRange = false;
             UpdateDateRangeFromSelection();

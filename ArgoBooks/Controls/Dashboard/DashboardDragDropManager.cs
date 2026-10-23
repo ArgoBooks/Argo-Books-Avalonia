@@ -1,4 +1,5 @@
 using ArgoBooks.Converters;
+using ArgoBooks.Core.Models.Dashboard;
 using ArgoBooks.ViewModels.Dashboard;
 using Avalonia;
 using Avalonia.Controls;
@@ -30,10 +31,13 @@ public class DashboardDragDropManager
     private DashboardRowPanel? _crossRowTargetPanel;
     private Rect _lastGhostRect;
     private double _originalGhostHeight;
+    private DashboardRowPanel? _stretchedRow;
+    private double _stretchedRowMinHeight;
 
     private const double DragDeadZone = 5;
     private const double AutoScrollMargin = 50;
     private const double AutoScrollSpeed = 8;
+    private const double BelowLastRowAllowance = 24;
 
     private static IBrush RefusedBrush => ConverterUtils.ThemeBrush("ErrorBrush", "#DC2626");
 
@@ -150,21 +154,20 @@ public class DashboardDragDropManager
         if (_dragGhost == null || _sourceRowPanel == null) return;
 
         var ghostWidth = _dragGhost.Width;
-        var ghostHeight = _dragGhost.Height;
         var ghostX = position.X - _dragOffset.X;
-        var ghostY = position.Y - _dragOffset.Y;
+        // The ghost stretches the panel it shares with the rows, so the limit uses the rows' own height rather than their stretched bounds.
+        var ghostY = Math.Min(position.Y - _dragOffset.Y, _rowsContainer.DesiredSize.Height - _originalGhostHeight / 2 + BelowLastRowAllowance);
 
+        var ghostRect = new Rect(ghostX, ghostY, ghostWidth, _originalGhostHeight);
+        _lastGhostRect = ghostRect;
         _dragGhost.Margin = new Thickness(ghostX, ghostY, 0, 0);
         _dragGrid?.InvalidateVisual();
 
-        var ghostRect = new Rect(ghostX, ghostY, ghostWidth, ghostHeight);
-        _lastGhostRect = ghostRect;
         var targetRowPanel = FindRowPanelAtPosition(ghostRect.Center);
 
         if (targetRowPanel == _sourceRowPanel)
         {
             _dragGhost.BorderBrush = ConverterUtils.AccentBrush;
-            _dragGhost.Height = _originalGhostHeight;
             _crossRowTargetPanel = null;
             UpdateSameRowPreview(ghostRect);
         }
@@ -172,20 +175,32 @@ public class DashboardDragDropManager
         {
             ResetPreviewTransforms();
             _previewTargetIndex = _dragSourceIndex;
-            // Resize ghost to match target row height
-            var targetRowHost = targetRowPanel.FindAncestorOfType<DashboardRowHost>();
-            if (targetRowHost != null && targetRowHost.Bounds.Height > 0)
-                _dragGhost.Height = targetRowHost.Bounds.Height;
             UpdateCrossRowPreview(targetRowPanel);
         }
         else
         {
-            _dragGhost.BorderBrush = ConverterUtils.AccentBrush;
-            _dragGhost.Height = _originalGhostHeight;
+            // Letting go away from every row leaves the widget where it was.
+            _dragGhost.BorderBrush = RefusedBrush;
             _crossRowTargetPanel = null;
             ResetPreviewTransforms();
             _previewTargetIndex = _dragSourceIndex;
         }
+
+        StretchRow(_crossRowTargetPanel);
+    }
+
+    /// <summary>Makes the row the widget would drop into at least as tall as the widget, as it will be once dropped, and puts back the row stretched before.</summary>
+    private void StretchRow(DashboardRowPanel? row)
+    {
+        if (row == _stretchedRow) return;
+
+        if (_stretchedRow != null)
+            _stretchedRow.MinHeight = _stretchedRowMinHeight;
+
+        _stretchedRow = row;
+        if (row == null) return;
+        _stretchedRowMinHeight = row.MinHeight;
+        row.MinHeight = Math.Max(row.MinHeight, _originalGhostHeight);
     }
 
     private void UpdateSameRowPreview(Rect ghostRect)
@@ -309,6 +324,7 @@ public class DashboardDragDropManager
 
         // Reset all visual state first (before any collection changes trigger rebuilds)
         ResetPreviewTransforms();
+        StretchRow(null);
 
         if (_dragSourceControl != null)
         {
@@ -342,21 +358,12 @@ public class DashboardDragDropManager
                 && sourceIndex >= 0 && sourceIndex < sourceRowVm.Widgets.Count
                 && targetRowVm.CanFit(sourceRowVm.Widgets[sourceIndex].Size))
             {
-                // Determine insert position from ghost X relative to target row
                 var targetPanelPos = crossRowTarget.TranslatePoint(new Point(0, 0), _rowsContainer) ?? new Point();
-                double ghostCenterX = _lastGhostRect.Center.X - targetPanelPos.X;
-                int insertIndex = targetRowVm.Widgets.Count; // default: append
-                for (int i = 0; i < crossRowTarget.Children.Count; i++)
-                {
-                    var child = crossRowTarget.Children[i];
-                    var midX = child.Bounds.Left + child.Bounds.Width / 2;
-                    if (ghostCenterX < midX)
-                    {
-                        insertIndex = i;
-                        break;
-                    }
-                }
-                _layoutVm.MoveWidgetToRow(sourceRowVm, sourceIndex, targetRowVm, insertIndex);
+                var moved = sourceRowVm.Widgets[sourceIndex];
+                if (crossRowTarget.Bounds.Width > 0)
+                    moved.StartOffset = DropOffset(crossRowTarget, moved.Size.ToFraction(),
+                        (_lastGhostRect.Left - targetPanelPos.X) / crossRowTarget.Bounds.Width);
+                _layoutVm.MoveWidgetToRow(sourceRowVm, sourceIndex, targetRowVm, targetRowVm.IndexForOffset(moved.StartOffset));
             }
         }
         else if (startOffset >= 0 && sourceControl != null && sourceRowPanel != null)
@@ -376,6 +383,33 @@ public class DashboardDragDropManager
                 rowVm.Widgets.Move(sourceIndex, targetIndex);
             }
         }
+    }
+
+    /// <summary>The free quarter-column start in <paramref name="row"/> nearest where a widget was let go, as a share of the row's width.</summary>
+    private static double DropOffset(DashboardRowPanel row, double fraction, double wanted)
+    {
+        var taken = row.Children
+            .Where(c => c.IsVisible)
+            .Select(c =>
+            {
+                var start = Math.Round((c.Bounds.Left - c.Margin.Left) / row.Bounds.Width * 4) / 4;
+                return (Start: start, End: start + DashboardRowPanel.GetWidgetFraction(c));
+            })
+            .ToList();
+
+        var best = Math.Clamp(Math.Round(wanted * 4) / 4, 0, 1 - fraction);
+        var bestDistance = double.MaxValue;
+        for (var start = 0.0; start <= 1 - fraction + 0.001; start += 0.25)
+        {
+            if (taken.Any(t => start < t.End - 0.001 && start + fraction > t.Start + 0.001)) continue;
+            var distance = Math.Abs(start - wanted);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = start;
+            }
+        }
+        return best;
     }
 
     private void ResetPreviewTransforms()

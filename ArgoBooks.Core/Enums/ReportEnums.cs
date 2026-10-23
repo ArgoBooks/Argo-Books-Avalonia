@@ -271,7 +271,13 @@ public enum AccountingReportType
     AccountsReceivableAging,
     TaxSummary,
     ProductSales,
-    PayrollRemittance
+    PayrollRemittance,
+    CustomerStatement,
+    SalesByCustomer,
+    ExpensesBySupplier,
+    PayrollSummary,
+    Rentals,
+    AssetRegister
 }
 
 /// <summary>
@@ -453,6 +459,12 @@ public static class ReportEnumExtensions
             AccountingReportType.TaxSummary => "Tax Summary",
             AccountingReportType.ProductSales => "Sales by Product",
             AccountingReportType.PayrollRemittance => "Payroll Remittance",
+            AccountingReportType.CustomerStatement => "Customer Statement",
+            AccountingReportType.SalesByCustomer => "Sales by Customer",
+            AccountingReportType.ExpensesBySupplier => "Expenses by Supplier",
+            AccountingReportType.PayrollSummary => "Payroll Summary",
+            AccountingReportType.Rentals => "Rentals",
+            AccountingReportType.AssetRegister => "Asset Register",
             _ => reportType.ToString()
         };
     }

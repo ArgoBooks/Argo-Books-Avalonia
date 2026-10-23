@@ -370,6 +370,29 @@ public static class ImportSchemaDefinition
                 new("Notes", "string", "Additional notes", JsonName: "notes"),
             ],
 
+            [SpreadsheetSheetType.Assets] =
+            [
+                new("ID", "string", "Unique identifier (e.g., AST-001)", Required: true, JsonName: "id"),
+                new("Name", "string", "What the asset is, such as Delivery van", Required: true, JsonName: "name"),
+                new("Type", "enum:Land,Building,Vehicle,Equipment,FurnitureAndFixtures,ComputerEquipment,Other", "Kind of asset. Land is never depreciated", JsonName: "type"),
+                new("Purchase Date", "datetime", "Date it was bought", JsonName: "purchaseDate"),
+                new("Cost", "decimal", "What it cost before tax", JsonName: "cost"),
+                new("Currency", "string", "Currency code of the cost, sale price and other amounts", JsonName: "currency"),
+                new("Expense ID", "string", "The expense it was bought with, if it was recorded as one", JsonName: "expenseId"),
+                new("Method", "enum:StraightLine,DecliningBalance", "How it is depreciated", JsonName: "method"),
+                new("Useful Life (Years)", "decimal", "Years it is depreciated over, for straight line", JsonName: "usefulLifeYears"),
+                new("Rate %", "decimal", "Share of its remaining value written off each year, as a percentage, for declining balance", JsonName: "ratePercent"),
+                new("CRA Class", "string", "Canada's Capital Cost Allowance class, such as 10 or 50", JsonName: "ccaClass"),
+                new("First-Year Factor", "decimal", "Share of the rate claimed in the year it was bought, such as 0.5 under the half-year rule", JsonName: "firstYearFactor"),
+                new("Value at End", "decimal", "What it is expected to be worth when the business is done with it", JsonName: "endValue"),
+                new("Prior Depreciation", "decimal", "Depreciation claimed in earlier books, before Tracked From", JsonName: "priorDepreciation"),
+                new("Tracked From", "datetime", "The first day these books depreciate it, for an asset bought before they started", JsonName: "trackedFrom"),
+                new("Disposed Date", "datetime", "Date it was sold, scrapped or given away", JsonName: "disposedDate"),
+                new("Disposal", "enum:Sold,Scrapped", "Whether it was sold, or scrapped or given away", JsonName: "disposalKind"),
+                new("Sale Price", "decimal", "What it sold for", JsonName: "salePrice"),
+                new("Notes", "string", "Additional notes", JsonName: "notes"),
+            ],
+
             [SpreadsheetSheetType.Returns] =
             [
                 new("ID", "string", "Unique identifier (e.g., RET-001)", Required: true, JsonName: "id"),

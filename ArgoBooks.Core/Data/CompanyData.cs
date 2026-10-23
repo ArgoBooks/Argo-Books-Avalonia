@@ -80,6 +80,12 @@ public class CompanyData
     [JsonPropertyName("locations")]
     public List<Location> Locations { get; init; } = [];
 
+    /// <summary>
+    /// Land, buildings, vehicles and equipment the business keeps for years.
+    /// </summary>
+    [JsonPropertyName("assets")]
+    public List<Models.Assets.FixedAsset> Assets { get; init; } = [];
+
     #endregion
 
     #region Transactions

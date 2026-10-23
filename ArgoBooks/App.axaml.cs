@@ -224,6 +224,8 @@ public partial class App : Application
     /// Gets the locations modals view model for shared access.
     /// </summary>
     public static LocationsModalsViewModel? LocationsModalsViewModel => _appShellViewModel?.LocationsModalsViewModel;
+
+    public static AssetModalsViewModel? AssetModalsViewModel => _appShellViewModel?.AssetModalsViewModel;
     public static PayrollModalsViewModel? PayrollModalsViewModel => _appShellViewModel?.PayrollModalsViewModel;
 
     public static PayRunModalsViewModel? PayRunModalsViewModel => _appShellViewModel?.PayRunModalsViewModel;
@@ -1076,6 +1078,8 @@ public partial class App : Application
     /// Gets the shared column widths for the Locations table.
     /// </summary>
     public static Controls.ColumnWidths.LocationsTableColumnWidths LocationsColumnWidths { get; } = new();
+
+    public static Controls.ColumnWidths.AssetsTableColumnWidths AssetsColumnWidths { get; } = new();
     public static Controls.ColumnWidths.EmployeesTableColumnWidths EmployeesColumnWidths { get; } = new();
 
     public static Controls.ColumnWidths.PayRunsTableColumnWidths PayRunsColumnWidths { get; } = new();
@@ -1140,6 +1144,7 @@ public partial class App : Application
     private static CategoriesPageViewModel? _categoriesPageViewModel;
     private static CustomersPageViewModel? _customersPageViewModel;
     private static SuppliersPageViewModel? _suppliersPageViewModel;
+    private static AssetsPageViewModel? _assetsPageViewModel;
     private static RentalInventoryPageViewModel? _rentalInventoryPageViewModel;
     private static RentalRecordsPageViewModel? _rentalRecordsPageViewModel;
     private static ReturnsPageViewModel? _returnsPageViewModel;
@@ -1158,7 +1163,7 @@ public partial class App : Application
             _revenuePageViewModel, _expensesPageViewModel, _invoicesPageViewModel, _quotesPageViewModel,
             _bankMatchingPageViewModel, _productsPageViewModel, _stockLevelsPageViewModel, _locationsPageViewModel,
             _stockAdjustmentsPageViewModel, _purchaseOrdersPageViewModel, _categoriesPageViewModel,
-            _customersPageViewModel, _suppliersPageViewModel, _rentalInventoryPageViewModel,
+            _customersPageViewModel, _suppliersPageViewModel, _assetsPageViewModel, _rentalInventoryPageViewModel,
             _rentalRecordsPageViewModel, _returnsPageViewModel, _lostDamagedPageViewModel, _receiptsPageViewModel,
             _employeesPageViewModel, _payRunsPageViewModel
         })
@@ -1183,6 +1188,7 @@ public partial class App : Application
         _categoriesPageViewModel = null;
         _customersPageViewModel = null;
         _suppliersPageViewModel = null;
+        _assetsPageViewModel = null;
         _rentalInventoryPageViewModel = null;
         _rentalRecordsPageViewModel = null;
         _returnsPageViewModel = null;
@@ -1342,7 +1348,7 @@ public partial class App : Application
         {
             _startupArgs = desktop.Args ?? [];
             WireMacFileActivation();
-            _ = InstallMacApplicationMenuAsync();
+            _ = InstallMacApplicationMenuAsync(desktop);
 
             // Initialize error logging first so it's available for all services
             var errorLogger = new ErrorLogger();
@@ -1665,6 +1671,20 @@ public partial class App : Application
             _mainWindowViewModel.TutorialWelcomeViewModel.StartTourRequested += (_, _) =>
             {
                 _mainWindowViewModel.AppTourViewModel?.StartTour();
+            };
+
+            // Each first step runs the same action as its entry in Quick Actions.
+            _mainWindowViewModel.TutorialWelcomeViewModel.FirstStepRequested += (_, step) =>
+            {
+                var (target, action) = step switch
+                {
+                    FirstStep.ScanReceipt => ("Receipts", "OpenScanModal"),
+                    FirstStep.BankStatement => ((string?)null, "OpenBankImport"),
+                    FirstStep.Import => (null, "OpenImport"),
+                    _ => ("Expenses", "OpenAddModal")
+                };
+                _appShellViewModel.QuickActionsViewModel.ExecuteActionCommand.Execute(
+                    new QuickActionItem(string.Empty, string.Empty, string.Empty, QuickActionType.QuickAction, target, action));
             };
 
             // Final reset of unsaved changes before window is shown - ensures clean startup state
@@ -2198,27 +2218,19 @@ public partial class App : Application
 
 
     /// <summary>
-    /// Gives macOS the application menu it expects.
-    ///
-    /// Avalonia supplies a bare default with little more than Quit, which leaves the app with
-    /// no About item, no Settings under its own name where every Mac app keeps it, and no File
-    /// menu at all. The commands are the ones the in-app UI already uses, so the menu is
-    /// another way in rather than a second implementation.
-    ///
-    /// Deferred until the shell exists: the view models it binds to are built during startup,
-    /// and a menu wired to nulls would be a row of dead items.
+    /// Gives macOS the menu bar it expects: Settings in the menu under the app's name, and a File menu
+    /// beside it, using the same commands as the in-app file menu.
     /// </summary>
-    private async Task InstallMacApplicationMenuAsync()
+    private async Task InstallMacApplicationMenuAsync(IClassicDesktopStyleApplicationLifetime desktop)
     {
         if (!OperatingSystem.IsMacOS())
             return;
 
-        // Poll rather than hook a "ready" event, because the shell is assembled across several
-        // async steps and there is no single point that means "all of these exist".
-        for (var attempt = 0; attempt < 100 && _appShellViewModel == null; attempt++)
+        // The window and the view models the items call are built across several async startup steps.
+        for (var attempt = 0; attempt < 100 && (desktop.MainWindow == null || _appShellViewModel == null); attempt++)
             await Task.Delay(100);
 
-        if (_appShellViewModel is not { } shell)
+        if (desktop.MainWindow is not { } window || _appShellViewModel is not { } shell)
             return;
 
         NativeMenuItem Item(string header, string? gesture, Action action)
@@ -2230,27 +2242,30 @@ public partial class App : Application
             return item;
         }
 
-        var appMenu = new NativeMenuItem("Argo Books")
-        {
-            Menu =
-            [
-                // No About item: the app has no About screen to open, and a menu entry that
-                // opens something else would be worse than its absence.
-                Item("Settings...", "Cmd+,", () => shell.SettingsModalViewModel.OpenCommand.Execute(null)),
-            ],
-        };
+        var file = shell.FileMenuPanelViewModel;
 
-        var fileMenu = new NativeMenuItem("File".Translate())
-        {
-            Menu =
-            [
-                Item("New Company", null, () => _ = RequestCreateNewCompanyAsync()),
-                Item("Save", "Cmd+S", () => shell.HeaderViewModel.SaveCommand.Execute(null)),
-                Item("Save As...", "Cmd+Shift+S", () => shell.FileMenuPanelViewModel.SaveAsCommand.Execute(null)),
-            ],
-        };
+        // macOS lists the application's menu under the app's name, and only a window's menu as menus in the bar itself.
+        NativeMenu.SetMenu(this,
+        [
+            Item("Settings...", "Cmd+,", () => shell.SettingsModalViewModel.OpenCommand.Execute(null)),
+        ]);
 
-        NativeMenu.SetMenu(this, [appMenu, fileMenu]);
+        NativeMenu.SetMenu(window,
+        [
+            new NativeMenuItem("File".Translate())
+            {
+                Menu =
+                [
+                    Item("New Company...", null, () => file.NewCompanyCommand.Execute(null)),
+                    Item("Open Company...", "Cmd+O", () => file.OpenCompanyCommand.Execute(null)),
+                    new NativeMenuItemSeparator(),
+                    Item("Save", "Cmd+S", () => shell.HeaderViewModel.SaveCommand.Execute(null)),
+                    Item("Save As...", "Cmd+Shift+S", () => file.SaveAsCommand.Execute(null)),
+                    new NativeMenuItemSeparator(),
+                    Item("Close Company", null, () => file.CloseCompanyCommand.Execute(null)),
+                ],
+            },
+        ]);
     }
 
     /// <summary>
@@ -2648,6 +2663,9 @@ public partial class App : Application
         {
             ErrorLogger?.LogWarning($"Could not fetch the sample company's rates: {ex.Message}", "ExchangeRate");
         }
+
+        if (shifted)
+            SampleCompanyService.ConvertAtShiftedDates(data);
 
         return shifted;
     }
@@ -4009,6 +4027,7 @@ public partial class App : Application
             data.EventLog,
             data.BankImportSessions,
             data.Employees,
+            data.Assets,
             data.PendingConversions
         };
         return System.Text.Json.JsonSerializer.Serialize(snapshot);
@@ -4140,7 +4159,8 @@ public partial class App : Application
                || AnyNew("LostDamaged", data.LostDamaged.Select(r => r.Id))
                || AnyNew("Receipts", data.Receipts.Select(r => r.Id))
                || AnyNew("BankImportSessions", data.BankImportSessions.Select(r => r.Id))
-               || AnyNew("Employees", data.Employees.Select(r => r.Id));
+               || AnyNew("Employees", data.Employees.Select(r => r.Id))
+               || AnyNew("Assets", data.Assets.Select(r => r.Id));
     }
 
     /// <summary>
@@ -4195,6 +4215,7 @@ public partial class App : Application
         RestoreList(data.EventLog, "EventLog");
         RestoreList(data.BankImportSessions, "BankImportSessions");
         RestoreList(data.Employees, "Employees");
+        RestoreList(data.Assets, "Assets");
         // An entry the restore leaves as it was stays the same object too: a stock undo reads the
         // rate the queue converted its entry at off the entry it holds (StockChange.OldPendingCost).
         var liveEntries = data.PendingConversions
@@ -4307,9 +4328,16 @@ public partial class App : Application
     /// </remarks>
     private static async Task<bool> ConfirmLeavingCompanyAsync()
     {
+        if (CompanyManager?.IsCompanyOpen != true)
+            return true;
+
+        // The report designer is saved as a template, apart from the company, so it is asked about first, as closing the window does.
+        if (!await ConfirmReportsUnsavedChangesAsync())
+            return false;
+
         // UndoRedoManager's saved state, which correctly accounts for undoing back to the
         // last-saved point.
-        if (CompanyManager?.IsCompanyOpen != true || UndoRedoManager.IsAtSavedState)
+        if (UndoRedoManager.IsAtSavedState)
             return true;
 
         switch (await ShowUnsavedChangesDialogAsync())
@@ -5237,6 +5265,7 @@ public partial class App : Application
             }
             return new SuppliersPage { DataContext = _suppliersPageViewModel };
         });
+        navigationService.RegisterPage("Assets", _ => new AssetsPage { DataContext = _assetsPageViewModel ??= new AssetsPageViewModel() });
 
         // Rentals Section
         navigationService.RegisterPage("RentalInventory", _ => new RentalInventoryPage { DataContext = _rentalInventoryPageViewModel ??= new RentalInventoryPageViewModel() });

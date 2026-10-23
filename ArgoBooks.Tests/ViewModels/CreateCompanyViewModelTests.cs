@@ -175,6 +175,20 @@ public class CreateCompanyViewModelTests
         Assert.True(_viewModel.IsStep1Valid);
     }
 
+    // A Canadian company's province decides how much of the tax on its purchases it claims back.
+    [Fact]
+    public void IsStep1Valid_CanadaNeedsAProvince()
+    {
+        _viewModel.CompanyName = "Test Company";
+        _viewModel.Country = "Canada";
+
+        Assert.True(_viewModel.IsProvinceRequired);
+        Assert.False(_viewModel.IsStep1Valid);
+
+        _viewModel.ProvinceState = "MB";
+        Assert.True(_viewModel.IsStep1Valid);
+    }
+
     [Fact]
     public void IsStep1Valid_WhenCompanyNameEmpty_ReturnsFalse()
     {

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using ArgoBooks.Core.Services;
 using Velopack;
 using Velopack.Logging;
+using Velopack.Sources;
 
 namespace ArgoBooks.Desktop.Services;
 
@@ -34,7 +35,8 @@ public sealed class VelopackUpdateService : IUpdateService
 
     private readonly IErrorLogger? _errorLogger;
     private readonly SignedWebSource _source;
-    private readonly UpdateManager _manager;
+    private readonly CleaningUpdateManager _manager;
+    private readonly Task _cleanup;
     private Velopack.UpdateInfo? _pending;
     private string? _setupPath;
 
@@ -64,7 +66,29 @@ public sealed class VelopackUpdateService : IUpdateService
         _errorLogger = errorLogger;
         _source = new SignedWebSource(FeedUrl, UpdatePublicKey);
         // Only whole packages are signed, so partial updates rebuilt from deltas would install without a signature check.
-        _manager = new UpdateManager(_source, new UpdateOptions { MaximumDeltasBeforeFallback = -1 });
+        _manager = new CleaningUpdateManager(_source, new UpdateOptions { MaximumDeltasBeforeFallback = -1 });
+        _cleanup = Task.Run(RemoveInstalledPackages);
+    }
+
+    /// <summary>Deletes installed versions' update packages, which only delta updates need and this app installs whole packages only.</summary>
+    private void RemoveInstalledPackages()
+    {
+        try
+        {
+            if (_manager.IsInstalled)
+                _manager.RemovePackagesExceptPending();
+        }
+        catch (Exception ex)
+        {
+            _errorLogger?.LogWarning($"Could not remove installed update packages: {ex.Message}", "AutoUpdate");
+        }
+    }
+
+    /// <summary>Exposes Velopack's package cleanup, which it otherwise runs only when the next update downloads.</summary>
+    private sealed class CleaningUpdateManager(IUpdateSource source, UpdateOptions options) : UpdateManager(source, options)
+    {
+        // A downloaded update that has not been installed yet is kept, so the user does not have to download it again.
+        public void RemovePackagesExceptPending() => CleanPackagesExcept(UpdatePendingRestart?.FileName);
     }
 
     /// <summary>
@@ -97,6 +121,8 @@ public sealed class VelopackUpdateService : IUpdateService
     /// <inheritdoc />
     public async Task<Core.Services.UpdateInfo?> CheckForUpdateAsync()
     {
+        // The cleanup must not run while an update downloads, and every download starts from a check.
+        await _cleanup;
         SetState(UpdateState.Checking);
         AvailableUpdate = null;
         LastError = null;

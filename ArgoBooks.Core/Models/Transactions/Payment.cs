@@ -181,6 +181,13 @@ public class Payment : IRecord
     public decimal DepositAmount { get; set; }
 
     /// <summary>
+    /// For a refund recorded by marking a sale returned, the sales tax it gave back, in the refund's
+    /// currency. Null for a refund through the payment portal, whose tax share comes from its invoice.
+    /// </summary>
+    [JsonPropertyName("refundTaxAmount")]
+    public decimal? RefundTaxAmount { get; set; }
+
+    /// <summary>
     /// The share of a refund that came off revenue: all of it, less any security deposit it gave
     /// back (<see cref="DepositAmount"/>), which was never revenue.
     /// </summary>

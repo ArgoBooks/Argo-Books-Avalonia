@@ -77,6 +77,33 @@ public class BankStatementImportServiceTests
     }
 
     [Fact]
+    public async Task ParseCsvAsync_LongAccountDetailsAboveColumns_FindsHeaderAndImportsLines()
+    {
+        // Laid out like a Standard Bank export: eleven lines of bank, address and statement details come before the columns.
+        var path = await WriteTempCsvAsync(
+            "Example Bank\r\nMAIN BRANCH\r\n\r\n\r\nMR. A SAMPLE\r\n1 SAMPLE ROAD\r\nSAMPLETOWN\r\n 1234\r\n\r\n" +
+            "Statement Date      : 26 September 2026\r\n" +
+            "Statement Period    : 26 August 2026 to 26 September 2026\r\n" +
+            "Statement Frequency : Monthly\r\n" +
+            "Statement Number    :     9\r\n\r\n" +
+            "CURRENT ACCOUNT, Account Number  10000000000\r\n\r\n" +
+            "Date,Description,Service Fee,Amount,Balance\r\n" +
+            "2026/08/26,BALANCE BROUGHT FORWARD,,,          1000.00\r\n" +
+            "2026/08/27,CARD PURCHASE GROCER,,           -371.00,          629.00\r\n" +
+            "2026/08/29,PAYMENT RECEIVED,,           2000.00,          2629.00\r\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            var purchase = Assert.Single(lines, l => l.Description == "CARD PURCHASE GROCER");
+            Assert.Equal(new DateTime(2026, 8, 27), purchase.Date);
+            Assert.Equal(-371.00m, purchase.Amount);
+            Assert.Equal(2000.00m, Assert.Single(lines, l => l.Description == "PAYMENT RECEIVED").Amount);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task ParseCsvAsync_SignedAmountColumn_KeepsSignAndParses()
     {
         var path = await WriteTempCsvAsync(

@@ -237,7 +237,7 @@
                                     <TextBlock Text="{loc:Loc 'Visual / Analytical'}"
                                                FontSize="14"
                                                FontWeight="SemiBold"
-                                               Opacity="0.7"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                HorizontalAlignment="Center"
                                                Margin="0,0,0,4" />
 
@@ -316,7 +316,7 @@
                                     <TextBlock Text="{loc:Loc 'Accounting'}"
                                                FontSize="14"
                                                FontWeight="SemiBold"
-                                               Opacity="0.7"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                HorizontalAlignment="Center"
                                                Margin="0,8,0,4" />
 
@@ -627,6 +627,56 @@
                                 <TextBox Text="{Binding ReportName}"
                                          PlaceholderText="{loc:Loc 'Enter report name...'}"
                                          Padding="12,10" />
+                            </StackPanel>
+
+                            <!-- Customer (Customer Statement only) -->
+                            <StackPanel Spacing="8"
+                                        IsVisible="{Binding IsCustomerStatement}">
+                                <TextBlock FontSize="14"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}">
+                                    <Run Text="{loc:Loc Customer}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                </TextBlock>
+                                <controls:SearchableDropdown ItemsSource="{Binding StatementCustomerOptions}"
+                                                             SelectedItem="{Binding SelectedStatementCustomer}"
+                                                             DisplayMemberPath="Name"
+                                                             SearchMemberPath="Id"
+                                                             Placeholder="{loc:Loc 'Choose a customer'}"
+                                                             ShowAddNew="False"
+                                                             HasError="{Binding HasStatementCustomerError}"
+                                                             ErrorMessage="{Binding StatementCustomerErrorMessage}" />
+                                <TextBlock Text="{loc:Loc 'Lists the invoices this customer still owes today.'}"
+                                           IsVisible="{Binding !ShowStatementActivity}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                <TextBlock Text="{loc:Loc 'Lists what was invoiced and paid between the dates below.'}"
+                                           IsVisible="{Binding ShowStatementActivity}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                <CheckBox Content="{loc:Loc 'Show activity between two dates instead'}"
+                                          IsChecked="{Binding ShowStatementActivity}"
+                                          FontSize="13" />
+                            </StackPanel>
+
+                            <!-- Customer (Sales by Customer only) -->
+                            <StackPanel Spacing="8"
+                                        IsVisible="{Binding IsSalesByCustomer}">
+                                <TextBlock Text="{loc:Loc Customer}"
+                                           FontSize="14"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <controls:SearchableDropdown ItemsSource="{Binding SalesCustomerOptions}"
+                                                             SelectedItem="{Binding SelectedSalesCustomer}"
+                                                             DisplayMemberPath="Name"
+                                                             SearchMemberPath="Id"
+                                                             Placeholder="{loc:Loc 'All customers'}"
+                                                             ShowAddNew="False" />
+                                <TextBlock Text="{loc:Loc 'Choose a customer to list each of their sales.'}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
                             </StackPanel>
 
                             <!-- Date Range (hidden for point-in-time reports like Balance Sheet) -->
@@ -1026,6 +1076,36 @@
                                                       DuplicateCommand="{Binding ContextMenuDuplicateCommand}"
                                                       DeleteCommand="{Binding ContextMenuDeleteCommand}"
                                                       CloseCommand="{Binding HideContextMenuCommand}" />
+
+                        <!-- Right-click menu for a page, away from any element -->
+                        <controls:AnimatedContextMenu IsOpen="{Binding IsPageContextMenuOpen}"
+                                                      MenuX="{Binding PageContextMenuX}"
+                                                      MenuY="{Binding PageContextMenuY}"
+                                                      CloseCommand="{Binding HidePageContextMenuCommand}">
+                            <controls:AnimatedContextMenu.MenuContent>
+                                <StackPanel Spacing="2" MinWidth="140">
+                                    <Button Classes="context-menu-item"
+                                            Command="{Binding PageContextMenuAddPageCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <PathIcon Data="{x:Static icons:Icons.AddAlt}"
+                                                      Width="16" Height="16"
+                                                      Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <TextBlock Text="{loc:Loc 'Add new page'}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Classes="context-menu-item danger"
+                                            Command="{Binding PageContextMenuDeletePageCommand}"
+                                            IsEnabled="{Binding CanDeletePage}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <PathIcon Data="{x:Static icons:Icons.Delete}"
+                                                      Width="16" Height="16"
+                                                      Foreground="{DynamicResource DangerBrush}" />
+                                            <TextBlock Text="{loc:Loc 'Delete page'}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </controls:AnimatedContextMenu.MenuContent>
+                        </controls:AnimatedContextMenu>
                     </Grid>
                 </Grid>
 
@@ -1119,10 +1199,6 @@
                                 <StackPanel Spacing="4" IsVisible="{Binding IsDistributionChartSelected}">
                                     <TextBlock Text="{loc:Loc 'Legend Size'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                     <controls:ArgoNumericUpDown Value="{Binding SelectedChartElement.LegendFontSize, FallbackValue=0}" Minimum="6" Maximum="24" />
-                                </StackPanel>
-                                <StackPanel Spacing="4" IsVisible="{Binding IsDistributionChartSelected}">
-                                    <TextBlock Text="{loc:Loc 'Legend Max Characters'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    <controls:ArgoNumericUpDown Value="{Binding SelectedChartElement.LegendMaxCharacters, FallbackValue=0}" Minimum="5" Maximum="50" />
                                 </StackPanel>
                                 <StackPanel Spacing="4">
                                     <TextBlock Text="{loc:Loc 'Border Color'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
@@ -1987,12 +2063,8 @@
                         </StackPanel>
 
                         <!-- Options -->
-                        <StackPanel Spacing="8">
-                            <CheckBox Content="{loc:Loc 'Open after export'}"
-                                      IsChecked="{Binding OpenAfterExport}" />
-                            <CheckBox Content="{loc:Loc 'Include metadata'}"
-                                      IsChecked="{Binding IncludeMetadata}" />
-                        </StackPanel>
+                        <CheckBox Content="{loc:Loc 'Open after export'}"
+                                  IsChecked="{Binding OpenAfterExport}" />
 
                         <!-- Export Message -->
                         <TextBlock Text="{Binding ExportMessage}"
@@ -2056,14 +2128,10 @@
                                   Width="16" Height="16" />
                     </Button>
 
-                    <!-- Add/Delete Page -->
+                    <!-- Add Page (a page is deleted from its right-click menu) -->
                     <Border Width="1" Height="20" Background="{DynamicResource BorderBrush}" Margin="4,0" />
                     <Button Classes="toolbar-button" Command="{Binding AddPageCommand}" ToolTip.Tip="{loc:Loc 'Add Page'}">
                         <PathIcon Data="{x:Static icons:Icons.AddAlt}"
-                                  Width="16" Height="16" />
-                    </Button>
-                    <Button Classes="toolbar-button" Command="{Binding DeletePageCommand}" IsEnabled="{Binding CanDeletePage}" ToolTip.Tip="{loc:Loc 'Delete Page'}">
-                        <PathIcon Data="{x:Static icons:Icons.Delete}"
                                   Width="16" Height="16" />
                     </Button>
                 </StackPanel>

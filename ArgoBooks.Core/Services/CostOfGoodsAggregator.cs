@@ -25,23 +25,25 @@ public static class CostOfGoodsAggregator
         if (stockNative == 0)
             return 0;
 
-        var stockUSD = stockNative * (expense.EffectiveTotalUSD / expense.Total);
-        return Math.Min(stockUSD, expense.EffectiveTotalUSD);
+        // A supplier credit is an expense below zero, so its stock part is below zero too.
+        var stockUSD = Math.Sign(expense.Total) * stockNative * Math.Abs(expense.EffectiveTotalUSD / expense.Total);
+        return expense.Total < 0 ? Math.Max(stockUSD, expense.EffectiveTotalUSD) : Math.Min(stockUSD, expense.EffectiveTotalUSD);
     }
 
-    public static decimal OperatingExpenseUSD(Expense expense) =>
-        expense.EffectiveTotalUSD - StockPurchaseUSD(expense);
+    /// <summary>What an expense cost the business, less any tracked stock it bought and the tax <paramref name="rule"/> claims back, in USD.</summary>
+    public static decimal OperatingExpenseUSD(Expense expense, PurchaseTaxRule rule) =>
+        PurchaseTax.CostUSD(expense, rule) - StockPurchaseUSD(expense);
 
-    public static decimal SumOperatingExpensesUSD(IEnumerable<Expense> expenses, DateTime start, DateTime end) =>
+    public static decimal SumOperatingExpensesUSD(IEnumerable<Expense> expenses, DateTime start, DateTime end, PurchaseTaxRule rule) =>
         expenses
             .Where(e => e.Date >= start && e.Date <= end)
-            .Sum(OperatingExpenseUSD);
+            .Sum(e => OperatingExpenseUSD(e, rule));
 
     public static decimal SumOperatingExpensesDisplay(
-        IEnumerable<Expense> expenses, DateTime start, DateTime end, Func<decimal, DateTime, decimal> toDisplay) =>
+        IEnumerable<Expense> expenses, DateTime start, DateTime end, PurchaseTaxRule rule, Func<decimal, DateTime, decimal> toDisplay) =>
         expenses
             .Where(e => e.Date >= start && e.Date <= end)
-            .Sum(e => toDisplay(OperatingExpenseUSD(e), e.Date));
+            .Sum(e => toDisplay(OperatingExpenseUSD(e, rule), e.Date));
 
     /// <summary>
     /// Cost of goods sold on sales dated in the range. <paramref name="collectedOnly"/> matches the

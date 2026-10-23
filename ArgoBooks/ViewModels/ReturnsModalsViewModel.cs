@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Models.Tracking;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -215,11 +216,14 @@ public partial class ReturnsModalsViewModel : ViewModelBase
             return;
         }
 
-        // Recording a return only adds this record (line quantities, stock and the transaction are
-        // left alone), so undoing it only removes the record.
+        // Recording a return adds this record and its refund (line quantities, stock and the transaction are
+        // left alone), so undoing it removes the two.
         var returnRecord = _undoReturn;
+        var refund = ReturnRefunds.Find(companyData, returnRecord);
         RemoveWithUndo(companyData, companyData.Returns, returnRecord, $"Undo return '{returnRecord.Id}'",
-            () => ReturnUndone?.Invoke(this, EventArgs.Empty));
+            () => ReturnUndone?.Invoke(this, EventArgs.Empty),
+            onRemove: () => { if (refund != null) ReturnRefunds.Remove(companyData, refund); },
+            onRestore: () => { if (refund != null) ReturnRefunds.Restore(companyData, returnRecord, refund); });
 
         App.CompanyManager?.MarkAsChanged();
         CloseUndoReturnModal();

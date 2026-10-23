@@ -1,5 +1,6 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Assets;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using Xunit;
@@ -90,11 +91,15 @@ public class ProfitCalculatorTests
             $"Expected profit ≈ 0 for fully refunded invoice; got {profit}");
     }
 
-    [Fact]
-    public void CalculateNetProfitUSD_SubtractsGrossExpenses()
+    [Theory]
+    [InlineData("United States", null, 70)]
+    [InlineData("Canada", "ON", 75)]
+    [InlineData("Canada", "BC", 71.25)]
+    public void CalculateNetProfitUSD_CountsPurchaseTaxOnlyWhereItIsNotClaimedBack(string country, string? province, decimal expected)
     {
-        // Expenses use Total (gross). Tax paid to suppliers is real cash out.
         var data = new CompanyData();
+        data.Settings.Company.Country = country;
+        data.Settings.Company.ProvinceState = province;
         data.Revenues.Add(new Revenue
         {
             Date = new DateTime(2026, 5, 11),
@@ -113,8 +118,8 @@ public class ProfitCalculatorTests
 
         var profit = ProfitCalculator.CalculateNetProfitUSD(data, Start, End);
 
-        // 100 - 30 = 70 (gross expense, not 100 - 25)
-        Assert.Equal(70m, profit);
+        // US sales tax is a cost, so 100 - 30. Ontario's HST is claimed back, so 100 - 25. In BC only the 5% GST on the 25 is, so 100 - 28.75.
+        Assert.Equal(expected, profit);
     }
 
     [Fact]
@@ -145,5 +150,59 @@ public class ProfitCalculatorTests
 
         Assert.True(Math.Abs(byDay.Values.Sum() - total) < 0.01m,
             $"Per-day sum {byDay.Values.Sum()} should match total profit {total}");
+    }
+
+    [Fact]
+    public void CalculateNetProfitUSD_AddsAssetSalePrice_OnTheDayItSold()
+    {
+        // The $1,000 purchase counts as an expense in full, so the $400 it sold for comes back as profit.
+        var data = new CompanyData();
+        data.Expenses.Add(new Expense
+        {
+            Date = new DateTime(2026, 5, 2),
+            Total = 1000m,
+            OriginalCurrency = "USD"
+        });
+        data.Assets.Add(new FixedAsset
+        {
+            PurchaseDate = new DateTime(2026, 5, 2),
+            Cost = 1000m,
+            Currency = "USD",
+            DisposedDate = new DateTime(2026, 5, 20),
+            DisposalKind = AssetDisposalKind.Sold,
+            SalePrice = 400m
+        });
+        data.Assets.Add(new FixedAsset
+        {
+            PurchaseDate = new DateTime(2026, 1, 5),
+            Cost = 200m,
+            Currency = "USD",
+            DisposedDate = new DateTime(2026, 5, 21),
+            DisposalKind = AssetDisposalKind.Scrapped,
+            SalePrice = 50m
+        });
+
+        var byDay = ProfitCalculator.CalculateNetProfitByDayUSD(data, Start, End);
+
+        Assert.Equal(-600m, ProfitCalculator.CalculateNetProfitUSD(data, Start, End));
+        Assert.Equal(400m, byDay[new DateTime(2026, 5, 20)]);
+        Assert.False(byDay.ContainsKey(new DateTime(2026, 5, 21)));
+    }
+
+    [Fact]
+    public void CalculateNetProfitUSD_AssetSoldOutsideRange_IsNotCounted()
+    {
+        var data = new CompanyData();
+        data.Assets.Add(new FixedAsset
+        {
+            PurchaseDate = new DateTime(2026, 1, 5),
+            Cost = 1000m,
+            Currency = "USD",
+            DisposedDate = new DateTime(2026, 6, 3),
+            DisposalKind = AssetDisposalKind.Sold,
+            SalePrice = 400m
+        });
+
+        Assert.Equal(0m, ProfitCalculator.CalculateNetProfitUSD(data, Start, End));
     }
 }

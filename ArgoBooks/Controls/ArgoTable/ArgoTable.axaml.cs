@@ -499,6 +499,11 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         }
     }
 
+    public bool IsSearching => !string.IsNullOrWhiteSpace(SearchQuery);
+
+    /// <summary>Whether a search or filters are hiding rows, so an empty table means nothing matched rather than that there is nothing yet.</summary>
+    public bool IsNarrowed => IsSearching || FilterCount > 0;
+
     /// <summary>
     /// Gets whether to show page number buttons.
     /// </summary>
@@ -633,6 +638,11 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
                 oldCollection.CollectionChanged -= OnItemsCollectionChanged;
             if (change.NewValue is INotifyCollectionChanged newCollection)
                 newCollection.CollectionChanged += OnItemsCollectionChanged;
+        }
+        else if (change.Property == SearchQueryProperty || change.Property == FilterCountProperty)
+        {
+            RaisePropertyChanged(nameof(IsSearching));
+            RaisePropertyChanged(nameof(IsNarrowed));
         }
         else if (change.Property == TotalPagesProperty)
         {
