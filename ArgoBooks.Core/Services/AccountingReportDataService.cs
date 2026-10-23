@@ -2,6 +2,7 @@
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Assets;
 using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Transactions;
 
@@ -1774,6 +1775,9 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// <summary>Each customer's sales before tax in the period, less refunds, adding up to the Income Statement's revenue.</summary>
     private AccountingTableData GetSalesByCustomerData()
     {
+        if (companyData != null && !string.IsNullOrEmpty(filters.CustomerId) && companyData.GetCustomer(filters.CustomerId) is { } customer)
+            return GetCustomerSalesDetailData(customer);
+
         var data = new AccountingTableData
         {
             Title = "Sales by Customer",
@@ -1794,9 +1798,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
             foreach (var refund in companyData.Payments.Where(p => p.IsRefund && p.Date >= RangeStart && p.Date <= RangeEnd))
             {
-                var key = !string.IsNullOrEmpty(refund.CustomerId)
-                    ? refund.CustomerId
-                    : InvoicesById.TryGetValue(refund.InvoiceId ?? "", out var invoice) ? invoice.CustomerId : "";
+                var key = RefundCustomerId(refund);
                 refunds[key] = refunds.GetValueOrDefault(key) + ToDisplay(RefundAggregator.PreTaxPortionUSD(refund, InvoicesById), refund.Date);
             }
         }
@@ -1847,6 +1849,77 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Footnote = "Sales are before tax, the same figures the Income Statement's revenue adds up.";
         return data;
     }
+
+    /// <summary>Each sale to one customer in the period and each refund given back to them, adding up to their row on the summary.</summary>
+    private AccountingTableData GetCustomerSalesDetailData(Customer customer)
+    {
+        var data = new AccountingTableData
+        {
+            Title = string.IsNullOrWhiteSpace(customer.CompanyName) || customer.CompanyName == customer.Name
+                ? $"Sales to {customer.Name}"
+                : $"Sales to {customer.Name}, {customer.CompanyName}",
+            Subtitle = GetCurrencySubtitle(),
+            ColumnHeaders = ["Date", "Description", "Ref", "Before Tax", "Tax", "Total"],
+            ColumnWidthRatios = [0.13, 0.33, 0.14, 0.13, 0.13, 0.14]
+        };
+
+        var entries = new List<(DateTime Date, int Order, string Description, string Reference, decimal BeforeTax, decimal Total)>();
+        foreach (var revenue in companyData!.Revenues.Where(r => r.CustomerId == customer.Id && IsInDateRange(r.Date)))
+        {
+            var description = revenue.Description.Length > 0
+                ? revenue.Description
+                : string.Join(", ", revenue.LineItems.Select(li => li.Description).Where(d => d.Length > 0));
+            entries.Add((revenue.Date, 0, description, revenue.Id,
+                ToDisplay(revenue.EffectiveSubtotalUSD, revenue.Date), ToDisplay(revenue.EffectiveTotalUSD, revenue.Date)));
+        }
+
+        foreach (var refund in companyData.Payments.Where(p => p.IsRefund && p.Date >= RangeStart && p.Date <= RangeEnd
+                                                               && RefundCustomerId(p) == customer.Id))
+        {
+            var description = InvoicesById.TryGetValue(refund.InvoiceId ?? "", out var invoice) ? $"Refund for {invoice.InvoiceNumber}" : "Refund";
+            entries.Add((refund.Date, 1, description, refund.Id,
+                -ToDisplay(RefundAggregator.PreTaxPortionUSD(refund, InvoicesById), refund.Date),
+                -ToDisplay(Math.Abs(refund.EffectiveAmountUSD), refund.Date)));
+        }
+
+        foreach (var entry in entries.OrderBy(e => e.Date.Date).ThenBy(e => e.Order).ThenBy(e => e.Reference))
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = FormatStatementDate(entry.Date),
+                Values =
+                [
+                    entry.Description,
+                    entry.Reference,
+                    FormatCurrencyWithSign(entry.BeforeTax),
+                    FormatCurrencyWithSign(entry.Total - entry.BeforeTax),
+                    FormatCurrencyWithSign(entry.Total)
+                ]
+            });
+        }
+
+        if (entries.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No sales to this customer in this period", Values = ["", "", "", "", ""] });
+
+        var beforeTax = entries.Sum(e => e.BeforeTax);
+        var total = entries.Sum(e => e.Total);
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Net Sales",
+            Values = ["", "", FormatCurrencyWithSign(beforeTax), FormatCurrencyWithSign(total - beforeTax), FormatCurrencyWithSign(total)],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        data.Footnote = "Before Tax adds up to this customer's net sales on the Sales by Customer report. Refunds come off on the day they were given.";
+        return data;
+    }
+
+    // A refund with no customer of its own belongs to its invoice's customer.
+    private string RefundCustomerId(Payment refund) =>
+        !string.IsNullOrEmpty(refund.CustomerId)
+            ? refund.CustomerId
+            : InvoicesById.TryGetValue(refund.InvoiceId ?? "", out var invoice) ? invoice.CustomerId : "";
 
     // The brackets mark these as descriptions, so nobody takes them for a customer's name.
     private string CustomerName(string id, string noneLabel) =>

@@ -26,7 +26,7 @@ See [Calculations](Calculations.md) for the rules governing how the numbers in e
 - Customer Statement
 - Tax Summary
 - Sales by Product
-- Sales by Customer
+- Sales by Customer (one row per customer, or each sale and refund for one chosen customer)
 - Expenses by Supplier
 - Payroll Remittance
 - Payroll Summary

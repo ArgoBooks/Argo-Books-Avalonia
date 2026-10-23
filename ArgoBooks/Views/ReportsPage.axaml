@@ -632,16 +632,19 @@
                             <!-- Customer (Customer Statement only) -->
                             <StackPanel Spacing="8"
                                         IsVisible="{Binding IsCustomerStatement}">
-                                <TextBlock Text="{loc:Loc Customer}"
-                                           FontSize="14"
+                                <TextBlock FontSize="14"
                                            FontWeight="Medium"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                           Foreground="{DynamicResource TextSecondaryBrush}">
+                                    <Run Text="{loc:Loc Customer}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                </TextBlock>
                                 <controls:SearchableDropdown ItemsSource="{Binding StatementCustomerOptions}"
                                                              SelectedItem="{Binding SelectedStatementCustomer}"
                                                              DisplayMemberPath="Name"
                                                              SearchMemberPath="Id"
                                                              Placeholder="{loc:Loc 'Choose a customer'}"
-                                                             ShowAddNew="False" />
+                                                             ShowAddNew="False"
+                                                             HasError="{Binding HasStatementCustomerError}"
+                                                             ErrorMessage="{Binding StatementCustomerErrorMessage}" />
                                 <TextBlock Text="{loc:Loc 'Lists the invoices this customer still owes today.'}"
                                            IsVisible="{Binding !ShowStatementActivity}"
                                            FontSize="12"
@@ -655,6 +658,25 @@
                                 <CheckBox Content="{loc:Loc 'Show activity between two dates instead'}"
                                           IsChecked="{Binding ShowStatementActivity}"
                                           FontSize="13" />
+                            </StackPanel>
+
+                            <!-- Customer (Sales by Customer only) -->
+                            <StackPanel Spacing="8"
+                                        IsVisible="{Binding IsSalesByCustomer}">
+                                <TextBlock Text="{loc:Loc Customer}"
+                                           FontSize="14"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <controls:SearchableDropdown ItemsSource="{Binding SalesCustomerOptions}"
+                                                             SelectedItem="{Binding SelectedSalesCustomer}"
+                                                             DisplayMemberPath="Name"
+                                                             SearchMemberPath="Id"
+                                                             Placeholder="{loc:Loc 'All customers'}"
+                                                             ShowAddNew="False" />
+                                <TextBlock Text="{loc:Loc 'Choose a customer to list each of their sales.'}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
                             </StackPanel>
 
                             <!-- Date Range (hidden for point-in-time reports like Balance Sheet) -->

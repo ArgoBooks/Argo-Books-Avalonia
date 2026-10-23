@@ -225,6 +225,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             if (CurrentStep == 1)
             {
+                if (IsTemplatesTabSelected && IsCustomerStatement && SelectedStatementCustomer == null)
+                {
+                    HasStatementCustomerError = true;
+                    return;
+                }
+
                 Step1Completed = true;
                 ApplyFiltersToConfiguration();
             }
@@ -348,6 +354,17 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     private CustomerOption? _selectedStatementCustomer;
 
     [ObservableProperty]
+    private bool _hasStatementCustomerError;
+
+    public string StatementCustomerErrorMessage => "Please select a customer.".Translate();
+
+    partial void OnSelectedStatementCustomerChanged(CustomerOption? value)
+    {
+        if (value != null)
+            HasStatementCustomerError = false;
+    }
+
+    [ObservableProperty]
     private bool _showStatementActivity;
 
     partial void OnShowStatementActivityChanged(bool value)
@@ -368,6 +385,23 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         SelectedStatementCustomer = StatementCustomerOptions.FirstOrDefault(c => c.Id == selectedId);
     }
 
+    /// <summary>Whether the chosen template is Sales by Customer, which can narrow to one customer's sales.</summary>
+    public bool IsSalesByCustomer => SelectedTemplateName == ReportTemplateFactory.TemplateNames.SalesByCustomer;
+
+    public ObservableCollection<CustomerOption> SalesCustomerOptions { get; } = [];
+
+    [ObservableProperty]
+    private CustomerOption? _selectedSalesCustomer;
+
+    private void LoadSalesCustomers()
+    {
+        var selectedId = SelectedSalesCustomer?.Id;
+        OptionLoader.Fill(SalesCustomerOptions,
+            OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>(),
+            new CustomerOption { Name = "All Customers" });
+        SelectedSalesCustomer = SalesCustomerOptions.FirstOrDefault(c => c.Id == selectedId) ?? SalesCustomerOptions[0];
+    }
+
     partial void OnSelectedTemplateNameChanged(string value)
     {
         IsDateRangeEnabled = value switch
@@ -377,8 +411,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             _ => true
         };
         OnPropertyChanged(nameof(IsCustomerStatement));
+        HasStatementCustomerError = false;
         if (IsCustomerStatement)
             LoadStatementCustomers();
+        OnPropertyChanged(nameof(IsSalesByCustomer));
+        if (IsSalesByCustomer)
+            LoadSalesCustomers();
         LoadTemplate(value);
 
         // Clear radio button selection for point-in-time reports where date range is disabled
@@ -2677,6 +2715,10 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             Configuration.Filters.CustomerId = SelectedStatementCustomer?.Id;
             Configuration.Filters.StatementShowsActivity = ShowStatementActivity;
+        }
+        else if (IsSalesByCustomer)
+        {
+            Configuration.Filters.CustomerId = SelectedSalesCustomer?.Id is { Length: > 0 } id ? id : null;
         }
 
         // Set date format from DateFormatService for consistent X-axis labeling
