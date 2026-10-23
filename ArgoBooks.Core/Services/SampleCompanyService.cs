@@ -112,32 +112,7 @@ public class SampleCompanyService
                 importOptions,
                 cancellationToken);
 
-            // The spreadsheet importer auto-creates Revenue records for paid invoices, but the XLSX Revenue sheet already contains all the financial data we need.
-            RemoveAutoCreatedInvoiceRevenues(context.CompanyData);
-            ConvertStockCostsToUsd(context.CompanyData);
-
-            // Patch rental records with financial data from rental items
-            // (the XLSX may not include rate/deposit columns)
-            PatchRentalRecordFinancials(context.CompanyData);
-
-            // Link invoices to existing revenue records by customer + closest date.
-            LinkInvoicesToRevenues(context.CompanyData);
-            MatchInvoicesToTheirSales(context.CompanyData);
-            RecordReturnRefunds(context.CompanyData);
-
-            // Dated from the data's own max date rather than today, so TimeShiftSampleData moves these along with everything else.
-            var maxDate = FindMaxDate(context.CompanyData);
-            if (maxDate == DateTime.MinValue)
-                maxDate = DateTime.Today;
-            AddSampleActiveRentals(context.CompanyData, maxDate);
-
-            // After the rentals, and off the same reference date, so the pay dates land inside
-            // the window the rest of the sample already occupies.
-            AddSamplePayroll(context.CompanyData, maxDate);
-
-            // One quote per state, so the Quotes page shows what the feature does instead of an
-            // empty table to someone who opened the sample to look around.
-            AddSampleQuotes(context.CompanyData, maxDate);
+            CompleteImportedData(context.CompanyData);
 
             // Save company data to temp directory
             await _fileService.SaveCompanyDataAsync(companyDir, context.CompanyData, cancellationToken);
@@ -184,10 +159,41 @@ public class SampleCompanyService
         }
     }
 
+    /// <summary>Turns the imported workbook into the finished sample company, before it is saved.</summary>
+    internal static void CompleteImportedData(CompanyData data)
+    {
+        // The spreadsheet importer auto-creates Revenue records for paid invoices, but the XLSX Revenue sheet already contains all the financial data we need.
+        RemoveAutoCreatedInvoiceRevenues(data);
+        ConvertStockCostsToUsd(data);
+
+        // Patch rental records with financial data from rental items
+        // (the XLSX may not include rate/deposit columns)
+        PatchRentalRecordFinancials(data);
+
+        // Link invoices to existing revenue records by customer + closest date.
+        LinkInvoicesToRevenues(data);
+        MatchInvoicesToTheirSales(data);
+        RecordReturnRefunds(data);
+
+        // Dated from the data's own max date rather than today, so TimeShiftSampleData moves these along with everything else.
+        var maxDate = FindMaxDate(data);
+        if (maxDate == DateTime.MinValue)
+            maxDate = DateTime.Today;
+        AddSampleActiveRentals(data, maxDate);
+
+        // After the rentals, and off the same reference date, so the pay dates land inside
+        // the window the rest of the sample already occupies.
+        AddSamplePayroll(data, maxDate);
+
+        // One quote per state, so the Quotes page shows what the feature does instead of an
+        // empty table to someone who opened the sample to look around.
+        AddSampleQuotes(data, maxDate);
+    }
+
     /// <summary>
     /// Creates the sample company data with default settings.
     /// </summary>
-    private static CompanyData CreateSampleCompanyData()
+    internal static CompanyData CreateSampleCompanyData()
     {
         var companyData = new CompanyData();
 

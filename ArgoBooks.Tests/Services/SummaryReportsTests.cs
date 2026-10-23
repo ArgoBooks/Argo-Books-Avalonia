@@ -103,6 +103,89 @@ public class SummaryReportsTests
         Assert.Equal("No sales in this period", Assert.Single(DataRows(result)).Label);
     }
 
+    private static ReportFilters Year2024For(string customerId) => new()
+    {
+        StartDate = Year2024.StartDate,
+        EndDate = Year2024.EndDate,
+        CustomerId = customerId
+    };
+
+    [Fact]
+    public void SalesByCustomer_ForOneCustomer_ListsEachSale_BeforeTaxTaxAndTotal()
+    {
+        var result = Report(TwoCustomersSales(), AccountingReportType.SalesByCustomer, Year2024For("C1"));
+
+        Assert.Equal("Sales to Acme", result.Title);
+        var rows = DataRows(result);
+        Assert.Equal(["R1", "R2"], rows.Select(r => r.Values[1]));
+        Assert.Equal([1000m, 50m, 1050m], rows[0].Values.Skip(2).Select(ParseAmount));
+        Assert.Equal([500m, 25m, 525m], rows[1].Values.Skip(2).Select(ParseAmount));
+        Assert.Equal([1500m, 75m, 1575m], Row(result, "Net Sales").Values.Skip(2).Select(ParseAmount));
+    }
+
+    [Fact]
+    public void SalesByCustomer_ForOneCustomer_TakesOffRefundsOnTheirOwnDate_AndLeavesOutOtherPeriods()
+    {
+        var result = Report(TwoCustomersSales(), AccountingReportType.SalesByCustomer, Year2024For("C2"));
+
+        var rows = DataRows(result);
+        Assert.Equal(["R3", "REF-1"], rows.Select(r => r.Values[1]));
+        Assert.Equal(-100m, ParseAmount(rows[1].Values[4]));
+        Assert.Equal(200m, ParseAmount(Row(result, "Net Sales").Values[2]));
+    }
+
+    [Theory]
+    [InlineData("C1", "Acme")]
+    [InlineData("C2", "Birch Co")]
+    public void SalesByCustomer_ForOneCustomer_AddsUpToTheirRowOnTheSummary(string customerId, string name)
+    {
+        var data = TwoCustomersSales();
+
+        var summary = Report(data, AccountingReportType.SalesByCustomer);
+        var detail = Report(data, AccountingReportType.SalesByCustomer, Year2024For(customerId));
+
+        Assert.Equal(ParseAmount(Row(summary, name).Values[2]), ParseAmount(Row(detail, "Net Sales").Values[2]));
+    }
+
+    [Fact]
+    public void SalesByCustomer_ForOneCustomer_FindsARefundWithNoCustomerThroughItsInvoice()
+    {
+        var data = TwoCustomersSales();
+        data.Invoices.Add(new Invoice { Id = "INV-1", InvoiceNumber = "INV-2024-001", CustomerId = "C1" });
+        data.Payments.Add(new Payment
+        {
+            Id = "REF-2", InvoiceId = "INV-1", Date = new DateTime(2024, 7, 1), OriginalCurrency = "USD",
+            Amount = -105m, AmountUSD = -105m, IsRefund = true, RefundTaxAmount = 5m
+        });
+
+        var result = Report(data, AccountingReportType.SalesByCustomer, Year2024For("C1"));
+
+        var refund = DataRows(result).Single(r => r.Values[1] == "REF-2");
+        Assert.Equal("Refund for INV-2024-001", refund.Values[0]);
+        Assert.Equal([-100m, -5m, -105m], refund.Values.Skip(2).Select(ParseAmount));
+        Assert.Equal(1400m, ParseAmount(Row(result, "Net Sales").Values[2]));
+    }
+
+    [Fact]
+    public void SalesByCustomer_ForACustomerNoLongerOnFile_ShowsTheSummary()
+    {
+        var result = Report(TwoCustomersSales(), AccountingReportType.SalesByCustomer, Year2024For("GONE"));
+
+        Assert.Equal("Sales by Customer", result.Title);
+    }
+
+    [Fact]
+    public void SalesByCustomer_ForOneCustomerWithNoSales_SaysSo()
+    {
+        var data = TwoCustomersSales();
+        data.Customers.Add(new Customer { Id = "C3", Name = "Cedar Ltd" });
+
+        var result = Report(data, AccountingReportType.SalesByCustomer, Year2024For("C3"));
+
+        Assert.Equal("No sales to this customer in this period", Assert.Single(DataRows(result)).Label);
+        Assert.Equal(0m, ParseAmount(Row(result, "Net Sales").Values[2]));
+    }
+
     #endregion
 
     #region Expenses by Supplier
