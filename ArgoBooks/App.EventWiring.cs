@@ -595,16 +595,26 @@ public partial class App
                         args.DefaultCurrency,
                         args.OpeningBalance);
 
-                    // Apply logo if one was selected
+                    // The company exists by now, so a logo that can't be added is reported once it is saved rather than failing the whole creation.
+                    var logoFailed = false;
                     if (!string.IsNullOrEmpty(args.LogoPath))
                     {
-                        await CompanyManager.SetCompanyLogoAsync(args.LogoPath);
+                        try
+                        {
+                            await CompanyManager.SetCompanyLogoAsync(args.LogoPath);
 
-                        // Refresh sidebar/UI with the newly set logo
-                        var logo = LoadBitmapFromPath(CompanyManager.CurrentCompanyLogoPath);
-                        _appShellViewModel.SetCompanyInfo(args.CompanyName, logo);
-                        _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
-                            args.CompanyName, filePath, logo);
+                            // Refresh sidebar/UI with the newly set logo
+                            var logo = LoadBitmapFromPath(CompanyManager.CurrentCompanyLogoPath);
+                            _appShellViewModel.SetCompanyInfo(args.CompanyName, logo);
+                            _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
+                                args.CompanyName, filePath, logo);
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        {
+                            ErrorLogger?.LogWarning($"Could not add the logo to a new company: {ex.GetType().Name}",
+                                "CompanyCreate", ErrorCategory.FileSystem, ex.GetType().Name);
+                            logoFailed = true;
+                        }
                     }
 
                     _suppressSavedFeedback = true;
@@ -613,6 +623,13 @@ public partial class App
                     await LoadRecentCompaniesAsync();
                     // Here, not on the wizard's button: a cancelled save dialog creates nothing.
                     _ = TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyCreated);
+
+                    if (logoFailed)
+                    {
+                        await ShowWarningDialogAsync(
+                            "Logo Not Added".Translate(),
+                            "Your company was created, but the logo couldn't be added. You can add it in Edit Company.".Translate());
+                    }
                     return;
                 }
                 catch (Exception ex) when (FileAccessHelper.IsLikelySecurityBlock(ex))
