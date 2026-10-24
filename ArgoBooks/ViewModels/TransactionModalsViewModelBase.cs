@@ -2033,6 +2033,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
         RaiseTransactionSaved();
+        TrackBulkEdit("product", edits.Count);
         return new BulkEditResult(edits.Count, unchanged, madeElsewhere, notOneLine, movesStock, action);
     }
 
@@ -2069,6 +2070,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
         RaiseTransactionSaved();
+        TrackBulkEdit(IsExpenseForm ? "supplier" : "customer", changed.Count);
         return new BulkEditResult(changed.Count, unchanged, madeElsewhere, 0, 0, action);
     }
 
@@ -2124,8 +2126,12 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
         RaiseTransactionDeleted();
+        TrackBulkEdit("delete", targets.Count);
         return new BulkEditResult(targets.Count, 0, madeElsewhere, 0, 0, action);
     }
+
+    private void TrackBulkEdit(string change, int count) =>
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.BulkEdited, $"{(IsExpenseForm ? "expense" : "revenue")}:{change}:{count}");
 
     #endregion
 

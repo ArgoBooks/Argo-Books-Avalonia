@@ -89,6 +89,22 @@ public enum FeatureName
     // A page rendered with nothing in it, with the page in the context.
     EmptyStateShown,
 
+    // The dashboard's one-at-a-time banners (source_survey, update_email or review, in the context): shown, acted on, or closed.
+    BannerShown,
+    BannerOpened,
+    BannerDismissed,
+
+    // Fixed assets. Created carries where it was added from and its type; disposed carries sold or scrapped.
+    AssetCreated,
+    AssetDisposed,
+
+    // A bulk edit, with the records, the change and how many in the context, such as "expense:supplier:12".
+    BulkEdited,
+
+    // A scanned receipt saved as an expense, with which fields were corrected first in the context. Discarded is one closed without saving.
+    ReceiptScanSaved,
+    ReceiptScanDiscarded,
+
     WelcomeShown,
 
     // Payroll

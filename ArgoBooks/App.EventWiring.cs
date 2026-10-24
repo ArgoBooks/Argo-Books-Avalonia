@@ -544,7 +544,7 @@ public partial class App
         fileMenu.OpenRecentCompanyRequested += async (_, company) =>
         {
             if (string.IsNullOrEmpty(company.FilePath)) return;
-            await OpenCompanyWithRetryAsync(company.FilePath);
+            await OpenCompanyWithRetryAsync(company.FilePath, "menu-recent");
         };
     }
 
@@ -679,7 +679,7 @@ public partial class App
         _welcomeScreenViewModel.OpenRecentCompanyRequested += async (_, company) =>
         {
             if (string.IsNullOrEmpty(company.FilePath)) return;
-            await OpenCompanyWithRetryAsync(company.FilePath);
+            await OpenCompanyWithRetryAsync(company.FilePath, "recent");
         };
 
         // Remove from recent companies
@@ -723,7 +723,7 @@ public partial class App
         companySwitcher.SwitchCompanyRequested += async (_, company) =>
         {
             if (string.IsNullOrEmpty(company.FilePath)) return;
-            await OpenCompanyWithRetryAsync(company.FilePath);
+            await OpenCompanyWithRetryAsync(company.FilePath, "switcher");
         };
 
         // Open company from file dialog

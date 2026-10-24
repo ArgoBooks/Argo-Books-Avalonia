@@ -1739,7 +1739,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
             if (success)
             {
-                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReportGenerated);
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReportGenerated, ReportTelemetryContext());
                 var doneMessage = exportPath == ExportFilePath
                     ? "Export completed successfully!"
                     : $"{Path.GetFileName(ExportFilePath)} already exists, so this was saved as {Path.GetFileName(exportPath)}.";
@@ -2697,6 +2697,20 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Configuration.Filters.StartDate = start;
             Configuration.Filters.EndDate = end;
         }
+    }
+
+    /// <summary>
+    /// Which report was made and in what format, for telemetry. A template the user saved is sent as
+    /// "saved", since its name is whatever they typed.
+    /// </summary>
+    private string ReportTelemetryContext()
+    {
+        var template = IsChartsTabSelected
+            ? ReportTemplateFactory.TemplateNames.Custom
+            : ReportTemplateFactory.IsBuiltInTemplate(SelectedTemplateName) ? SelectedTemplateName : "saved";
+        if (IsSalesByCustomer && !string.IsNullOrEmpty(Configuration.Filters.CustomerId))
+            template += " (one customer)";
+        return $"{template}:{SelectedExportFormat}";
     }
 
     private void ApplyFiltersToConfiguration()

@@ -158,9 +158,15 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         ModalAssetType = type;
     }
 
-    private ExpenseAssetLink.Change? ApplyAssetChoice(CompanyData companyData, Expense expense, decimal? costBeforeEdit, string? currencyBeforeEdit) =>
-        ExpenseAssetLink.Apply(companyData, expense, costBeforeEdit, currencyBeforeEdit,
+    private ExpenseAssetLink.Change? ApplyAssetChoice(CompanyData companyData, Expense expense, decimal? costBeforeEdit, string? currencyBeforeEdit)
+    {
+        var hadAsset = companyData.Assets.Any(a => a.ExpenseId == expense.Id);
+        var change = ExpenseAssetLink.Apply(companyData, expense, costBeforeEdit, currencyBeforeEdit,
             ModalIsAsset, ModalAssetType?.Type ?? AssetType.Other, ModalAssetUsefulLife, AssetCcaChoice(expense.Date));
+        if (change != null && ModalIsAsset && !hadAsset)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.AssetCreated, $"expense-form:{ModalAssetType?.Type ?? AssetType.Other}");
+        return change;
+    }
 
     protected override Transaction? LoadIntoForm(ExpenseDisplayItem item)
     {

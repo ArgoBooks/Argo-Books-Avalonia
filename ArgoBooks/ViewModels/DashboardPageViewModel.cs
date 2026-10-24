@@ -8,6 +8,7 @@ using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using ArgoBooks.ViewModels.Dashboard;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -174,9 +175,12 @@ public partial class DashboardPageViewModel : ChartPageViewModelBase, ICleanupVi
     // this VM rooted on TutorialService for the rest of the app's lifetime.
     private void OnTutorialStateChanged(object? sender, EventArgs e) => RefreshSourceSurveyBanner();
 
+    partial void OnShowSourceSurveyBannerChanged(bool value) => TrackBannerShown(value, SourceSurveyBanner);
+
     [RelayCommand]
     private void OpenSourceSurvey()
     {
+        TrackBanner(FeatureName.BannerOpened, SourceSurveyBanner);
         TutorialService.Instance.RequestShowSourceSurvey();
     }
 
@@ -212,12 +216,15 @@ public partial class DashboardPageViewModel : ChartPageViewModelBase, ICleanupVi
         RefreshReviewBanner();
     }
 
+    partial void OnShowUpdateEmailBannerChanged(bool value) => TrackBannerShown(value, UpdateEmailBanner);
+
     [RelayCommand]
     private void OpenUpdateEmailSettings()
     {
         var modal = App.UpdateEmailModalViewModel;
         if (modal == null) return;
 
+        TrackBanner(FeatureName.BannerOpened, UpdateEmailBanner);
         modal.Subscribed -= OnUpdateEmailSubscribed;
         modal.Subscribed += OnUpdateEmailSubscribed;
         modal.Open();
@@ -233,6 +240,7 @@ public partial class DashboardPageViewModel : ChartPageViewModelBase, ICleanupVi
     [RelayCommand]
     private void DismissUpdateEmailBanner()
     {
+        TrackBanner(FeatureName.BannerDismissed, UpdateEmailBanner);
         var service = App.SettingsService;
         if (service != null)
         {
@@ -272,15 +280,22 @@ public partial class DashboardPageViewModel : ChartPageViewModelBase, ICleanupVi
             DateTime.UtcNow);
     }
 
+    partial void OnShowReviewBannerChanged(bool value) => TrackBannerShown(value, ReviewBanner);
+
     [RelayCommand]
     private void OpenReviewPage()
     {
+        TrackBanner(FeatureName.BannerOpened, ReviewBanner);
         UrlHelper.SafeOpenUrl($"{ApiConfig.BaseUrl}/review/?source=app-review");
         CloseReviewBanner(s => s.Opened = true);
     }
 
     [RelayCommand]
-    private void DismissReviewBanner() => CloseReviewBanner(s => s.Dismissed = true);
+    private void DismissReviewBanner()
+    {
+        TrackBanner(FeatureName.BannerDismissed, ReviewBanner);
+        CloseReviewBanner(s => s.Dismissed = true);
+    }
 
     private void CloseReviewBanner(Action<ReviewPromptSettings> record)
     {
@@ -292,6 +307,24 @@ public partial class DashboardPageViewModel : ChartPageViewModelBase, ICleanupVi
         }
         ShowReviewBanner = false;
     }
+
+    #endregion
+
+    #region Banner Tracking
+
+    private const string SourceSurveyBanner = "source_survey";
+    private const string UpdateEmailBanner = "update_email";
+    private const string ReviewBanner = "review";
+
+    // A banner counts as shown when it appears, not on every refresh that keeps it up.
+    private static void TrackBannerShown(bool shown, string banner)
+    {
+        if (shown)
+            TrackBanner(FeatureName.BannerShown, banner);
+    }
+
+    private static void TrackBanner(FeatureName feature, string banner) =>
+        _ = App.TelemetryManager?.TrackFeatureAsync(feature, banner);
 
     #endregion
 

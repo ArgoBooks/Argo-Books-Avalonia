@@ -788,6 +788,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
         ProductSaved?.Invoke(this, EventArgs.Empty);
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.BulkEdited, $"product:category:{changed.Count}");
         return new BulkEditResult(changed.Count, selected.Count - changed.Count, 0, 0, 0, action);
     }
 
@@ -826,6 +827,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
         ProductDeleted?.Invoke(this, EventArgs.Empty);
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.BulkEdited, $"product:delete:{targets.Count}");
         return new BulkEditResult(targets.Count, 0, inUse, 0, 0, action);
     }
 

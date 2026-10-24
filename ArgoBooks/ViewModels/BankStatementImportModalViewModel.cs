@@ -184,7 +184,10 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 IsPrimaryDestructive = true
             });
             if (result != ConfirmationResult.Primary)
+            {
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, $"bank:duplicates:{duplicateCount}");
                 return;
+            }
         }
 
         // Every record stores a USD equivalent, so rows go in pending unless the rate for their own date is already cached, and a statement is mostly dates the cache has never seen.
@@ -233,7 +236,10 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             () => RedoImport(data, creation, ruleCaptures, postCounters)));
 
         App.CompanyManager?.MarkAsChanged();
-        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported, $"bank:{toImport.Count}");
+        // Duplicates are the rows imported again anyway, and skipped the ones flagged as already imported and left out.
+        var skippedDuplicates = Rows.Count(r => r.AlreadyImported && !r.IsIncluded);
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported,
+            $"bank:{toImport.Count}:duplicates:{duplicateCount}:skipped:{skippedDuplicates}");
         TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
         IsOpen = false;
     }
