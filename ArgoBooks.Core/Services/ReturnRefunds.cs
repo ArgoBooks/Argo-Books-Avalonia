@@ -41,6 +41,13 @@ public static class ReturnRefunds
         return refund;
     }
 
+    /// <summary>
+    /// The return a supplier credit was recorded for, or null for any other expense. The credit's line is
+    /// the purchase's, so the expense form would rebuild it as the whole purchase: it is changed through its return.
+    /// </summary>
+    public static Return? ReturnForCredit(CompanyData data, string expenseId) =>
+        data.Returns.FirstOrDefault(r => r.ReturnType == "Expense" && r.RefundRecordId == expenseId);
+
     /// <summary>The refund recorded for <paramref name="returnRecord"/>, or null.</summary>
     public static Refund? Find(CompanyData data, Return returnRecord)
     {

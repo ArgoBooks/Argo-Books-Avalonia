@@ -177,8 +177,17 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
     protected override Transaction? LoadIntoForm(ExpenseDisplayItem item)
     {
-        var expense = App.CompanyManager?.CompanyData?.Expenses.FirstOrDefault(p => p.Id == item.Id);
+        var companyData = App.CompanyManager?.CompanyData;
+        var expense = companyData?.Expenses.FirstOrDefault(p => p.Id == item.Id);
         if (expense == null) return null;
+
+        if (ReturnRefunds.ReturnForCredit(companyData!, expense.Id) is { } refundFor)
+        {
+            _ = App.ShowInfoDialogAsync(
+                "Refund from Supplier".Translate(),
+                "This is the refund from the supplier for return {0}. To change it, undo or edit the return on the Returns page.".TranslateFormat(refundFor.Id));
+            return null;
+        }
 
         LoadCounterpartyOptions();
         LoadCategoryOptions();
@@ -204,8 +213,10 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         {
             if (item == null) return;
 
-            if (!await ConfirmDeleteAsync("Delete Expense".Translate(),
-                    "Are you sure you want to delete this expense?\n\nID: {0}\nProduct: {1}\nAmount: {2}".TranslateFormat(item.Id, item.ProductDescription, item.TotalFormatted)))
+            var message = item.IsSupplierCredit
+                ? "This is the refund from the supplier for a return. Undoing the return on the Returns page removes it along with the return. Delete only the refund?\n\nID: {0}\nAmount: {1}".TranslateFormat(item.Id, item.TotalFormatted)
+                : "Are you sure you want to delete this expense?\n\nID: {0}\nProduct: {1}\nAmount: {2}".TranslateFormat(item.Id, item.ProductDescription, item.TotalFormatted);
+            if (!await ConfirmDeleteAsync("Delete Expense".Translate(), message))
                 return;
 
             DeleteExpense(item.Id);
@@ -245,8 +256,11 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     // Payroll wages and remittances stay as the pay run that made them recorded them.
     protected override Func<Transaction, bool> MadeElsewhere(CompanyData data)
     {
+        // Wages come from pay runs and supplier credits from returns, so each is changed where it was made.
         var payrollIds = PayrollBooks.ExpenseIds(data);
-        return record => payrollIds.Contains(record.Id);
+        var creditIds = data.Returns.Where(r => r.ReturnType == "Expense" && r.RefundRecordId != null)
+            .Select(r => r.RefundRecordId!).ToHashSet();
+        return record => payrollIds.Contains(record.Id) || creditIds.Contains(record.Id);
     }
 
     #endregion

@@ -527,6 +527,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc Duplicate}"
+                                                            IsVisible="{Binding !IsSupplierCredit}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).DuplicateCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Copy}"
@@ -534,6 +535,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Make this an asset'}"
+                                                            IsVisible="{Binding !IsSupplierCredit}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).MakeAssetCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Assets}"

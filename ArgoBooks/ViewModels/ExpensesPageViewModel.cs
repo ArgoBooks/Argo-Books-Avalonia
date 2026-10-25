@@ -453,6 +453,10 @@ public ExpensesPageViewModel()
             companyData?.Returns
                 .Where(r => r.Status == ReturnStatus.Completed)
                 .Select(r => r.OriginalTransactionId) ?? []);
+        var supplierCreditIds = new HashSet<string>(
+            companyData?.Returns
+                .Where(r => r.ReturnType == "Expense" && r.RefundRecordId != null)
+                .Select(r => r.RefundRecordId!) ?? []);
         IEnumerable<Expense> filtered = _allExpenses;
 
         // Apply search filter
@@ -572,7 +576,8 @@ public ExpensesPageViewModel()
                 IsHighlighted = purchase.Id == HighlightTransactionId,
                 IsPendingConversion = purchase.IsPendingConversion,
                 OriginalCurrency = purchase.OriginalCurrency,
-                BillDueDate = purchase.IsPaid ? null : purchase.DueDate
+                BillDueDate = purchase.IsPaid ? null : purchase.DueDate,
+                IsSupplierCredit = supplierCreditIds.Contains(purchase.Id)
             };
         }).ToList();
 
@@ -958,8 +963,11 @@ public partial class ExpenseDisplayItem : ObservableObject, ISelectableRow
             0 => "Due today".Translate(),
             var d => "Due in {0} days ({1})".TranslateFormat(d, DateFormatService.Format(due))
         };
-    public bool CanMarkAsReturned => !IsReturned && !IsLostDamaged;
-    public bool CanMarkAsLostDamaged => !IsReturned && !IsLostDamaged;
+    public bool CanMarkAsReturned => !IsReturned && !IsLostDamaged && !IsSupplierCredit;
+    public bool CanMarkAsLostDamaged => !IsReturned && !IsLostDamaged && !IsSupplierCredit;
+
+    /// <summary>A refund from a supplier recorded for a return, which is changed through its return rather than here.</summary>
+    public bool IsSupplierCredit { get; init; }
 
     [ObservableProperty]
     private bool _isHighlighted;
