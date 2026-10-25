@@ -298,6 +298,8 @@ public ExpensesPageViewModel()
         {
             App.ExpenseModalsViewModel.ExpenseSaved += OnExpenseSaved;
             App.ExpenseModalsViewModel.ExpenseDeleted += OnExpenseDeleted;
+            if (App.ReturnsModalsViewModel != null)
+                App.ReturnsModalsViewModel.ReturnUndone += OnExpenseDeleted;
             App.ExpenseModalsViewModel.FiltersApplied += OnFiltersApplied;
             App.ExpenseModalsViewModel.FiltersCleared += OnFiltersCleared;
         }
@@ -327,6 +329,8 @@ public ExpensesPageViewModel()
         {
             App.ExpenseModalsViewModel.ExpenseSaved -= OnExpenseSaved;
             App.ExpenseModalsViewModel.ExpenseDeleted -= OnExpenseDeleted;
+            if (App.ReturnsModalsViewModel != null)
+                App.ReturnsModalsViewModel.ReturnUndone -= OnExpenseDeleted;
             App.ExpenseModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.ExpenseModalsViewModel.FiltersCleared -= OnFiltersCleared;
         }
@@ -746,6 +750,15 @@ public ExpensesPageViewModel()
         App.ExpenseModalsViewModel?.OpenDeleteConfirm(item);
     }
 
+    /// <summary>Opens the Returns page's Undo Return dialog for the return a refund was recorded for, which removes the two together.</summary>
+    [RelayCommand]
+    private void UndoRefundReturn(ExpenseDisplayItem? item)
+    {
+        if (item == null || App.CompanyManager?.CompanyData is not { } companyData) return;
+        if (ReturnRefunds.ReturnForCredit(companyData, item.Id) is { } returnRecord)
+            App.ReturnsModalsViewModel?.OpenUndoReturnModal(returnRecord, $"{returnRecord.Id} - {ReturnsPageViewModel.ProductNamesOf(returnRecord)}");
+    }
+
     [RelayCommand]
     private void MarkBillPaid(ExpenseDisplayItem? item) => App.ExpenseModalsViewModel?.MarkBillPaid(item);
 
@@ -920,28 +933,22 @@ public partial class ExpenseDisplayItem : ObservableObject, ISelectableRow
     private string _originalCurrency = "USD";
 
     public string DateFormatted => DateFormatService.Format(Date);
-    public string TotalFormatted => IsPendingConversion
-        ? CurrencyService.Format(Total)
-        : CurrencyService.FormatWithOriginal(Total, OriginalCurrency, TotalUSD, Date);
-    public string AmountFormatted => IsPendingConversion
-        ? CurrencyService.Format(Amount)
-        : CurrencyService.FormatWithOriginal(Amount, OriginalCurrency, AmountUSD, Date);
-    public string TaxAmountFormatted => IsPendingConversion
-        ? CurrencyService.Format(TaxAmount)
-        : CurrencyService.FormatWithOriginal(TaxAmount, OriginalCurrency, TaxAmountUSD, Date);
+    public string TotalFormatted => Money(Total, TotalUSD);
+    public string AmountFormatted => Money(Amount, AmountUSD);
+    public string TaxAmountFormatted => Money(TaxAmount, TaxAmountUSD);
     public string TaxRateFormatted => $"{TaxRate:N1}%";
-    public string ShippingCostFormatted => IsPendingConversion
-        ? CurrencyService.Format(ShippingCost)
-        : CurrencyService.FormatWithOriginal(ShippingCost, OriginalCurrency, ShippingCostUSD, Date);
-    public string DiscountFormatted => IsPendingConversion
-        ? $"-{CurrencyService.Format(Discount)}"
-        : $"-{CurrencyService.FormatWithOriginal(Discount, OriginalCurrency, DiscountUSD, Date)}";
-    public string FeeFormatted => IsPendingConversion
-        ? CurrencyService.Format(Fee)
-        : CurrencyService.FormatWithOriginal(Fee, OriginalCurrency, FeeUSD, Date);
-    public string UnitPriceFormatted => IsPendingConversion
-        ? CurrencyService.Format(UnitPrice)
-        : CurrencyService.FormatWithOriginal(UnitPrice, OriginalCurrency, UnitPriceUSD, Date);
+    public string ShippingCostFormatted => Money(ShippingCost, ShippingCostUSD);
+    public string DiscountFormatted => $"-{Money(Discount, DiscountUSD)}";
+    public string FeeFormatted => Money(Fee, FeeUSD);
+    public string UnitPriceFormatted => Money(UnitPrice, UnitPriceUSD);
+
+    /// <summary>Money coming back to the business, a refund from a supplier, which the page shows like income: in green, without a minus.</summary>
+    public bool IsMoneyBack => Total < 0;
+
+    // Amounts show without their sign, since the colour of the total says which way the money went.
+    private string Money(decimal amount, decimal amountUSD) => IsPendingConversion
+        ? CurrencyService.Format(Math.Abs(amount))
+        : CurrencyService.FormatWithOriginal(Math.Abs(amount), OriginalCurrency, Math.Abs(amountUSD), Date);
 
     /// <summary>Friendly explanation for the info tooltip next to the "Pending" status badge.</summary>
     public string PendingConversionHint => CurrencyService.BuildPendingConversionHint(Total, OriginalCurrency, Date);

@@ -158,7 +158,7 @@ public static class ReturnRefunds
             Id = new IdGenerator(data).NextExpenseId(returnRecord.ReturnDate),
             Date = returnRecord.ReturnDate,
             SupplierId = purchase.SupplierId,
-            Description = $"Refund from supplier for {purchase.Id}",
+            Description = $"Refund for {purchase.Id}",
             LineItems = purchase.LineItems.Select(li => li.Clone()).ToList(),
             Quantity = 1,
             UnitPrice = -(amount - tax),

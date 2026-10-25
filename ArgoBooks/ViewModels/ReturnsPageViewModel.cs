@@ -228,7 +228,7 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
         // Apply search filter
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
-            filtered = filtered.RankBySearch(SearchQuery, r => [r.Id, r.OriginalTransactionId, GetProductNames(r), GetSupplierOrCustomerName(r)]);
+            filtered = filtered.RankBySearch(SearchQuery, r => [r.Id, r.OriginalTransactionId, ProductNamesOf(r), GetSupplierOrCustomerName(r)]);
         }
 
         if (filterReason != "All")
@@ -270,7 +270,7 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
 
     private ReturnDisplayItem CreateDisplayItem(Return returnRecord)
     {
-        var productNames = GetProductNames(returnRecord);
+        var productNames = ProductNamesOf(returnRecord);
         var supplierOrCustomerName = GetSupplierOrCustomerName(returnRecord);
         var processedByName = GetProcessedByName(returnRecord);
         var reason = returnRecord.Items.FirstOrDefault()?.Reason ?? "Not specified";
@@ -297,7 +297,8 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
         };
     }
 
-    private string GetProductNames(Return returnRecord)
+    /// <summary>The products a return sent back, as the Returns page and its Undo Return dialog name them.</summary>
+    internal static string ProductNamesOf(Return returnRecord)
     {
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return "Unknown";

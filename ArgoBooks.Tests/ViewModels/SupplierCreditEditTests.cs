@@ -17,7 +17,7 @@ public class SupplierCreditEditTests : ModalViewModelTestBase
         var credit = new Expense
         {
             Id = "PUR-2", Date = new DateTime(2024, 3, 1), OriginalCurrency = "USD",
-            Description = "Refund from supplier for PUR-1",
+            Description = "Refund for PUR-1",
             Amount = -79.64m, TaxAmount = -10.35m, Total = -89.99m, TotalUSD = -89.99m,
             LineItems = [new() { Description = "Bundle", Quantity = 1, UnitPrice = 2437.46m }]
         };
@@ -51,6 +51,9 @@ public class SupplierCreditEditTests : ModalViewModelTestBase
         var row = page.Expenses.Single(e => e.Id == credit.Id);
 
         Assert.True(row.IsSupplierCredit);
+        Assert.True(row.IsMoneyBack);
+        Assert.DoesNotContain("-", row.TotalFormatted);
+        Assert.Contains("89.99", row.TotalFormatted);
         Assert.False(row.CanMarkAsReturned);
         Assert.False(row.CanMarkAsLostDamaged);
         page.Cleanup();

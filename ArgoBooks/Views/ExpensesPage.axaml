@@ -423,10 +423,19 @@
                                                 <TextBlock Text="{Binding TotalFormatted}"
                                                            FontSize="14"
                                                            FontWeight="Medium"
-                                                           Foreground="{DynamicResource ErrorBrush}"
+                                                           Classes.money-back="{Binding IsMoneyBack}"
                                                            VerticalAlignment="Center"
                                                            Margin="8,0"
-                                                           TextTrimming="CharacterEllipsis" />
+                                                           TextTrimming="CharacterEllipsis">
+                                                    <TextBlock.Styles>
+                                                        <Style Selector="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+                                                        </Style>
+                                                        <Style Selector="TextBlock.money-back">
+                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                        </Style>
+                                                    </TextBlock.Styles>
+                                                </TextBlock>
                                             </table:ArgoTableCell.CellContent>
                                         </table:ArgoTableCell>
 
@@ -520,6 +529,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Edit'}"
+                                                            IsVisible="{Binding !IsSupplierCredit}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).OpenEditModalCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
@@ -579,9 +589,19 @@
                                                     </Button>
                                                     <Button Classes="icon-button danger"
                                                             ToolTip.Tip="{loc:Loc 'Delete'}"
+                                                            IsVisible="{Binding !IsSupplierCredit}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).OpenDeleteConfirmCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Delete}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <!-- A refund from a supplier goes with its return -->
+                                                    <Button Classes="icon-button danger"
+                                                            ToolTip.Tip="{loc:Loc 'Undo Return'}"
+                                                            IsVisible="{Binding IsSupplierCredit}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).UndoRefundReturnCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Returns}"
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                 </StackPanel>
