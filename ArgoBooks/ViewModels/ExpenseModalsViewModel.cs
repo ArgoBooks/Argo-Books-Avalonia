@@ -181,7 +181,9 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         var expense = companyData?.Expenses.FirstOrDefault(p => p.Id == item.Id);
         if (expense == null) return null;
 
-        if (ReturnRefunds.ReturnForCredit(companyData!, expense.Id) != null)
+        // A return points at the purchase's lines and amounts, so they stay as they were while it has one.
+        if (ReturnRefunds.ReturnForCredit(companyData!, expense.Id) != null
+            || companyData!.Returns.Any(r => r.OriginalTransactionId == expense.Id))
             return null;
 
         LoadCounterpartyOptions();
@@ -598,11 +600,17 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         if (expense == null || expense.IsPaid) return;
 
         var paidOn = DateTime.Today;
-        expense.PaidDate = paidOn;
+        void SetPaid(DateTime? date)
+        {
+            expense.PaidDate = date;
+            ReturnRefunds.FollowBill(companyData!, expense);
+        }
+
+        SetPaid(paidOn);
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Mark bill {expense.Id} as paid",
-            () => { expense.PaidDate = null; RaiseTransactionSaved(); },
-            () => { expense.PaidDate = paidOn; RaiseTransactionSaved(); }));
+            () => { SetPaid(null); RaiseTransactionSaved(); },
+            () => { SetPaid(paidOn); RaiseTransactionSaved(); }));
         App.CompanyManager?.MarkAsChanged();
         RaiseTransactionSaved();
     }

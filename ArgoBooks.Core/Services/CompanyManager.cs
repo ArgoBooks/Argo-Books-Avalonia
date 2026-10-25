@@ -989,10 +989,10 @@ public class CompanyManager : IDisposable
         {
             if (invoicesWithPayments.Contains(invoice.Id))
             {
-                var before = (invoice.AmountPaid, invoice.AmountRefunded, invoice.Balance,
+                var before = (invoice.AmountPaid, invoice.AmountRefunded, invoice.AmountCredited, invoice.Balance,
                     invoice.BalanceUSD, invoice.Status);
                 InvoiceTotalsService.Recalculate(invoice, data.Payments);
-                var after = (invoice.AmountPaid, invoice.AmountRefunded, invoice.Balance,
+                var after = (invoice.AmountPaid, invoice.AmountRefunded, invoice.AmountCredited, invoice.Balance,
                     invoice.BalanceUSD, invoice.Status);
                 if (!before.Equals(after))
                     healed = true;

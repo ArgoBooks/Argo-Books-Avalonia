@@ -253,7 +253,7 @@ public class BillsTests
     }
 
     [Fact]
-    public void ReturningGoodsFromAnUnpaidBill_RecordsNoSupplierCredit()
+    public void ReturningGoodsFromAnUnpaidBill_RecordsACreditOwedWithTheBill()
     {
         var data = Company();
         var returnRecord = new Return
@@ -262,8 +262,10 @@ public class BillsTests
             ReturnDate = new DateTime(2024, 1, 20), RefundAmount = 300m
         };
 
-        Assert.Null(ReturnRefunds.Record(data, returnRecord));
-        Assert.Single(data.Expenses);
+        var credit = ReturnRefunds.Record(data, returnRecord)!.Expense!;
+
+        Assert.False(credit.IsPaid);
+        Assert.Equal(data.Expenses.Single(e => e.Id == "B1").DueDate, credit.DueDate);
     }
 
     #endregion

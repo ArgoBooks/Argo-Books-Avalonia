@@ -174,7 +174,15 @@ public partial class Invoice : ObservableObject, IRecord
     private decimal _amountRefunded;
 
     /// <summary>
-    /// Remaining balance the customer still owes. Computed as Math.Max(0, Total - AmountPaid).
+    /// What credit notes for returned goods took off what the customer owed (absolute value, always &gt;= 0).
+    /// Sum of |Amount| over Payment rows where IsCreditNote is true for this invoice.
+    /// </summary>
+    [ObservableProperty]
+    [property: JsonPropertyName("amountCredited")]
+    private decimal _amountCredited;
+
+    /// <summary>
+    /// Remaining balance the customer still owes. Computed as Math.Max(0, Total - AmountPaid - AmountCredited).
     /// Refunds do NOT raise the balance, once a customer paid, they don't owe again just
     /// because we returned money to them.
     /// </summary>
@@ -271,7 +279,7 @@ public partial class Invoice : ObservableObject, IRecord
         {
             if (Total <= 0) return false;
             var places = CurrencyInfo.GetByCode(OriginalCurrency).DecimalPlaces;
-            return Math.Round(AmountPaid, places, MidpointRounding.AwayFromZero)
+            return Math.Round(AmountPaid + AmountCredited, places, MidpointRounding.AwayFromZero)
                    >= Math.Round(Total, places, MidpointRounding.AwayFromZero);
         }
     }

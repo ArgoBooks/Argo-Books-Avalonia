@@ -266,7 +266,7 @@ public static class CurrencyService
         CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, start, end, collectedOnly: true)
         || RevenueAggregator.AnyCollectedWaiting(data.Revenues, start, end)
         || ExpenseAggregator.AnyWaiting(data.Expenses, start, end)
-        || RefundAggregator.AnyRefundWaiting(data.Payments, start, end)
+        || RefundAggregator.AnyRefundWaiting(RefundAggregator.ForPaidSales(data), start, end)
         || ProfitCalculator.AnyAssetSaleWaiting(data.Assets, start, end)
             ? PendingMarker
             : FormatTotalOrPending(convert => ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert));

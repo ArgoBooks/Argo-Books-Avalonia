@@ -438,9 +438,18 @@ public ExpensesPageViewModel()
         }
 
         // Each bill in the company's currency at its own date, as every other expense total is (Calculations.md Rule 4).
-        var bills = _allExpenses.Where(e => !e.IsPaid).ToList();
+        // A bill returned in full owes nothing, and the credits for returned bills come off what is owed.
+        var returned = companyData == null ? [] : TransactionReturns.ReturnedById(companyData, _allExpenses);
+        var bills = _allExpenses.Where(e => !e.IsPaid && !returned.GetValueOrDefault(e.Id)).ToList();
         var overdue = bills.Where(e => e.IsOverdueOn(DateTime.Today)).ToList();
-        decimal Owed(IEnumerable<Expense> expenses) => expenses.Sum(e => CurrencyService.GetDisplayAmount(e.EffectiveTotalUSD, e.Date));
+        var creditsByBill = (companyData?.Returns ?? [])
+            .Where(r => r.ReturnType == "Expense" && r.RefundRecordId != null)
+            .Select(r => (BillId: r.OriginalTransactionId, Credit: companyData!.Expenses.FirstOrDefault(e => e.Id == r.RefundRecordId)))
+            .Where(c => c.Credit is { IsPaid: false })
+            .ToLookup(c => c.BillId, c => c.Credit!);
+        decimal Owed(IEnumerable<Expense> expenses) => expenses
+            .SelectMany(e => creditsByBill[e.Id].Prepend(e))
+            .Sum(e => CurrencyService.GetDisplayAmount(e.EffectiveTotalUSD, e.Date));
         BillsToPay = CurrencyService.Format(Owed(bills));
         BillsToPaySubtext = bills.Count == 0
             ? "Nothing owed".Translate()
@@ -964,7 +973,10 @@ public partial class ExpenseDisplayItem : ObservableObject, ISelectableRow
         };
     public bool HasReturn => IsReturned || IsPartialReturn;
     public bool CanMarkAsReturned => !IsReturned && !IsLostDamaged;
-    public bool CanMarkAsLostDamaged => !IsReturned && !IsLostDamaged;
+    public bool CanMarkAsLostDamaged => !HasReturn && !IsLostDamaged;
+
+    /// <summary>A purchase with a return keeps its lines as they were, since the return points at them.</summary>
+    public bool CanEdit => !HasReturn;
 
     [ObservableProperty]
     private bool _isHighlighted;

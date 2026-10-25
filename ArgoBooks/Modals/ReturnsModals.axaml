@@ -171,7 +171,7 @@
                                           Subtitle="{Binding RecordReturnSubtitle}"
                                           CloseCommand="{Binding CloseRecordReturnModalCommand}" />
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="24" Spacing="20">
                             <!-- What comes back -->
                             <StackPanel Spacing="8">

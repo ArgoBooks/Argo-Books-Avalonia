@@ -113,6 +113,52 @@ public class TransactionReturnsTests
     }
 
     [Fact]
+    public void RefundImportedFromStripe_CountsTheSaleReturned()
+    {
+        var data = Company();
+        var sale = Sale();
+        data.Revenues.Add(sale);
+        data.Returns.Add(new Return
+        {
+            Id = "RET-1", OriginalTransactionId = sale.Id, ReturnType = "Customer", Status = ReturnStatus.Completed,
+            RefundAmount = 208m
+        });
+
+        Assert.Equal((true, true), TransactionReturns.ReturnedState(data, sale));
+    }
+
+    [Fact]
+    public void ReturnOfOnlyTheShipping_LeavesEveryLineToReturn()
+    {
+        var data = Company();
+        var sale = Sale();
+        data.Revenues.Add(sale);
+
+        TransactionReturns.Record(data, sale, Request([], shipping: true));
+
+        Assert.Equal((true, false), TransactionReturns.ReturnedState(data, sale));
+        Assert.Equal(-10m, Assert.Single(data.Payments).Amount);
+    }
+
+    [Fact]
+    public void TrackedProductWithNoStockRecord_MovesNoStock_AndKeepsItsCostOfGoodsSold()
+    {
+        var data = Company();
+        var sale = new Revenue
+        {
+            Id = "REV-2", Date = new DateTime(2026, 1, 10), OriginalCurrency = "USD", Amount = 20m, Total = 20m, TotalUSD = 20m,
+            PaymentStatus = RevenuePaymentStatus.Paid,
+            LineItems = [new LineItem { ProductId = "PRD-1", Quantity = 2, UnitPrice = 10m, CostOfGoodsUSD = 4m }]
+        };
+        data.Revenues.Add(sale);
+
+        var change = TransactionReturns.Record(data, sale, Request(new() { [0] = 1 }));
+
+        Assert.False(change.Record.Restocked);
+        Assert.Equal(0m, change.Record.CostOfGoodsReturnedUSD);
+    }
+
+    [Fact]
     public void CustomerReturn_PutsStockBack_AndTakesItsCostOffCostOfGoodsSold()
     {
         var data = Company();
@@ -198,22 +244,67 @@ public class TransactionReturnsTests
         Assert.Contains(credit.Id, ReturnRefunds.SupplierCreditIds(data));
     }
 
+    private static Expense Bill() => new()
+    {
+        Id = "PUR-1", Date = new DateTime(2026, 1, 5), DueDate = new DateTime(2026, 2, 5), OriginalCurrency = "USD",
+        Amount = 30m, Total = 30m, TotalUSD = 30m,
+        LineItems =
+        [
+            new LineItem { Description = "Paper", Quantity = 2, UnitPrice = 10m },
+            new LineItem { Description = "Ink", Quantity = 1, UnitPrice = 10m }
+        ]
+    };
+
     [Fact]
-    public void UnpaidBill_RecordsTheReturnWithoutACredit()
+    public void ReturnOnAnUnpaidBill_ComesOffWhatIsOwed()
     {
         var data = Company();
-        var bill = new Expense
-        {
-            Id = "PUR-1", Date = new DateTime(2026, 1, 5), DueDate = new DateTime(2026, 2, 5), OriginalCurrency = "USD",
-            Amount = 10m, Total = 10m, TotalUSD = 10m,
-            LineItems = [new LineItem { Description = "Lamp", ProductId = "PRD-2", Quantity = 1, UnitPrice = 10m }]
-        };
+        var bill = Bill();
         data.Expenses.Add(bill);
 
-        var change = TransactionReturns.Record(data, bill, Request(new() { [0] = 1 }));
+        var change = TransactionReturns.Record(data, bill, Request(new() { [1] = 1 }));
 
-        Assert.Null(change.Refund);
-        Assert.Single(data.Returns);
-        Assert.Single(data.Expenses);
+        var credit = change.Refund!.Expense!;
+        Assert.Equal(-10m, credit.Total);
+        Assert.False(credit.IsPaid);
+        Assert.Equal(20m, data.Expenses.Where(e => e.IsOwedOn(ReturnDate)).Sum(e => e.Total));
+        // Neither counts as spent until the bill is paid.
+        Assert.Equal(0m, ExpenseAggregator.SumExpensesUSD(data.Expenses, new DateTime(2026, 1, 1), new DateTime(2026, 12, 31)));
+    }
+
+    [Fact]
+    public void PayingTheBill_PaysItsCredit_OnTheLaterOfThePaymentAndTheReturn()
+    {
+        var data = Company();
+        var bill = Bill();
+        data.Expenses.Add(bill);
+        var credit = TransactionReturns.Record(data, bill, Request(new() { [1] = 1 })).Refund!.Expense!;
+
+        bill.PaidDate = new DateTime(2026, 1, 20);
+        ReturnRefunds.FollowBill(data, bill);
+        Assert.Equal(ReturnDate, credit.PaidDate);
+        Assert.Equal(20m, ExpenseAggregator.SumExpensesUSD(data.Expenses, new DateTime(2026, 1, 1), new DateTime(2026, 12, 31)));
+
+        bill.PaidDate = new DateTime(2026, 3, 1);
+        ReturnRefunds.FollowBill(data, bill);
+        Assert.Equal(new DateTime(2026, 3, 1), credit.PaidDate);
+
+        bill.PaidDate = null;
+        ReturnRefunds.FollowBill(data, bill);
+        Assert.False(credit.IsPaid);
+    }
+
+    [Fact]
+    public void ReturnOnAPaidPurchase_IsPaidOnTheReturnDate()
+    {
+        var data = Company();
+        var purchase = Bill();
+        purchase.DueDate = null;
+        data.Expenses.Add(purchase);
+
+        var credit = TransactionReturns.Record(data, purchase, Request(new() { [1] = 1 })).Refund!.Expense!;
+
+        Assert.True(credit.IsPaid);
+        Assert.Equal(ReturnDate, credit.CashDate);
     }
 }

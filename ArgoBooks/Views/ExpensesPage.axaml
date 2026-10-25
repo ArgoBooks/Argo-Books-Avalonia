@@ -530,7 +530,8 @@
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Edit'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).OpenEditModalCommand}"
-                                                            CommandParameter="{Binding}">
+                                                            CommandParameter="{Binding}"
+                                                            IsVisible="{Binding CanEdit}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
                                                                   Width="16" Height="16" />
                                                     </Button>

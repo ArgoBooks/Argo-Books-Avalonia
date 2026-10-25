@@ -147,8 +147,13 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     protected override Transaction? LoadIntoForm(RevenueDisplayItem item)
     {
-        var revenue = App.CompanyManager?.CompanyData?.Revenues.FirstOrDefault(s => s.Id == item.Id);
+        var companyData = App.CompanyManager?.CompanyData;
+        var revenue = companyData?.Revenues.FirstOrDefault(s => s.Id == item.Id);
         if (revenue == null) return null;
+
+        // A return points at the sale's lines and amounts, so they stay as they were while it has one.
+        if (companyData!.Returns.Any(r => r.OriginalTransactionId == revenue.Id))
+            return null;
 
         LoadCounterpartyOptions();
         LoadCategoryOptions();
@@ -249,6 +254,26 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     public void OpenMarkAsLostDamagedModal(RevenueDisplayItem? item)
     {
         OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.LostDamaged), "Mark as Lost / Damaged", "Mark as Lost / Damaged", false, LostDamagedReasonOptions);
+    }
+
+    /// <summary>
+    /// Records an unpaid sale with no invoice as paid, with undo. A sale with a return can't be edited, so
+    /// this is how the rest of it gets paid; a return's credit note comes off revenue from then on.
+    /// </summary>
+    public void MarkSalePaid(RevenueDisplayItem? item)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var sale = companyData?.Revenues.FirstOrDefault(r => r.Id == item?.Id);
+        if (sale == null || !string.IsNullOrEmpty(sale.InvoiceId) || RevenueAggregator.IsCollected(sale)) return;
+
+        var before = sale.PaymentStatus;
+        sale.PaymentStatus = RevenuePaymentStatus.Paid;
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            $"Mark revenue {sale.Id} as paid",
+            () => { sale.PaymentStatus = before; RaiseTransactionSaved(); },
+            () => { sale.PaymentStatus = RevenuePaymentStatus.Paid; RaiseTransactionSaved(); }));
+        App.CompanyManager?.MarkAsChanged();
+        RaiseTransactionSaved();
     }
 
     /// <summary>Opens the return form for the row, where some or all of it can be returned.</summary>

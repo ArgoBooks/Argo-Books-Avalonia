@@ -2150,6 +2150,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var keys = targets.Select(UsdConversion.KeyOf).ToList();
         var queued = new List<PendingConversion>[targets.Count];
         var stockChanges = new List<StockChange>[targets.Count];
+        var returns = new List<TransactionReturns.Change>[targets.Count];
         var reason = IsExpenseForm ? "Expense deleted" : "Revenue deleted";
 
         void Remove()
@@ -2161,6 +2162,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                     data.Receipts.RemoveRecord(receipt);
                 queued[i] = UsdConversion.Snapshot(data, [keys[i]]);
                 UsdConversion.Set(data, keys[i], null);
+                returns[i] = TransactionReturns.RemoveAll(data, targets[i].Id);
                 stockChanges[i] = AdjustInventoryForEdit(data, targets[i], targets[i].LineItems, [], IsExpenseForm, reason);
             }
             data.MarkAsModified();
@@ -2175,6 +2177,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                     data.Receipts.RestoreRecord(receipt);
                 UsdConversion.Restore(data, [keys[i]], queued[i]);
                 RevertInventoryAdjustments(data, stockChanges[i]);
+                TransactionReturns.PutBackAll(data, returns[i]);
             }
             data.MarkAsModified();
         }
@@ -2209,6 +2212,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var queueKey = UsdConversion.KeyOf(transaction);
         List<StockChange> stockChanges = [];
         List<PendingConversion> queued = [];
+        List<TransactionReturns.Change> returns = [];
 
         // The queued conversion leaves with the row and comes back with it as it was, keeping the
         // date whose rate it waits for.
@@ -2221,6 +2225,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                     companyData.Receipts.RemoveRecord(receipt);
                 queued = UsdConversion.Snapshot(companyData, [queueKey]);
                 UsdConversion.Set(companyData, queueKey, null);
+                returns = TransactionReturns.RemoveAll(companyData, transaction.Id);
                 stockChanges = AdjustInventoryForEdit(companyData, transaction, transaction.LineItems, [], isExpense, reason);
             },
             onRestore: () =>
@@ -2229,6 +2234,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                     companyData.Receipts.RestoreRecord(receipt);
                 UsdConversion.Restore(companyData, [queueKey], queued);
                 RevertInventoryAdjustments(companyData, stockChanges);
+                TransactionReturns.PutBackAll(companyData, returns);
             });
 
         App.CompanyManager?.MarkAsChanged();

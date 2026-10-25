@@ -231,12 +231,21 @@ public partial class ReturnsModalsViewModel : ViewModelBase
         companyData.MarkAsModified();
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Undo return '{change.Record.Id}'",
-            () => { change.PutBack(companyData); companyData.MarkAsModified(); ReturnUndone?.Invoke(this, EventArgs.Empty); },
-            () => { change.TakeOut(companyData); companyData.MarkAsModified(); ReturnUndone?.Invoke(this, EventArgs.Empty); }));
+            () => { change.PutBack(companyData); Changed(companyData, change, ReturnUndone); },
+            () => { change.TakeOut(companyData); Changed(companyData, change, ReturnUndone); }));
 
         App.CompanyManager?.MarkAsChanged();
-        ReturnUndone?.Invoke(this, EventArgs.Empty);
+        Changed(companyData, change, ReturnUndone);
         CloseUndoReturnModal();
+    }
+
+    // A credit note changes what the invoice still owes, which the payment portal keeps its own copy of.
+    private void Changed(Core.Data.CompanyData companyData, TransactionReturns.Change change, EventHandler? raised)
+    {
+        companyData.MarkAsModified();
+        if (change.Refund?.CreditNote is { InvoiceId.Length: > 0 } creditNote)
+            App.PortalBalanceSyncService?.Queue(creditNote.InvoiceId);
+        raised?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Opens Undo Return for the most recent return of a sale or purchase, as its row's undo button does.</summary>
@@ -409,17 +418,29 @@ public partial class ReturnsModalsViewModel : ViewModelBase
     }
 
     // What happens to the money, which depends on whether it was paid and how, so the form says it before saving.
-    private static string RefundNoteFor(Core.Data.CompanyData data, Transaction transaction) => transaction switch
+    private static string RefundNoteFor(Core.Data.CompanyData data, Transaction transaction)
     {
-        Expense { IsPaid: false } => "This bill isn't paid yet, so no refund is recorded.".Translate(),
-        Expense => "Recorded as a refund from the supplier on the return date.".Translate(),
-        Revenue sale when !string.IsNullOrEmpty(sale.InvoiceId)
-                          && data.Payments.Any(p => p.InvoiceId == sale.InvoiceId && p.Source == PaymentSource.Online)
-            => "This sale was paid online, so refund it through the payment provider; the refund arrives with the next payment sync.".Translate(),
-        Revenue sale when string.IsNullOrEmpty(sale.InvoiceId) && !RevenueAggregator.IsCollected(sale)
-            => "This sale isn't paid, so no refund is recorded.".Translate(),
-        _ => "Recorded as a refund to the customer on the return date, up to what they paid.".Translate()
-    };
+        if (transaction is Expense purchase)
+            return purchase.IsPaid
+                ? "Recorded as a refund from the supplier on the return date.".Translate()
+                : "This bill isn't paid yet, so the return comes off what you owe.".Translate();
+
+        var sale = (Revenue)transaction;
+        var invoice = string.IsNullOrEmpty(sale.InvoiceId) ? null : data.Invoices.FirstOrDefault(i => i.Id == sale.InvoiceId);
+        var paidOnline = invoice != null && data.Payments.Any(p => p.InvoiceId == invoice.Id && p.Source == PaymentSource.Online);
+        var owes = invoice != null ? invoice.Total - invoice.AmountPaid - invoice.AmountCredited > 0 : !RevenueAggregator.IsCollected(sale);
+        var paidSome = invoice == null ? !owes : invoice.AmountPaid > 0;
+
+        if (owes && !paidSome)
+            return "This sale isn't paid yet, so the return comes off what the customer owes.".Translate();
+        if (owes)
+            return paidOnline
+                ? "The return comes off what the customer still owes first. Refund anything more through the payment provider.".Translate()
+                : "The return comes off what the customer still owes first, and anything more is refunded to them.".Translate();
+        return paidOnline
+            ? "This sale was paid online, so refund it through the payment provider; the refund arrives with the next payment sync.".Translate()
+            : "Recorded as a refund to the customer on the return date.".Translate();
+    }
 
     private void OnReturnLineChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -488,15 +509,15 @@ public partial class ReturnsModalsViewModel : ViewModelBase
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Record return '{change.Record.Id}' of '{transaction.Id}'",
-            () => { change.TakeOut(companyData); companyData.MarkAsModified(); ReturnRecorded?.Invoke(this, EventArgs.Empty); },
-            () => { change.PutBack(companyData); companyData.MarkAsModified(); ReturnRecorded?.Invoke(this, EventArgs.Empty); }));
+            () => { change.TakeOut(companyData); Changed(companyData, change, ReturnRecorded); },
+            () => { change.PutBack(companyData); Changed(companyData, change, ReturnRecorded); }));
 
         var whole = TransactionReturns.ReturnedState(companyData, transaction).All;
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReturnRecorded,
             $"{(transaction is Expense ? "purchase" : "sale")}:{(whole ? "all" : "part")}{(change.Record.Restocked ? ":stock" : "")}");
 
         App.CompanyManager?.MarkAsChanged();
-        ReturnRecorded?.Invoke(this, EventArgs.Empty);
+        Changed(companyData, change, ReturnRecorded);
         CloseRecordReturnModal();
     }
 

@@ -851,7 +851,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var (startDate, endDate) = GetDateRange();
 
         // In the display currency when a converter is given, USD otherwise.
-        return TopCustomers.Rank(companyData.Revenues, companyData.Payments, startDate, endDate,
+        return TopCustomers.Rank(companyData.Revenues, RefundAggregator.ForPaidSales(companyData), startDate, endDate,
                 toDisplay ?? ((amountUSD, _) => amountUSD))
             .Select(c =>
             {
@@ -1429,7 +1429,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     // Money charts count only expenses whose money has gone out, as they count only collected revenue (Calculations.md Rule 2).
     private IEnumerable<Expense> PaidExpenses => companyData!.Expenses.Where(ExpenseAggregator.IsPaid);
 
-    private IEnumerable<Payment> Refunds => companyData!.Payments.Where(p => p.IsRefund);
+    private IEnumerable<Payment> Refunds => RefundAggregator.ForPaidSales(companyData!).Where(p => p.IsRefund);
 
     private Dictionary<string, Invoice> InvoicesById => _invoicesById ??= ProfitCalculator.BuildInvoiceLookup(companyData!.Invoices);
 
@@ -1443,7 +1443,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     {
         decimal Display(decimal usd, DateTime date) => toDisplay != null ? toDisplay(usd, date) : usd;
         return CollectedRevenues.Where(r => r.Date >= start && r.Date <= end).Sum(r => Display(r.EffectiveTaxAmountUSD, r.Date))
-               - RefundAggregator.GetRefundedTaxInDateRangeDisplay(companyData!.Payments, InvoicesById, start, end, Display);
+               - RefundAggregator.GetRefundedTaxInDateRangeDisplay(RefundAggregator.ForPaidSales(companyData!), InvoicesById, start, end, Display);
     }
 
     private bool HasTaxData(DateTime start, DateTime end) =>
@@ -1846,7 +1846,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     {
         var byDay = RevenueAggregator.GroupCollectedRevenueByDayUSD(companyData!.Revenues, start, end);
 
-        foreach (var (day, refunded) in RefundAggregator.GroupRefundsByDayUSD(companyData.Payments, start, end))
+        foreach (var (day, refunded) in RefundAggregator.GroupRefundsByDayUSD(RefundAggregator.ForPaidSales(companyData), start, end))
             byDay[day] = byDay.GetValueOrDefault(day) - refunded;
 
         return byDay;

@@ -69,6 +69,13 @@ public class Return : IRecord
     [JsonPropertyName("refundTax")]
     public decimal? RefundTax { get; set; }
 
+    /// <summary>
+    /// The credit note for the part of the refund taken off what the customer still owed on the sale,
+    /// when they had not paid it all. <see cref="RefundRecordId"/> is the refund of the rest, if any.
+    /// </summary>
+    [JsonPropertyName("creditNoteId")]
+    public string? CreditNoteId { get; set; }
+
     /// <summary>Whether the refund includes the transaction's shipping.</summary>
     [JsonPropertyName("includesShipping")]
     public bool IncludesShipping { get; set; }

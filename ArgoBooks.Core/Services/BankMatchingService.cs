@@ -392,11 +392,13 @@ public class BankMatchingService
             {
                 bill.PaidDate = paidOn.Date;
                 bill.PaidByBankLineId = lineId;
+                ReturnRefunds.FollowBill(data, bill);
             }
             else if (!matched && bill.PaidByBankLineId != null && bill.PaidByBankLineId == bill.BankMatchedLineId)
             {
                 bill.PaidDate = null;
                 bill.PaidByBankLineId = null;
+                ReturnRefunds.FollowBill(data, bill);
             }
         }
 
@@ -479,7 +481,8 @@ public class BankMatchingService
         if (scope.Contains(BookRecordType.Payment))
         {
             var matched = MatchedById(data.Payments, p => p.Id, p => p.BankMatched);
-            refs.AddRange(data.Payments.Select(p => (new BookRecordRef
+            // A credit note moves no money, so no bank line can be it.
+            refs.AddRange(data.Payments.Where(p => !p.IsCreditNote).Select(p => (new BookRecordRef
             {
                 Type = BookRecordType.Payment,
                 Id = p.Id,

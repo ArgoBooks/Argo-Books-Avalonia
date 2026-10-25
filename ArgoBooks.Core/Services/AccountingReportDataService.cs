@@ -191,8 +191,9 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// </summary>
     private List<(Invoice Invoice, decimal BalanceUSD)> GetReceivablesAsOfEndDate()
     {
+        // A credit note comes off what was owed the way a payment does.
         var paymentsByInvoice = companyData!.Payments
-            .Where(p => !p.IsRefund && p.Amount > 0 && !string.IsNullOrEmpty(p.InvoiceId))
+            .Where(p => ((!p.IsRefund && p.Amount > 0) || p.IsCreditNote) && !string.IsNullOrEmpty(p.InvoiceId))
             .ToLookup(p => p.InvoiceId);
 
         var receivables = new List<(Invoice, decimal)>();
@@ -211,12 +212,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                          string.Equals(p.OriginalCurrency, invoice.OriginalCurrency, StringComparison.OrdinalIgnoreCase)))
             {
                 // The share still owed in the invoice's own currency, valued at the invoice's rate.
-                var owed = Math.Round(invoice.Total - paidByEnd.Sum(p => p.Amount), 2, MidpointRounding.AwayFromZero);
+                var owed = Math.Round(invoice.Total - paidByEnd.Sum(p => Math.Abs(p.Amount)), 2, MidpointRounding.AwayFromZero);
                 balanceUSD = owed <= 0 ? 0m : invoice.EffectiveTotalUSD * Math.Min(1m, owed / invoice.Total);
             }
             else
             {
-                balanceUSD = Math.Max(0m, invoice.EffectiveTotalUSD - paidByEnd.Sum(p => p.EffectiveAmountUSD));
+                balanceUSD = Math.Max(0m, invoice.EffectiveTotalUSD - paidByEnd.Sum(p => Math.Abs(p.EffectiveAmountUSD)));
             }
 
             if (Math.Round(balanceUSD, 2, MidpointRounding.AwayFromZero) > 0)
@@ -667,7 +668,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         // Everything except revenue-linked, which is already counted by its own Revenue row.
         var cashFromPayments = companyData.Payments
-            .Where(p => string.IsNullOrEmpty(p.RevenueId) && p.Date >= cashFrom && IsOnOrBeforeEndDate(p.Date))
+            .Where(p => string.IsNullOrEmpty(p.RevenueId) && !p.IsCreditNote && p.Date >= cashFrom && IsOnOrBeforeEndDate(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
         // A bill leaves the bank on the day it is paid, not the day it arrived.
@@ -1048,7 +1049,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Everything except revenue-linked, matching cashFromSales above and the balance
         // sheet's cashFromPayments. See the note there on why this tests RevenueId.
         var cashFromInvoicePayments = companyData.Payments
-            .Where(p => string.IsNullOrEmpty(p.RevenueId) && IsInDateRange(p.Date))
+            .Where(p => string.IsNullOrEmpty(p.RevenueId) && !p.IsCreditNote && IsInDateRange(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
         // The share of an expense that bought a fixed asset is an investment rather than a running cost. Both count a bill on the day it was paid.
@@ -1260,14 +1261,18 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         {
             var customerName = companyData.GetCustomer(pmt.CustomerId)?.Name ?? "Unknown";
             var amount = ToDisplay(pmt.EffectiveAmountUSD, pmt.Date);
-            AddLedgerEntry(entries, t.PaymentsReceivedCategory, new LedgerEntry
+            // A credit note moves no money, so it only comes off revenue below.
+            if (!pmt.IsCreditNote)
             {
-                Date = pmt.Date,
-                Description = $"Payment from {customerName}",
-                Reference = pmt.Id,
-                Debit = pmt.IsRefund ? 0 : amount,
-                Credit = pmt.IsRefund ? -amount : 0
-            });
+                AddLedgerEntry(entries, t.PaymentsReceivedCategory, new LedgerEntry
+                {
+                    Date = pmt.Date,
+                    Description = $"Payment from {customerName}",
+                    Reference = pmt.Id,
+                    Debit = pmt.IsRefund ? 0 : amount,
+                    Credit = pmt.IsRefund ? -amount : 0
+                });
+            }
 
             // A refund also comes off revenue on its own date, before tax (docs/Calculations.md §8).
             if (pmt.IsRefund)
@@ -1275,7 +1280,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 AddLedgerEntry(entries, t.RevenueCategory, new LedgerEntry
                 {
                     Date = pmt.Date,
-                    Description = $"Refund to {customerName}",
+                    Description = pmt.IsCreditNote ? $"Credit note for {customerName}" : $"Refund to {customerName}",
                     Reference = pmt.Id,
                     Debit = ToDisplay(RefundAggregator.PreTaxPortionUSD(pmt, InvoicesById), pmt.Date),
                     Credit = 0
@@ -1624,7 +1629,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     }
 
     /// <summary>A payment on a statement invoice. DateKnown is false for a paid amount imported without its payments.</summary>
-    private sealed record StatementPayment(DateTime Date, decimal Amount, bool DateKnown);
+    private sealed record StatementPayment(DateTime Date, decimal Amount, bool DateKnown, bool IsCreditNote = false);
 
     /// <summary>A statement for one customer: what they owe today, or what was invoiced and paid between the dates.</summary>
     private AccountingTableData GetCustomerStatementData()
@@ -1659,7 +1664,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     private List<StatementInvoice> GetStatementInvoices(string customerId)
     {
         var paymentsByInvoice = companyData!.Payments
-            .Where(p => !p.IsRefund && p.Amount > 0 && !string.IsNullOrEmpty(p.InvoiceId))
+            .Where(p => ((!p.IsRefund && p.Amount > 0) || p.IsCreditNote) && !string.IsNullOrEmpty(p.InvoiceId))
             .ToLookup(p => p.InvoiceId);
 
         var result = new List<StatementInvoice>();
@@ -1687,14 +1692,14 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                     break;
 
                 var amount = invoice.Total > 0 && string.Equals(payment.OriginalCurrency, invoice.OriginalCurrency, StringComparison.OrdinalIgnoreCase)
-                    ? total * payment.Amount / invoice.Total
-                    : ToDisplay(payment.EffectiveAmountUSD, invoice.IssueDate);
+                    ? total * Math.Abs(payment.Amount) / invoice.Total
+                    : ToDisplay(Math.Abs(payment.EffectiveAmountUSD), invoice.IssueDate);
                 amount = Math.Min(Math.Round(amount, 2, MidpointRounding.AwayFromZero), remaining);
                 remaining -= amount;
 
                 // A payment taken before the invoice was issued is shown on the issue date, so it never lands outside the invoice's own period.
                 var date = payment.Date.Date < invoice.IssueDate.Date ? invoice.IssueDate : payment.Date;
-                payments.Add(new StatementPayment(date, amount, true));
+                payments.Add(new StatementPayment(date, amount, true, payment.IsCreditNote));
             }
 
             result.Add(new StatementInvoice(invoice, total, payments));
@@ -1796,7 +1801,10 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             }
 
             foreach (var payment in item.Payments.Where(p => p.Date.Date >= start && p.Date.Date <= end))
-                entries.Add((payment.Date, 1, payment.DateKnown ? $"Payment for {number}" : $"Payment for {number} (date not recorded)", 0m, payment.Amount));
+                entries.Add((payment.Date, 1,
+                    payment.IsCreditNote ? $"Credit note for {number}"
+                    : payment.DateKnown ? $"Payment for {number}" : $"Payment for {number} (date not recorded)",
+                    0m, payment.Amount));
         }
 
         data.Rows.Add(new AccountingRow
@@ -1957,7 +1965,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         foreach (var refund in companyData.Payments.Where(p => p.IsRefund && p.Date >= RangeStart && p.Date <= RangeEnd
                                                                && RefundCustomerId(p) == customer.Id))
         {
-            var description = InvoicesById.TryGetValue(refund.InvoiceId ?? "", out var invoice) ? $"Refund for {invoice.InvoiceNumber}" : "Refund";
+            var kind = refund.IsCreditNote ? "Credit note" : "Refund";
+            var description = InvoicesById.TryGetValue(refund.InvoiceId ?? "", out var invoice) ? $"{kind} for {invoice.InvoiceNumber}" : kind;
             entries.Add((refund.Date, 1, description, refund.Id,
                 -ToDisplay(RefundAggregator.PreTaxPortionUSD(refund, InvoicesById), refund.Date),
                 -ToDisplay(Math.Abs(refund.EffectiveAmountUSD), refund.Date)));

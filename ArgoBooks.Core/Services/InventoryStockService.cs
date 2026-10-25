@@ -730,8 +730,9 @@ public static class InventoryStockService
         }
     }
 
-    /// <summary>Whether the line's product tracks stock, so returning it can move stock.</summary>
-    public static bool TracksStock(CompanyData data, LineItem line) => TrackedProduct(data, line) != null;
+    /// <summary>Whether the line's product tracks stock and has a stock record, so returning it can move stock.</summary>
+    public static bool TracksStock(CompanyData data, LineItem line) =>
+        TrackedProduct(data, line) is { } product && FindStockItem(data, product.Id, line.LocationId) != null;
 
     private static Product? TrackedProduct(CompanyData data, LineItem line)
     {

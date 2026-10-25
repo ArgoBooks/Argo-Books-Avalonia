@@ -74,7 +74,8 @@ public static class TransactionReturns
 
     /// <summary>
     /// The transaction's lines with what has come back already. A transaction with no lines counts as
-    /// one line of its whole amount. A return recorded before returns could be partial took everything.
+    /// one line of its whole amount. A return not made by <see cref="Record"/>, such as one recorded
+    /// before returns could be partial or a refund imported from Stripe, took everything.
     /// </summary>
     public static List<Line> LinesOf(CompanyData data, Transaction transaction)
     {
@@ -82,23 +83,26 @@ public static class TransactionReturns
         var returned = new decimal[items.Count];
         foreach (var record in data.Returns.Where(r => r.OriginalTransactionId == transaction.Id && r.Status != ReturnStatus.Rejected))
         {
+            if (!IsByLine(record))
+            {
+                for (var i = 0; i < items.Count; i++)
+                    returned[i] = items[i].Quantity;
+                continue;
+            }
+
             foreach (var item in record.Items)
             {
-                if (item.LineIndex is { } index)
-                {
-                    if (index >= 0 && index < items.Count)
-                        returned[index] += item.Quantity;
-                }
-                else
-                {
-                    for (var i = 0; i < items.Count; i++)
-                        returned[i] = items[i].Quantity;
-                }
+                if (item.LineIndex is { } index && index >= 0 && index < items.Count)
+                    returned[index] += item.Quantity;
             }
         }
 
         return items.Select((item, i) => new Line(i, item, item.Quantity, Math.Min(returned[i], item.Quantity))).ToList();
     }
+
+    /// <summary>Whether the return says which lines came back, as every return <see cref="Record"/> makes does.</summary>
+    public static bool IsByLine(Return record) =>
+        record.RefundTax != null && record.Items.All(i => i.LineIndex != null);
 
     /// <summary>Whether anything of the transaction has come back, and whether all of it has.</summary>
     public static (bool Any, bool All) ReturnedState(CompanyData data, Transaction transaction)
@@ -222,6 +226,25 @@ public static class TransactionReturns
         var change = new Change(record, ReturnRefunds.Find(data, record));
         change.TakeOut(data);
         return change;
+    }
+
+    /// <summary>
+    /// Takes out every return of a transaction being deleted, newest first, so its refunds and the
+    /// stock they moved go with it. <see cref="PutBackAll"/> puts them back when the delete is undone.
+    /// </summary>
+    public static List<Change> RemoveAll(CompanyData data, string transactionId) =>
+        data.Returns
+            .Where(r => r.OriginalTransactionId == transactionId)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToList()
+            .Select(r => Remove(data, r))
+            .ToList();
+
+    /// <summary>Puts back what <see cref="RemoveAll"/> took out, oldest first.</summary>
+    public static void PutBackAll(CompanyData data, List<Change> changes)
+    {
+        for (var i = changes.Count - 1; i >= 0; i--)
+            changes[i].PutBack(data);
     }
 
     /// <summary>The transaction's lines, or one line of its whole amount when it has none.</summary>

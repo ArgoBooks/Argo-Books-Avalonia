@@ -651,6 +651,15 @@
                                                                   Width="16" Height="16"
                                                                   Foreground="{DynamicResource WarningBrush}" />
                                                     </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Mark as paid'}"
+                                                            IsVisible="{Binding CanMarkPaid}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RevenuePageViewModel)DataContext).MarkSalePaidCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Check}"
+                                                                  Width="16" Height="16"
+                                                                  Foreground="{DynamicResource SuccessBrush}" />
+                                                    </Button>
                                                     <!-- View Receipt Button -->
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'View Receipt'}"
@@ -664,7 +673,7 @@
                                                             ToolTip.Tip="{loc:Loc 'Edit'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RevenuePageViewModel)DataContext).OpenEditModalCommand}"
                                                             CommandParameter="{Binding}"
-                                                            IsVisible="{Binding !IsFromPortal}">
+                                                            IsVisible="{Binding CanEdit}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
                                                                   Width="16" Height="16" />
                                                     </Button>
