@@ -251,8 +251,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     {
         // Wages come from pay runs and supplier credits from returns, so each is changed where it was made.
         var payrollIds = PayrollBooks.ExpenseIds(data);
-        var creditIds = data.Returns.Where(r => r.ReturnType == "Expense" && r.RefundRecordId != null)
-            .Select(r => r.RefundRecordId!).ToHashSet();
+        var creditIds = ReturnRefunds.SupplierCreditIds(data);
         return record => payrollIds.Contains(record.Id) || creditIds.Contains(record.Id);
     }
 
@@ -265,19 +264,17 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.LostDamaged), "Mark as Lost / Damaged", "Mark as Lost / Damaged", false, LostDamagedReasonOptions);
     }
 
+    /// <summary>Opens the return form for the row, where some or all of it can be returned.</summary>
     public void OpenMarkAsReturnedModal(ExpenseDisplayItem? item)
     {
-        OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.Returned), "Mark as Returned", "Mark as Returned", false, ReturnReasonOptions);
+        var transaction = item == null ? null : App.CompanyManager?.CompanyData?.Expenses.FirstOrDefault(t => t.Id == item.Id);
+        if (transaction != null)
+            App.ReturnsModalsViewModel?.OpenRecordReturnModal(transaction, ReturnReasonOptions);
     }
 
     public void OpenUndoLostDamagedModal(ExpenseDisplayItem? item)
     {
         OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.UndoLostDamaged), "Undo Lost / Damaged Status", "Undo Status", true, UndoReasonOptions);
-    }
-
-    public void OpenUndoReturnedModal(ExpenseDisplayItem? item)
-    {
-        OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.UndoReturned), "Undo Returned Status", "Undo Status", true, UndoReasonOptions);
     }
 
     protected override string GetItemStatusDescription(ExpenseDisplayItem item)
@@ -344,28 +341,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                     }));
                 break;
             }
-            case ArgoBooks.Core.Enums.ItemStatusAction.Returned:
-            {
-                var record = CreateReturnRecord(companyData, purchase);
-                var refund = ReturnRefunds.Record(companyData, record);
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Mark expense '{purchase.Id}' as returned",
-                    () =>
-                    {
-                        companyData.Returns.RemoveRecord(record);
-                        if (refund != null) ReturnRefunds.Remove(companyData, refund);
-                        companyData.MarkAsModified();
-                        RaiseTransactionSaved();
-                    },
-                    () =>
-                    {
-                        companyData.Returns.RestoreRecord(record);
-                        if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
-                        companyData.MarkAsModified();
-                        RaiseTransactionSaved();
-                    }));
-                break;
-            }
             case ArgoBooks.Core.Enums.ItemStatusAction.UndoLostDamaged:
             {
                 var record = companyData.LostDamaged.FirstOrDefault(ld => ld.InventoryItemId == purchase.Id);
@@ -383,33 +358,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                         () =>
                         {
                             companyData.LostDamaged.RemoveRecord(record);
-                            companyData.MarkAsModified();
-                            RaiseTransactionSaved();
-                        }));
-                }
-                break;
-            }
-            case ArgoBooks.Core.Enums.ItemStatusAction.UndoReturned:
-            {
-                var record = companyData.Returns.FirstOrDefault(r => r.OriginalTransactionId == purchase.Id);
-                if (record != null)
-                {
-                    var refund = ReturnRefunds.Find(companyData, record);
-                    companyData.Returns.RemoveRecord(record);
-                    if (refund != null) ReturnRefunds.Remove(companyData, refund);
-                    RecordStatusUndo(new DelegateAction(
-                        $"Undo returned status for expense '{purchase.Id}'",
-                        () =>
-                        {
-                            companyData.Returns.RestoreRecord(record);
-                            if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
-                            companyData.MarkAsModified();
-                            RaiseTransactionSaved();
-                        },
-                        () =>
-                        {
-                            companyData.Returns.RemoveRecord(record);
-                            if (refund != null) ReturnRefunds.Remove(companyData, refund);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));
@@ -446,40 +394,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         companyData.LostDamaged.Add(lostDamaged);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LostDamagedRecorded);
         return lostDamaged;
-    }
-
-    private Return CreateReturnRecord(CompanyData companyData, Expense purchase)
-    {
-        var productId = purchase.LineItems.FirstOrDefault()?.ProductId ?? "";
-
-        var returnRecord = new Return
-        {
-            Id = new IdGenerator(companyData).NextReturnId(),
-            OriginalTransactionId = purchase.Id,
-            ReturnType = "Expense",
-            SupplierId = purchase.SupplierId ?? "",
-            CustomerId = "",
-            ReturnDate = DateTime.UtcNow,
-            Items =
-            [
-                new ReturnItem
-                {
-                    ProductId = productId,
-                    Quantity = (int)purchase.Quantity,
-                    Reason = SelectedItemStatusReason ?? "Other"
-                }
-            ],
-            RefundAmount = ReturnLossAmounts.RefundFor(purchase, purchase.Amount),
-            RestockingFee = 0,
-            Status = ReturnStatus.Completed,
-            Notes = ItemStatusNotes,
-            ProcessedBy = purchase.AccountantId ?? "",
-            CreatedAt = DateTime.UtcNow
-        };
-
-        companyData.Returns.Add(returnRecord);
-        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReturnRecorded);
-        return returnRecord;
     }
 
     #endregion

@@ -16,7 +16,14 @@ public class ReturnItem
     /// Quantity being returned.
     /// </summary>
     [JsonPropertyName("quantity")]
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
+
+    /// <summary>
+    /// The line of the sale or purchase it came from, by position. Null for a return recorded before
+    /// returns could be partial, which took back the whole transaction.
+    /// </summary>
+    [JsonPropertyName("lineIndex")]
+    public int? LineIndex { get; set; }
 
     /// <summary>
     /// Reason for the return.

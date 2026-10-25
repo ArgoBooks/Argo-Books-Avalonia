@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Helpers;
+using ArgoBooks.Localization;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
@@ -132,6 +133,7 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
             App.ReturnsModalsViewModel.FiltersApplied += OnFiltersApplied;
             App.ReturnsModalsViewModel.FiltersCleared += OnFiltersCleared;
             App.ReturnsModalsViewModel.ReturnUndone += OnReturnUndone;
+            App.ReturnsModalsViewModel.ReturnRecorded += OnReturnUndone;
         }
     }
 
@@ -147,6 +149,7 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
             App.ReturnsModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.ReturnsModalsViewModel.FiltersCleared -= OnFiltersCleared;
             App.ReturnsModalsViewModel.ReturnUndone -= OnReturnUndone;
+            App.ReturnsModalsViewModel.ReturnRecorded -= OnReturnUndone;
         }
     }
 
@@ -303,10 +306,18 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return "Unknown";
 
+        // A line with no product is named by its description on the sale or purchase it came from.
+        var lines = companyData.Revenues.FirstOrDefault(r => r.Id == returnRecord.OriginalTransactionId)?.LineItems
+                    ?? companyData.Expenses.FirstOrDefault(e => e.Id == returnRecord.OriginalTransactionId)?.LineItems;
         var productNames = returnRecord.Items
-            .Select(item => companyData.GetProduct(item.ProductId)?.Name ?? "Unknown Product")
+            .Select(item => companyData.GetProduct(item.ProductId)?.Name
+                            ?? (item.LineIndex is { } index && lines != null && index < lines.Count && !string.IsNullOrWhiteSpace(lines[index].Description)
+                                ? lines[index].Description
+                                : "Unknown Product"))
             .Distinct()
             .ToList();
+        if (returnRecord.IncludesShipping) productNames.Add("Shipping".Translate());
+        if (returnRecord.IncludesFee) productNames.Add("Fee".Translate());
 
         return productNames.Count > 2
             ? $"{productNames[0]}, {productNames[1]} +{productNames.Count - 2} more"
@@ -427,7 +438,7 @@ public partial class ReturnDisplayItem : ObservableObject
     private string _notes = string.Empty;
 
     [ObservableProperty]
-    private int _itemCount;
+    private decimal _itemCount;
 
     // Computed properties for display
     public string DateFormatted => ReturnDate.ToString(Core.Data.DateFormats.Short);

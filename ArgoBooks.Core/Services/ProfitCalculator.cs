@@ -26,7 +26,8 @@ public static class ProfitCalculator
         var revenuePreTax = RevenueAggregator.SumCollectedRevenuePreTaxUSD(
             data.Revenues, start, end);
         var expenses = CostOfGoodsAggregator.SumOperatingExpensesUSD(data.Expenses, start, end, PurchaseTax.RuleFor(data));
-        var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldUSD(data.Revenues, start, end, collectedOnly: true);
+        var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldUSD(data.Revenues, start, end, collectedOnly: true)
+                          - CostOfGoodsAggregator.ReturnedCostUSD(data, start, end, collectedOnly: true);
         var refundsPreTax = RefundAggregator.GetRefundedPreTaxInDateRangeUSD(
             data.Payments, BuildInvoiceLookup(data.Invoices), start, end);
         var assetSales = AssetSalesByDayUSD(data.Assets, start, end).Values.Sum();
@@ -46,7 +47,8 @@ public static class ProfitCalculator
             data.Revenues, start, end, toDisplay);
         var expenses = CostOfGoodsAggregator.SumOperatingExpensesDisplay(data.Expenses, start, end, PurchaseTax.RuleFor(data), toDisplay);
         var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldDisplay(
-            data.Revenues, start, end, collectedOnly: true, toDisplay);
+            data.Revenues, start, end, collectedOnly: true, toDisplay)
+                          - CostOfGoodsAggregator.ReturnedCostDisplay(data, start, end, collectedOnly: true, toDisplay);
         var refundsPreTax = RefundAggregator.GetRefundedPreTaxInDateRangeDisplay(
             data.Payments, BuildInvoiceLookup(data.Invoices), start, end, toDisplay);
         var assetSales = AssetSalesByDayUSD(data.Assets, start, end).Sum(kv => toDisplay(kv.Value, kv.Key));
@@ -76,6 +78,8 @@ public static class ProfitCalculator
             .Where(RevenueAggregator.IsCollected)
             .GroupBy(s => s.Date.Date)
             .ToDictionary(g => g.Key, g => g.Sum(CostOfGoodsAggregator.CostOfGoodsSoldUSD));
+        foreach (var (day, returned) in CostOfGoodsAggregator.ReturnedCostByDayUSD(data, start, end, collectedOnly: true))
+            costOfGoodsByDay[day] = costOfGoodsByDay.GetValueOrDefault(day) - returned;
 
         var assetSalesByDay = AssetSalesByDayUSD(data.Assets, start, end);
 

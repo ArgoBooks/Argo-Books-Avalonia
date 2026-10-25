@@ -105,6 +105,33 @@ public static class ReturnRefunds
         return whole > 0 ? transaction.TaxAmount * Math.Min(1m, amount / whole) : 0m;
     }
 
+    /// <summary>
+    /// The tax a refund of <paramref name="amount"/> for <paramref name="returnRecord"/> gives back: the return's
+    /// own tax in the share of its refund this is, or, for a return recorded before it kept its tax, the
+    /// transaction's tax as <see cref="TaxShare"/> works it out.
+    /// </summary>
+    private static decimal TaxFor(Return returnRecord, Transaction transaction, decimal itemsAmount, decimal amount) =>
+        returnRecord.RefundTax is { } tax
+            ? returnRecord.RefundAmount > 0 ? tax * Math.Min(1m, amount / returnRecord.RefundAmount) : 0m
+            : TaxShare(transaction, itemsAmount, amount);
+
+    /// <summary>The supplier credits recorded for returns, which show on their purchase's row rather than as rows of their own.</summary>
+    public static HashSet<string> SupplierCreditIds(CompanyData data) =>
+        data.Returns
+            .Where(r => r.ReturnType == "Expense" && r.RefundRecordId != null)
+            .Select(r => r.RefundRecordId!)
+            .ToHashSet();
+
+    /// <summary>What the sale's other returns have refunded already, so a later partial return can't refund more than was paid.</summary>
+    private static decimal RefundedBefore(CompanyData data, Return returnRecord, Revenue sale)
+    {
+        var refundIds = data.Returns
+            .Where(r => r != returnRecord && r.OriginalTransactionId == sale.Id && r.RefundRecordId != null)
+            .Select(r => r.RefundRecordId!)
+            .ToHashSet();
+        return data.Payments.Where(p => refundIds.Contains(p.Id)).Sum(p => Math.Abs(p.Amount));
+    }
+
     private static void RecalculateInvoice(CompanyData data, Payment payment)
     {
         if (data.Invoices.FirstOrDefault(i => i.Id == payment.InvoiceId) is { } invoice)
@@ -121,7 +148,10 @@ public static class ReturnRefunds
         if (invoice != null && data.Payments.Any(p => p.InvoiceId == invoice.Id && p.Source == PaymentSource.Online))
             return null;
 
-        var paid = invoice != null ? invoice.NetPaid : RevenueAggregator.IsCollected(sale) ? sale.Total : 0m;
+        // An invoice's net paid already has earlier refunds taken off.
+        var paid = invoice != null
+            ? invoice.NetPaid
+            : RevenueAggregator.IsCollected(sale) ? sale.Total - RefundedBefore(data, returnRecord, sale) : 0m;
         var amount = Math.Min(returnRecord.NetRefund, paid);
         if (amount <= 0)
             return null;
@@ -137,7 +167,7 @@ public static class ReturnRefunds
             Notes = $"Refund for return {returnRecord.Id} of {sale.Id}.",
             IsRefund = true,
             OriginalCurrency = sale.OriginalCurrency,
-            RefundTaxAmount = TaxShare(sale, SaleItems(sale), amount),
+            RefundTaxAmount = TaxFor(returnRecord, sale, SaleItems(sale), amount),
             CreatedAt = DateTime.UtcNow
         };
         UsdConversion.Write(payment, UsdConversion.EntryFor(payment), UsdConversion.CachedRate(payment.OriginalCurrency, payment.Date));
@@ -146,12 +176,12 @@ public static class ReturnRefunds
 
     /// <summary>
     /// A supplier credit for the returned purchase: an expense below zero on the return date, for the return's
-    /// refund, giving back its share of the purchase's tax, with the purchase's lines so it comes off the same categories.
+    /// refund, giving back its share of the purchase's tax, with the returned lines so it comes off the same categories.
     /// </summary>
     private static Expense SupplierCredit(CompanyData data, Return returnRecord, Expense purchase)
     {
         var amount = returnRecord.NetRefund;
-        var tax = TaxShare(purchase, purchase.Amount, amount);
+        var tax = TaxFor(returnRecord, purchase, purchase.Amount, amount);
 
         var credit = new Expense
         {
@@ -159,7 +189,7 @@ public static class ReturnRefunds
             Date = returnRecord.ReturnDate,
             SupplierId = purchase.SupplierId,
             Description = $"Refund for {purchase.Id}",
-            LineItems = purchase.LineItems.Select(li => li.Clone()).ToList(),
+            LineItems = ReturnedLines(returnRecord, purchase),
             Quantity = 1,
             UnitPrice = -(amount - tax),
             Amount = -(amount - tax),
@@ -174,5 +204,25 @@ public static class ReturnRefunds
         };
         UsdConversion.SetAmounts(credit, UsdConversion.CachedRate(credit.OriginalCurrency, credit.Date));
         return credit;
+    }
+
+    /// <summary>
+    /// Copies of the purchase lines that came back, at the quantity that came back. A return from before
+    /// returns could be partial took the whole purchase, so it copies every line.
+    /// </summary>
+    private static List<LineItem> ReturnedLines(Return returnRecord, Expense purchase)
+    {
+        if (returnRecord.Items.Count == 0 || returnRecord.Items.Any(i => i.LineIndex == null))
+            return purchase.LineItems.Select(li => li.Clone()).ToList();
+
+        return returnRecord.Items
+            .Where(i => i.LineIndex is { } index && index < purchase.LineItems.Count)
+            .Select(i =>
+            {
+                var line = purchase.LineItems[i.LineIndex!.Value].Clone();
+                line.Quantity = i.Quantity;
+                return line;
+            })
+            .ToList();
     }
 }

@@ -707,7 +707,7 @@
                                                             ToolTip.Tip="{loc:Loc 'Undo Return'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RevenuePageViewModel)DataContext).UndoReturnCommand}"
                                                             CommandParameter="{Binding}"
-                                                            IsVisible="{Binding IsReturned}">
+                                                            IsVisible="{Binding HasReturn}">
                                                         <PathIcon Data="{x:Static icons:Icons.Returns}"
                                                                   Width="16" Height="16" />
                                                     </Button>

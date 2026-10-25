@@ -529,7 +529,6 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Edit'}"
-                                                            IsVisible="{Binding !IsSupplierCredit}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).OpenEditModalCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
@@ -537,7 +536,6 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc Duplicate}"
-                                                            IsVisible="{Binding !IsSupplierCredit}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).DuplicateCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Copy}"
@@ -545,7 +543,6 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Make this an asset'}"
-                                                            IsVisible="{Binding !IsSupplierCredit}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).MakeAssetCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Assets}"
@@ -578,30 +575,20 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Undo}"
                                                                   Width="16" Height="16" />
                                                     </Button>
-                                                    <!-- Undo Return (shown when already returned) -->
+                                                    <!-- Undo Return (shown when some or all of it was returned) -->
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Undo Return'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).UndoReturnCommand}"
                                                             CommandParameter="{Binding}"
-                                                            IsVisible="{Binding IsReturned}">
+                                                            IsVisible="{Binding HasReturn}">
                                                         <PathIcon Data="{x:Static icons:Icons.Returns}"
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                     <Button Classes="icon-button danger"
                                                             ToolTip.Tip="{loc:Loc 'Delete'}"
-                                                            IsVisible="{Binding !IsSupplierCredit}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).OpenDeleteConfirmCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Delete}"
-                                                                  Width="16" Height="16" />
-                                                    </Button>
-                                                    <!-- A refund from a supplier goes with its return -->
-                                                    <Button Classes="icon-button danger"
-                                                            ToolTip.Tip="{loc:Loc 'Undo Return'}"
-                                                            IsVisible="{Binding IsSupplierCredit}"
-                                                            Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).UndoRefundReturnCommand}"
-                                                            CommandParameter="{Binding}">
-                                                        <PathIcon Data="{x:Static icons:Icons.Returns}"
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                 </StackPanel>

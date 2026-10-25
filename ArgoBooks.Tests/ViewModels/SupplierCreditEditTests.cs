@@ -25,7 +25,7 @@ public class SupplierCreditEditTests : ModalViewModelTestBase
         Company.Returns.Add(new Return
         {
             Id = "RET-1", ReturnType = "Expense", OriginalTransactionId = "PUR-1", RefundRecordId = "PUR-2",
-            RefundAmount = 89.99m
+            RefundAmount = 89.99m, Items = [new() { Quantity = 1 }]
         });
         return credit;
     }
@@ -43,17 +43,23 @@ public class SupplierCreditEditTests : ModalViewModelTestBase
     }
 
     [Fact]
-    public void ExpensesPage_MarksTheCredit_AndOffersNoReturnOrLossOnIt()
+    public void ExpensesPage_ShowsTheReturnOnThePurchase_AndNoRowForTheCredit()
     {
         var credit = Credit();
+        Company.Expenses.Add(new Expense
+        {
+            Id = "PUR-1", Date = new DateTime(2024, 2, 1), OriginalCurrency = "USD", Description = "Bundle",
+            Amount = 79.64m, TaxAmount = 10.35m, Total = 89.99m, TotalUSD = 89.99m,
+            LineItems = [new() { Description = "Bundle", Quantity = 1, UnitPrice = 79.64m }]
+        });
 
         var page = new ExpensesPageViewModel();
-        var row = page.Expenses.Single(e => e.Id == credit.Id);
+        var row = page.Expenses.Single();
 
-        Assert.True(row.IsSupplierCredit);
-        Assert.True(row.IsMoneyBack);
-        Assert.DoesNotContain("-", row.TotalFormatted);
-        Assert.Contains("89.99", row.TotalFormatted);
+        Assert.Equal("PUR-1", row.Id);
+        Assert.DoesNotContain(page.Expenses, e => e.Id == credit.Id);
+        Assert.True(row.IsReturned);
+        Assert.True(row.HasReturn);
         Assert.False(row.CanMarkAsReturned);
         Assert.False(row.CanMarkAsLostDamaged);
         page.Cleanup();

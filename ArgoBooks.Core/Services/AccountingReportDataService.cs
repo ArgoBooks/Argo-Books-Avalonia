@@ -594,7 +594,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         return new IncomeFigures(
             GroupTransactionsByCategory(revenues), refunds,
-            revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date)),
+            revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date))
+                - CostOfGoodsAggregator.ReturnedCostDisplay(companyData!, RangeStart, RangeEnd, collectedOnly: false, ToDisplay),
             GroupExpensesByCategory(expenses), wages, employer, depreciation, gainOnDisposal,
             assetsPending, payrollPending,
             // A sale waiting for its stock's cost counts none yet, so the figures that subtract cost of goods sold aren't known (Calculations.md §14).

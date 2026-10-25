@@ -299,7 +299,10 @@ public ExpensesPageViewModel()
             App.ExpenseModalsViewModel.ExpenseSaved += OnExpenseSaved;
             App.ExpenseModalsViewModel.ExpenseDeleted += OnExpenseDeleted;
             if (App.ReturnsModalsViewModel != null)
+            {
                 App.ReturnsModalsViewModel.ReturnUndone += OnExpenseDeleted;
+                App.ReturnsModalsViewModel.ReturnRecorded += OnExpenseDeleted;
+            }
             App.ExpenseModalsViewModel.FiltersApplied += OnFiltersApplied;
             App.ExpenseModalsViewModel.FiltersCleared += OnFiltersCleared;
         }
@@ -330,7 +333,10 @@ public ExpensesPageViewModel()
             App.ExpenseModalsViewModel.ExpenseSaved -= OnExpenseSaved;
             App.ExpenseModalsViewModel.ExpenseDeleted -= OnExpenseDeleted;
             if (App.ReturnsModalsViewModel != null)
+            {
                 App.ReturnsModalsViewModel.ReturnUndone -= OnExpenseDeleted;
+                App.ReturnsModalsViewModel.ReturnRecorded -= OnExpenseDeleted;
+            }
             App.ExpenseModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.ExpenseModalsViewModel.FiltersCleared -= OnFiltersCleared;
         }
@@ -400,7 +406,9 @@ public ExpensesPageViewModel()
         if (companyData?.Expenses == null)
             return;
 
-        _allExpenses.AddRange(companyData.Expenses);
+        // A supplier credit shows as its purchase being returned, as a customer refund shows on its sale.
+        var creditIds = ReturnRefunds.SupplierCreditIds(companyData);
+        _allExpenses.AddRange(companyData.Expenses.Where(e => !creditIds.Contains(e.Id)));
         UpdateStatistics();
         FilterExpenses();
     }
@@ -453,14 +461,7 @@ public ExpensesPageViewModel()
 
         var lostDamagedIds = new HashSet<string>(
             companyData?.LostDamaged.Select(ld => ld.InventoryItemId ?? "") ?? []);
-        var returnedIds = new HashSet<string>(
-            companyData?.Returns
-                .Where(r => r.Status == ReturnStatus.Completed)
-                .Select(r => r.OriginalTransactionId) ?? []);
-        var supplierCreditIds = new HashSet<string>(
-            companyData?.Returns
-                .Where(r => r.ReturnType == "Expense" && r.RefundRecordId != null)
-                .Select(r => r.RefundRecordId!) ?? []);
+        var returned = companyData == null ? [] : TransactionReturns.ReturnedById(companyData, _allExpenses);
         IEnumerable<Expense> filtered = _allExpenses;
 
         // Apply search filter
@@ -473,7 +474,7 @@ public ExpensesPageViewModel()
 
         if (FilterStatus != "All")
         {
-            filtered = filtered.Where(p => GetStatusDisplay(p, lostDamagedIds, returnedIds) == FilterStatus);
+            filtered = filtered.Where(p => GetStatusDisplay(p, lostDamagedIds, returned) == FilterStatus);
         }
 
         if (!string.IsNullOrEmpty(FilterSupplierId))
@@ -537,7 +538,7 @@ public ExpensesPageViewModel()
             var categoryId = product?.CategoryId;
             var category = categoryId != null ? companyData?.GetCategory(categoryId) : null;
             var accountant = companyData?.GetAccountant(purchase.AccountantId ?? "");
-            var statusDisplay = purchase.IsPendingConversion ? "Pending" : GetStatusDisplay(purchase, lostDamagedIds, returnedIds);
+            var statusDisplay = purchase.IsPendingConversion ? "Pending" : GetStatusDisplay(purchase, lostDamagedIds, returned);
             var (productName, productMoreText) = Utilities.TransactionDisplay.ProductSummary(purchase);
             var hasReceipt = !string.IsNullOrEmpty(purchase.ReceiptId);
             var receipt = hasReceipt ? companyData?.GetReceipt(purchase.ReceiptId!) : null;
@@ -580,8 +581,7 @@ public ExpensesPageViewModel()
                 IsHighlighted = purchase.Id == HighlightTransactionId,
                 IsPendingConversion = purchase.IsPendingConversion,
                 OriginalCurrency = purchase.OriginalCurrency,
-                BillDueDate = purchase.IsPaid ? null : purchase.DueDate,
-                IsSupplierCredit = supplierCreditIds.Contains(purchase.Id)
+                BillDueDate = purchase.IsPaid ? null : purchase.DueDate
             };
         }).ToList();
 
@@ -616,10 +616,10 @@ public ExpensesPageViewModel()
         Selection.MarkRows();
     }
 
-    private static string GetStatusDisplay(Expense purchase, HashSet<string> lostDamagedIds, HashSet<string> returnedIds)
+    private static string GetStatusDisplay(Expense purchase, HashSet<string> lostDamagedIds, Dictionary<string, bool> returned)
     {
         if (lostDamagedIds.Contains(purchase.Id)) return "Lost / Damaged";
-        if (returnedIds.Contains(purchase.Id)) return "Returned";
+        if (returned.TryGetValue(purchase.Id, out var all)) return all ? "Returned" : "Partial Return";
         if (!purchase.IsPaid) return purchase.IsOverdueOn(DateTime.Today) ? "Overdue" : "Unpaid";
         return "Completed";
     }
@@ -750,15 +750,6 @@ public ExpensesPageViewModel()
         App.ExpenseModalsViewModel?.OpenDeleteConfirm(item);
     }
 
-    /// <summary>Opens the Returns page's Undo Return dialog for the return a refund was recorded for, which removes the two together.</summary>
-    [RelayCommand]
-    private void UndoRefundReturn(ExpenseDisplayItem? item)
-    {
-        if (item == null || App.CompanyManager?.CompanyData is not { } companyData) return;
-        if (ReturnRefunds.ReturnForCredit(companyData, item.Id) is { } returnRecord)
-            App.ReturnsModalsViewModel?.OpenUndoReturnModal(returnRecord, $"{returnRecord.Id} - {ReturnsPageViewModel.ProductNamesOf(returnRecord)}");
-    }
-
     [RelayCommand]
     private void MarkBillPaid(ExpenseDisplayItem? item) => App.ExpenseModalsViewModel?.MarkBillPaid(item);
 
@@ -783,7 +774,8 @@ public ExpensesPageViewModel()
     [RelayCommand]
     private void UndoReturn(ExpenseDisplayItem? item)
     {
-        App.ExpenseModalsViewModel?.OpenUndoReturnedModal(item);
+        if (item != null)
+            App.ReturnsModalsViewModel?.OpenUndoLatestReturn(item.Id);
     }
 
     [RelayCommand]
@@ -970,11 +962,9 @@ public partial class ExpenseDisplayItem : ObservableObject, ISelectableRow
             0 => "Due today".Translate(),
             var d => "Due in {0} days ({1})".TranslateFormat(d, DateFormatService.Format(due))
         };
-    public bool CanMarkAsReturned => !IsReturned && !IsLostDamaged && !IsSupplierCredit;
-    public bool CanMarkAsLostDamaged => !IsReturned && !IsLostDamaged && !IsSupplierCredit;
-
-    /// <summary>A refund from a supplier recorded for a return, which is changed through its return rather than here.</summary>
-    public bool IsSupplierCredit { get; init; }
+    public bool HasReturn => IsReturned || IsPartialReturn;
+    public bool CanMarkAsReturned => !IsReturned && !IsLostDamaged;
+    public bool CanMarkAsLostDamaged => !IsReturned && !IsLostDamaged;
 
     [ObservableProperty]
     private bool _isHighlighted;

@@ -6,6 +6,8 @@
              xmlns:loc="using:ArgoBooks.Localization"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:icons="using:ArgoBooks"
+             xmlns:local="using:ArgoBooks.Converters"
+             xmlns:behaviors="using:ArgoBooks.Behaviors"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="ArgoBooks.Modals.ReturnsModals"
              x:DataType="vm:ReturnsModalsViewModel">
@@ -155,5 +157,197 @@
                                   ConfirmText="{loc:Loc 'Undo Return'}"
                                   ConfirmCommand="{Binding ConfirmUndoReturnCommand}"
                                   CloseCommand="{Binding CloseUndoReturnModalCommand}" />
+
+        <!-- Record Return Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsRecordReturnModalOpen}"
+                               ClosingCommand="{Binding CloseRecordReturnModalCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border Classes="modal-card"
+                        Width="560"
+                        MaxHeight="760">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{Binding RecordReturnTitle}"
+                                          Subtitle="{Binding RecordReturnSubtitle}"
+                                          CloseCommand="{Binding CloseRecordReturnModalCommand}" />
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="24" Spacing="20">
+                            <!-- What comes back -->
+                            <StackPanel Spacing="8">
+                                <Grid ColumnDefinitions="*,90,100">
+                                    <TextBlock Grid.Column="0" Text="{loc:Loc 'Item'}"
+                                               FontSize="12" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    <TextBlock Grid.Column="1" Text="{loc:Loc 'Return'}"
+                                               FontSize="12" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    <TextBlock Grid.Column="2" Text="{loc:Loc 'Amount'}"
+                                               FontSize="12" FontWeight="Medium"
+                                               HorizontalAlignment="Right"
+                                               Foreground="{DynamicResource TextTertiaryBrush}" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding ReturnLines}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="8" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ReturnLineRow">
+                                            <Grid ColumnDefinitions="*,90,100">
+                                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,12,0">
+                                                    <TextBlock Text="{Binding Description}"
+                                                               FontSize="14"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip.Tip="{Binding Description}" />
+                                                    <TextBlock Text="{Binding Detail}"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                </StackPanel>
+                                                <TextBox Grid.Column="1"
+                                                         Text="{Binding Quantity, Mode=TwoWay, Converter={x:Static local:NullableDecimalConverter.Instance}, ConverterParameter=0.###}"
+                                                         IsEnabled="{Binding CanReturn}"
+                                                         Classes="form-input"
+                                                         behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                         MaxLength="10"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding AmountText}"
+                                                           FontSize="14"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <!-- Shipping, fee and stock -->
+                            <CheckBox IsChecked="{Binding RefundShipping}"
+                                      IsVisible="{Binding ShowRefundShipping}"
+                                      Content="{Binding RefundShippingLabel}"
+                                      FontSize="13" />
+                            <CheckBox IsChecked="{Binding RefundFee}"
+                                      IsVisible="{Binding ShowRefundFee}"
+                                      Content="{Binding RefundFeeLabel}"
+                                      FontSize="13" />
+                            <CheckBox IsChecked="{Binding MoveStock}"
+                                      IsVisible="{Binding ShowMoveStock}"
+                                      Content="{Binding MoveStockLabel}"
+                                      FontSize="13" />
+
+                            <!-- Reason -->
+                            <StackPanel Spacing="6">
+                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
+                                    <Run Text="{loc:Loc 'Reason'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                </TextBlock>
+                                <ComboBox ItemsSource="{Binding RecordReturnReasons}"
+                                          SelectedItem="{Binding SelectedRecordReturnReason}"
+                                          Classes="form-combobox"
+                                          HorizontalAlignment="Stretch"
+                                          PlaceholderText="{loc:Loc 'Select a reason...'}"
+                                          BorderBrush="{Binding HasRecordReturnReasonError, Converter={x:Static local:BoolConverters.ToErrorBorderBrush}}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{loc:Loc 'Please select a reason'}"
+                                           IsVisible="{Binding HasRecordReturnReasonError}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource ErrorBrush}" />
+                            </StackPanel>
+
+                            <!-- Date and restocking fee -->
+                            <Grid ColumnDefinitions="*,12,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'Return Date'}"
+                                               FontSize="13" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <DatePicker SelectedDate="{Binding RecordReturnDate}"
+                                                Classes="form-datepicker"
+                                                MinWidth="0"
+                                                HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'Restocking fee (optional)'}"
+                                               FontSize="13" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBox Text="{Binding RestockingFee, Mode=TwoWay, Converter={x:Static local:NullableDecimalConverter.Instance}}"
+                                             Classes="form-input"
+                                             HorizontalAlignment="Stretch"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                             MaxLength="13" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Notes -->
+                            <StackPanel Spacing="6">
+                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                           Text="{loc:Loc 'Notes (optional)'}" />
+                                <TextBox Text="{Binding RecordReturnNotes, Mode=TwoWay}"
+                                         Classes="form-input"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Height="70"
+                                         MaxLength="500" />
+                            </StackPanel>
+
+                            <!-- Refund -->
+                            <Border Background="{DynamicResource SurfaceAltBrush}"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Items'}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding ReturnItemsText}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowReturnDiscount}">
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Discount'}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding ReturnDiscountText}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Tax'}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding ReturnTaxText}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowReturnExtras}">
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Shipping and fee'}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding ReturnExtrasText}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowReturnRestocking}">
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Restocking fee'}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding ReturnRestockingText}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,4" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Refund'}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding ReturnRefundTotalText}" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding ReturnRefundNote}"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextTertiaryBrush}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button" Content="{loc:Loc 'Cancel'}" Command="{Binding CloseRecordReturnModalCommand}" />
+                            <Button Classes="primary-button" Content="{loc:Loc 'Record Return'}"
+                                    IsEnabled="{Binding CanRecordReturn}"
+                                    Command="{Binding RecordReturnCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
     </Panel>
 </UserControl>

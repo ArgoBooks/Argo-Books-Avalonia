@@ -1,3 +1,6 @@
+using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Models.Transactions;
 
 namespace ArgoBooks.Core.Services;
@@ -80,6 +83,29 @@ public static class CostOfGoodsAggregator
     /// <inheritdoc cref="IsCostOfGoodsPending(IEnumerable{Revenue}, DateTime, DateTime, bool)"/>
     public static bool IsCostOfGoodsPending(IEnumerable<Revenue> sales) =>
         sales.Any(r => r.LineItems.Any(li => li.IsCostOfGoodsPending));
+
+    /// <summary>
+    /// What sold goods put back in stock by returns dated in the range had cost, in USD by return day, which
+    /// comes off cost of goods sold (docs/Calculations.md §14). <paramref name="collectedOnly"/> keeps only
+    /// returns of paid sales, as the dashboard counts only their cost of goods sold to begin with.
+    /// </summary>
+    public static Dictionary<DateTime, decimal> ReturnedCostByDayUSD(CompanyData data, DateTime start, DateTime end, bool collectedOnly)
+    {
+        var sales = data.Revenues.ToDictionary(r => r.Id);
+        return data.Returns
+            .Where(r => r.ReturnType != "Expense" && r.Status == ReturnStatus.Completed && r.CostOfGoodsReturnedUSD != 0
+                        && r.ReturnDate >= start && r.ReturnDate <= end
+                        && (!collectedOnly || sales.TryGetValue(r.OriginalTransactionId, out var sale) && RevenueAggregator.IsCollected(sale)))
+            .GroupBy(r => r.ReturnDate.Date)
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.CostOfGoodsReturnedUSD));
+    }
+
+    public static decimal ReturnedCostUSD(CompanyData data, DateTime start, DateTime end, bool collectedOnly) =>
+        ReturnedCostByDayUSD(data, start, end, collectedOnly).Values.Sum();
+
+    public static decimal ReturnedCostDisplay(
+        CompanyData data, DateTime start, DateTime end, bool collectedOnly, Func<decimal, DateTime, decimal> toDisplay) =>
+        ReturnedCostByDayUSD(data, start, end, collectedOnly).Sum(kv => toDisplay(kv.Value, kv.Key));
 
     private static IEnumerable<Revenue> InRange(
         IEnumerable<Revenue> revenues, DateTime start, DateTime end, bool collectedOnly)

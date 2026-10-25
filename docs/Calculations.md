@@ -295,12 +295,21 @@ The Insights tab (trends, anomalies, forecasts, recommendations) uses collected 
 
 A return (items returned by customers or sent back to suppliers) and a loss (lost or damaged stock) are records of goods. A return's money reaches the books through the refund recorded with it (`ReturnRefunds`, `Return.RefundRecordId`), which is what changes revenue, expenses, tax and cash; a loss changes none of them. The Financial Impact charts and stat cards add up `Return.RefundAmount` and `LostDamaged.ValueLost`. The Returns page shows `Return.NetRefund`, which is the refund less any restocking fee.
 
-Marking a sale or purchase as returned records its items after the transaction's discount, plus the tax charged, as the refund (`ReturnLossAmounts.RefundFor`). Shipping and fees are left out, since a shop keeps them when goods come back. Sales and purchases follow the same rule. It also records the refund, dated on the return:
+Sales and purchases are returned the same way, from the Record Return form on their row (`TransactionReturns`). The user picks how many of each line came back, every unit by default, and whether the shipping and the fee are refunded too, which they are not by default since a shop usually keeps them. Each return item keeps the line it came from (`ReturnItem.LineIndex`), so a later return offers only what is left. The row shows **Partial Return** while anything is left to return and **Returned** once everything has come back. A return recorded before returns could be partial has no line, and counts as the whole transaction.
 
-- **A returned sale** records a refund payment (§8) for `NetRefund`, at most what the customer paid toward the sale: the sale's total when it was collected, or its invoice's net paid. Its `RefundTaxAmount` is the sale's tax in the share of the sale's whole refund (`RefundFor`) that the refund is, so returning part of a sale gives back part of its tax. That tax comes off tax collected and the rest off revenue. It is linked to the sale's invoice when there is one, so the invoice shows as refunded. A sale nobody has paid for gets no refund, since no money changed hands, and neither does one paid online, whose refund is made through the payment provider and arrives with the payment sync.
-- **A returned purchase** records a supplier credit (§9) for `NetRefund`, except a bill not paid yet, which gets none since nothing was paid.
+The refund is the chosen lines' share of the items, less the same share of the discount, plus the same share of the tax, plus the shipping and fee when chosen (`TransactionReturns.AmountsFor`):
 
-Undoing the return removes its refund too.
+```
+share  = Σ chosen li.Subtotal × (returned / li.Quantity)  ÷  Σ every li.Subtotal
+refund = items returned − discount × share + tax × share + shipping? + fee?
+```
+
+Each part is rounded to the cent. Returning everything with the shipping and fee refunds the transaction's whole total. The tax part is stored on the return (`Return.RefundTax`). A restocking fee comes off the refund and is never more than it. Recording a return also records the refund, dated on the return:
+
+- **A returned sale** records a refund payment (§8) for `NetRefund`, at most what the customer has paid toward the sale and not had back: the sale's total less what its earlier returns refunded when it was collected, or its invoice's net paid. Its `RefundTaxAmount` is the return's tax, in the share of the return's refund the payment is. That tax comes off tax collected and the rest off revenue. It is linked to the sale's invoice when there is one, so the invoice shows as refunded. A sale nobody has paid for gets no refund, since no money changed hands, and neither does one paid online, whose refund is made through the payment provider and arrives with the payment sync. The form says which of these applies before it is saved.
+- **A returned purchase** records a supplier credit (§9) for `NetRefund`, carrying copies of only the returned lines at the returned quantity, so it comes off the same categories. A bill not paid yet gets none, since nothing was paid. The credit is not a row on the Expenses page: like a sale's refund on the Revenue page, it shows as its purchase being returned.
+
+When the products track stock, the form offers to move them, ticked by default (Cost of goods sold, §14). Undoing a return, from its row or the Returns page, removes its refund and puts back any stock it moved. The row's undo takes back the latest return of that transaction.
 
 Neither record stores a USD amount or its own currency. The amount is in the currency of the sale or purchase it came from (`Return.OriginalTransactionId`, `LostDamaged.InventoryItemId`), or in the company's currency if there is none, and it is converted from that currency at the record's own date (`ReturnLossAmounts.CurrencyOf`, `DisplayCurrency.FromNative`). An amount already in the display currency is used as it is. If the rate is missing, the amount counts as 0 on a chart and shows Pending on a stat card or page total.
 
@@ -442,6 +451,18 @@ Undoing a change puts the stock record's cost back as it was before the change. 
 Net profit is the Rule 1 formula. The dashboard counts only paid sales, for both revenue and cost of goods sold (Rule 2). The Income Statement counts every sale in the date range, shows **Cost of Goods Sold** and **Gross Profit** under revenue whenever that cost isn't zero, and leaves tracked stock out of its expense categories. The Expenses card, the Expenses page and cash flow still count every purchase in full, because that money really was spent.
 
 **Profit while a sale waits for its stock's cost.** A sale waiting for its stock's cost counts that cost as 0, so a figure that subtracts cost of goods sold would read high. While any sale it counts is waiting (`CostOfGoodsAggregator.IsCostOfGoodsPending`), such a figure follows the all-or-nothing Pending rule of Rule 4 and shows Pending until the cost converts. That covers the dashboard's Net Profit card, the Analytics Net Profit and Profit Margin cards (`CurrencyService.FormatNetProfitOrPending`), and the report Summary box's net profit. The cards' change against the previous period is left blank, and the Summary box's net profit growth rate reads Pending, while a sale in either period is waiting (`CostOfGoodsAggregator.IsProfitChangePending`), since a period that reads high makes the change wrong either way. On the Income Statement the Cost of Goods Sold, Gross Profit and Net Income lines read Pending, while its revenue and expense lines still show their amounts. Profit Over Time is a chart and can't show Pending, so it plots the cost as 0.
+
+### Returned stock
+
+A return can move the stock of tracked products (`InventoryStockService.ApplyReturn`). Goods a customer returns go back into stock, and goods sent back to a supplier come out of it. Each move is a stock adjustment marked automatic, with the return's id as its reference, so undoing the return finds and reverses it (`InventoryStockService.RemoveReturn`).
+
+When a customer's goods go back into stock they were not sold after all, so what they cost comes off cost of goods sold on the return date:
+
+```
+Return.CostOfGoodsReturnedUSD = Σ restocked lines of li.CostOfGoodsUSD × (returned / li.Quantity)
+```
+
+`CostOfGoodsAggregator.ReturnedCostUSD` adds these up for returns in the date range. The dashboard and Profit Over Time take off only the returns of paid sales, as they count only paid sales' cost of goods sold to begin with. The Income Statement takes off every one. Goods that come back but are not put back in stock, such as broken ones, leave cost of goods sold as it was.
 
 ### Stock on hand when this began (opening units)
 
