@@ -55,7 +55,7 @@ The refund terms are defined in §8.
 
 ### Rule 2: The dashboard counts only money actually received.
 
-Every revenue total on the dashboard, in Analytics and in `ReportChartDataService` first keeps only collected revenue (`RevenueAggregator.IsCollected`, §7). Tax figures follow the same rule.
+Every revenue total on the dashboard, in Analytics and in `ReportChartDataService` first keeps only collected revenue (`RevenueAggregator.IsCollected`, §7). Every expense total there keeps only paid expenses, which leaves out bills not paid yet (`ExpenseAggregator.IsPaid`, §9). Tax figures follow the same rule.
 
 Unpaid revenue counts only in:
 - Outstanding and Overdue Invoices, which exist to show what hasn't been paid.
@@ -244,7 +244,18 @@ A deposit was never revenue (§4), so the part of a refund that returns it doesn
 
 ## 9. Expenses
 
-Expenses have no paid or unpaid status, so every expense counts. Expense totals include tax (`EffectiveTotalUSD`, Rule 1). Profit uses `OperatingExpenseUSD` instead, which leaves out tracked stock (§14).
+An expense is paid on the day it is recorded, unless it is a **bill**: one paid after it arrived, which has a `DueDate` and, once paid, a `PaidDate`. Unticking Paid on the expense form makes it a bill, due 30 days after its date unless another day is picked. It is paid by ticking Paid again, by Mark as paid on the Expenses page, or by matching it to a bank line, which pays it on the line's date and owes it again if the match is undone. Once paid it stays a bill, so its due date is kept.
+
+| | Unpaid bill | Paid bill |
+|---|---|---|
+| Dashboard, Analytics, charts, Insights | Left out (Rule 2) | Counted on its own date, as collected revenue is |
+| Income Statement, General Ledger, Tax Summary | Counted on its own date (accrual) | Counted on its own date |
+| Cash Flow Statement, Balance Sheet cash | Left out | Counted on its `PaidDate` |
+| Balance Sheet Accounts Payable, AP Aging | Owed from its date until its `PaidDate` (`Expense.IsOwedOn`) | Not owed |
+
+Always check with `ExpenseAggregator.IsPaid(expense)` or `Expense.IsOwedOn(date)` rather than reading the dates yourself. Every amount is converted at the bill's own date, as for any expense (Rule 4).
+
+Expense totals include tax (`EffectiveTotalUSD`, Rule 1). Profit uses `OperatingExpenseUSD` instead, which leaves out tracked stock (§14).
 
 A **supplier credit** is an expense below zero: every amount on it, tax included, is negative, so it comes off expenses, cash paid and the tax claimed back on its own date, as standard bookkeeping takes a credit note off the purchase it refunds. Marking a purchase returned records one (Returns and Losses, §10). Its lines are copies of the purchase's, so it comes off the same categories, and the tax it gives back is the purchase's tax in the share of the purchase's whole refund that the credit is (`PurchaseTax.Claimable` mirrors the purchase's claim).
 
@@ -261,7 +272,8 @@ Expenses count money as it leaves, so the dashboard, Analytics and the Cash Flow
 - The Income Statement, General Ledger and Report Builder revenue tables show revenue without tax (`EffectiveSubtotalUSD`), because the Balance Sheet shows tax separately as Sales Tax Payable. Their expense amounts are what each expense cost the business (`PurchaseTax.CostUSD`, Rule 1), so tax claimed back comes off Sales Tax Payable instead and tax that can't be claimed is an expense. Cash figures and Sales by Product (§13) include tax (`EffectiveTotalUSD`).
 - The Tax Summary and the Balance Sheet set only the tax claimed back against the tax collected. Where none is claimed back, the Tax Summary leaves out its tax paid section.
 - They count all revenue in the date range, paid or not. Accountants call this the accrual basis.
-- Cash (on the Cash Flow Statement and the Balance Sheet's Cash line) includes tax: paid revenue that has no invoice, plus every payment (refunds count as negative), minus every expense.
+- Cash (on the Cash Flow Statement and the Balance Sheet's Cash line) includes tax: paid revenue that has no invoice, plus every payment (refunds count as negative), minus every expense on the day its money left, which for a bill is its `PaidDate` (`ExpenseAggregator.SumCashPaidDisplay`, §9).
+- The Balance Sheet's **Accounts Payable** is purchase orders sent and not yet received, plus the bills owed on the end date (§9). The **AP Aging** report lists those bills by supplier and by days past due; purchase orders are owed on delivery, so it leaves them out.
 - The Balance Sheet lists **Inventory** as a current asset (`InventoryValuationService.TotalValueAsOf`). It counts each item's stock on hand as of the report's end date, placing each stock change on the date of its sale or purchase, or on its own date when it has neither. Stock is valued at the item's current `UnitCost` in USD, because the app doesn't keep a history of costs, and converted at the end date's rate (§14, Stock value). The Income Statement shows a Cost of Goods Sold line and Gross Profit whenever a sale in the date range has a cost (§14).
 - The Balance Sheet lists **Security Deposits** as a liability: the deposit on every invoice issued by the end date, less what refunds by then gave back and any part kept by then (`SecurityDeposits.StillHeld`).
 - **Payroll** counts on the pay date, as a cost incurred then whenever it is paid. The Income Statement shows each pay run's gross pay as Wages and Salaries and the employer's contributions as Employer Payroll Contributions, converted from the company's currency at the pay date, and leaves out the expenses that recorded the net pay and the remittances, which would count it again (`PayrollBooks.ExpenseIds`). The Balance Sheet lists **Payroll Remittances Owing** as a liability: each pay run's remittance, run by run at its pay date, until an expense dated by the end date records paying it (`PayrollBooks.OwingAsOf`). The General Ledger lists the wage and remittance expenses under Payroll, and Expenses by Supplier gives them one Payroll row.
@@ -286,7 +298,7 @@ A return (items returned by customers or sent back to suppliers) and a loss (los
 Marking a sale or purchase as returned records its items after the transaction's discount, plus the tax charged, as the refund (`ReturnLossAmounts.RefundFor`). Shipping and fees are left out, since a shop keeps them when goods come back. Sales and purchases follow the same rule. It also records the refund, dated on the return:
 
 - **A returned sale** records a refund payment (§8) for `NetRefund`, at most what the customer paid toward the sale: the sale's total when it was collected, or its invoice's net paid. Its `RefundTaxAmount` is the sale's tax in the share of the sale's whole refund (`RefundFor`) that the refund is, so returning part of a sale gives back part of its tax. That tax comes off tax collected and the rest off revenue. It is linked to the sale's invoice when there is one, so the invoice shows as refunded. A sale nobody has paid for gets no refund, since no money changed hands, and neither does one paid online, whose refund is made through the payment provider and arrives with the payment sync.
-- **A returned purchase** records a supplier credit (§9) for `NetRefund`.
+- **A returned purchase** records a supplier credit (§9) for `NetRefund`, except a bill not paid yet, which gets none since nothing was paid.
 
 Undoing the return removes its refund too.
 
@@ -314,7 +326,8 @@ Use this table to check where a number on screen comes from. For a new chart or 
 |---|---|---|---|---|
 | Total Revenue card (dashboard, Analytics and the Revenue page's Monthly Revenue card), Revenue Over Time, Revenue Growth (Analytics) | `EffectiveTotalUSD` | — | Yes | Yes, in full |
 | Top Customers (the Analytics chart and the dashboard widget, both over the selected date range, `TopCustomers.Rank`) | `EffectiveTotalUSD` | — | Yes | Yes, in full, the refunds issued in the range. A customer left at or below 0 is not listed |
-| Total Expenses card (dashboard, Analytics and the Expenses page's Monthly Expenses card), Expenses Over Time | — | `EffectiveTotalUSD` | n/a | n/a |
+| Total Expenses card (dashboard, Analytics and the Expenses page's Monthly Expenses card), Expenses Over Time | — | `EffectiveTotalUSD`, paid expenses only (§9) | n/a | n/a |
+| Bills to Pay card (Expenses page) | — | `EffectiveTotalUSD` of unpaid bills | n/a | n/a |
 | Net Profit card, Profit Margin (Analytics), Profit Over Time | `EffectiveSubtotalUSD`, plus fixed asset sale prices (§16) | `OperatingExpenseUSD` (`PurchaseTax.CostUSD` less tracked stock), plus cost of goods sold (§14) | Yes | Yes, the pre-tax part |
 | Revenue vs Expenses | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue) | Yes, in full (revenue) |
 | Report Summary box total | The same as the Total Revenue card (Revenue reports), the Total Expenses card (Expenses reports) or the Net Profit card (all other reports) | | | |
@@ -337,7 +350,8 @@ Helpers for adding things up, in `ArgoBooks.Core/Services/` unless the entry say
 
 - `RevenueAggregator.SumCollectedRevenueUSD(revenues, start, end)`: collected revenue, tax included, in USD.
 - `RevenueAggregator.SumCollectedRevenuePreTaxUSD(revenues, start, end)`: collected revenue without tax, in USD (for profit, not for display).
-- `ExpenseAggregator.SumExpensesUSD(expenses, start, end)`: expenses, tax included, in USD.
+- `ExpenseAggregator.SumExpensesUSD(expenses, start, end)`: paid expenses, tax included, in USD.
+- `ExpenseAggregator.SumCashPaidDisplay(expenses, start, end, toDisplay)`: the cash paid out for expenses in the range, placing each bill on the day it was paid.
 - `RefundAggregator.GroupRefundsByDayUSD(payments, start, end)`: refunds by day, for time-series charts.
 - `ProfitCalculator.CalculateNetProfitUSD(data, start, end)` and `CalculateNetProfitByDayUSD`: the Rule 1 net profit, as a total and by day. Every screen that shows profit calls these rather than working it out again.
 - `CostOfGoodsAggregator`: cost of goods sold on sales (`SumCostOfGoodsSoldUSD`, paid only or all), and expenses without the tracked stock they bought (`SumOperatingExpensesUSD`). `ProfitCalculator` uses both.

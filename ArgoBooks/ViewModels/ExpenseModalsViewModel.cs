@@ -51,6 +51,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
     #endregion
 
+    public ExpenseModalsViewModel()
+    {
+        // Bills are the expense form's own statuses, after Completed.
+        StatusFilterOptions.Insert(2, "Unpaid");
+        StatusFilterOptions.Insert(3, "Overdue");
+    }
+
     #region Expense-Specific Properties
 
     // Supplier alias for counterparty
@@ -180,6 +187,10 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         SelectedSupplier = SupplierOptions.FirstOrDefault(s => s.Id == expense.SupplierId);
         LoadAssetChoice(expense.Id);
         PopulateFormFromTransaction(expense);
+        IsEditingBill = expense.IsBill;
+        ModalBillDueDate = expense.DueDate is { } due ? new DateTimeOffset(due) : null;
+        ModalBillPaidDate = expense.PaidDate is { } paid ? new DateTimeOffset(paid) : null;
+        ModalBillPaid = expense.IsPaid;
         return expense;
     }
 
@@ -500,6 +511,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             OriginalCurrency = SaveCurrency
         };
         UsdConversion.Apply(companyData, expense, SaveRate);
+        ApplyBillChoice(expense);
 
         var (addedReceipts, _) = ApplyAttachments(companyData, expense, "Expense", SelectedSupplier?.Name ?? "");
 
@@ -586,6 +598,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         expense.Notes = ModalNotes;
         expense.UpdatedAt = DateTime.UtcNow;
         expense.OriginalCurrency = SaveCurrency;
+        ApplyBillChoice(expense);
         UsdConversion.Apply(companyData, expense, SaveRate);
         var editedQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
@@ -641,6 +654,38 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         return true;
     }
 
+    /// <summary>
+    /// Makes the expense a bill when Paid is unticked, keeping its due date and the day it was paid.
+    /// A bill stays a bill once paid, so its history is kept; an expense paid on the day has neither date.
+    /// </summary>
+    private void ApplyBillChoice(Expense expense)
+    {
+        var isBill = !ModalBillPaid || IsEditingBill;
+        var paidBefore = expense.PaidDate;
+        expense.DueDate = isBill ? (ModalBillDueDate?.Date ?? expense.Date.Date.AddDays(30)) : null;
+        expense.PaidDate = isBill && ModalBillPaid ? (ModalBillPaidDate?.Date ?? DateTime.Today) : null;
+        // A payment changed by hand is no longer the bank match's to take back.
+        if (expense.PaidDate != paidBefore)
+            expense.PaidByBankLineId = null;
+    }
+
+    /// <summary>Records a bill as paid today, with undo. Editing it sets another day.</summary>
+    public void MarkBillPaid(ExpenseDisplayItem? item)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var expense = companyData?.Expenses.FirstOrDefault(e => e.Id == item?.Id);
+        if (expense == null || expense.IsPaid) return;
+
+        var paidOn = DateTime.Today;
+        expense.PaidDate = paidOn;
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            $"Mark bill {expense.Id} as paid",
+            () => { expense.PaidDate = null; RaiseTransactionSaved(); },
+            () => { expense.PaidDate = paidOn; RaiseTransactionSaved(); }));
+        App.CompanyManager?.MarkAsChanged();
+        RaiseTransactionSaved();
+    }
+
     protected override string CounterpartyNameOf(CompanyData companyData, Transaction transaction) =>
         transaction is Expense expense && !string.IsNullOrEmpty(expense.SupplierId)
             ? companyData.GetSupplier(expense.SupplierId)?.Name ?? string.Empty
@@ -688,13 +733,22 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         };
     }
 
-    private static TransactionState CaptureTransactionState(Expense expense) =>
-        TransactionState.Capture(expense, expense.SupplierId);
+    private static TransactionState CaptureTransactionState(Expense expense)
+    {
+        var state = TransactionState.Capture(expense, expense.SupplierId);
+        state.DueDate = expense.DueDate;
+        state.PaidDate = expense.PaidDate;
+        state.PaidByBankLineId = expense.PaidByBankLineId;
+        return state;
+    }
 
     private static void RestoreTransactionState(Expense expense, TransactionState state)
     {
         state.RestoreTo(expense);
         expense.SupplierId = state.CounterpartyId;
+        expense.DueDate = state.DueDate;
+        expense.PaidDate = state.PaidDate;
+        expense.PaidByBankLineId = state.PaidByBankLineId;
     }
 
     #endregion
@@ -748,6 +802,10 @@ internal class TransactionState
     public decimal TaxAmountUSD { get; set; }
     public decimal DiscountUSD { get; set; }
     public decimal FeeUSD { get; set; }
+    // A bill's dates, which only an expense has.
+    public DateTime? DueDate { get; set; }
+    public DateTime? PaidDate { get; set; }
+    public string? PaidByBankLineId { get; set; }
 
     /// <summary>The fields an edit can change that every transaction has. The caller adds anything of its own.</summary>
     public static TransactionState Capture(Transaction transaction, string? counterpartyId) => new()

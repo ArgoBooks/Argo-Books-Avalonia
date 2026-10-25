@@ -20,12 +20,13 @@ public static class ReturnRefunds
     /// <summary>
     /// Records the refund for <paramref name="returnRecord"/> and links it, or returns null when nothing was
     /// paid back: a sale that was never paid, or one paid online, whose refund is made through the payment
-    /// provider and arrives with the payment sync.
+    /// provider and arrives with the payment sync, or a bill not paid yet.
     /// </summary>
     public static Refund? Record(CompanyData data, Return returnRecord)
     {
         var refund = returnRecord.ReturnType == "Expense"
             ? data.Expenses.FirstOrDefault(e => e.Id == returnRecord.OriginalTransactionId) is { } purchase
+              && purchase.IsPaid
               && returnRecord.NetRefund > 0
                 ? new Refund(null, SupplierCredit(data, returnRecord, purchase))
                 : null

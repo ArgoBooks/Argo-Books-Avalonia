@@ -418,7 +418,7 @@ public class SpreadsheetExportService
         // The name sits beside the id so a sheet of scanned receipts can be read on its own, without holding it next to the Suppliers sheet to find out who SUP-014 is. Presentation only.
         var supplierNames = NameLookup(data.Suppliers, s => s.Id, s => s.Name);
 
-        var headers = new[] { "ID", "Date", "Supplier ID", "Supplier Name", "Product", "Quantity", "Unit Price", "Tax", "Shipping", "Total", "Reference", "Payment Method", "Currency" };
+        var headers = new[] { "ID", "Date", "Supplier ID", "Supplier Name", "Product", "Quantity", "Unit Price", "Tax", "Shipping", "Total", "Reference", "Payment Method", "Due Date", "Paid Date", "Currency" };
         var filtered = data.Expenses.Where(p => IsInDateRange(p.Date, startDate, endDate));
         var rows = filtered.Select(p => new object[]
         {
@@ -434,6 +434,8 @@ public class SpreadsheetExportService
             p.Total,
             p.ReferenceNumber,
             p.PaymentMethod.ToString(),
+            p.DueDate is { } due ? (object)due : "",
+            p.PaidDate is { } paid ? (object)paid : "",
             p.OriginalCurrency
         }).ToList();
         return (headers, rows);

@@ -64,6 +64,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Icons.DocumentStackAdd, AppColors.ReportSlate, AppColors.FlatSlateLight),
         new(ReportTemplateFactory.TemplateNames.ARaging, "AR Aging", "Who owes you and for how long",
             Icons.DollarCircleAlt, AppColors.FlatTeal, AppColors.FlatTealLight),
+        new(ReportTemplateFactory.TemplateNames.APaging, "AP Aging", "Which bills you owe and how overdue",
+            Icons.Clock, AppColors.MdCyan, AppColors.MdCyanLight),
         new(ReportTemplateFactory.TemplateNames.CustomerStatement, "Customer Statement", "What one customer owes you",
             Icons.Receipts, AppColors.Violet, AppColors.VioletLight),
         new(ReportTemplateFactory.TemplateNames.SalesByCustomer, "Sales by Customer", "How much each customer bought",
@@ -680,14 +682,15 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// Whether the selected accounting table's report type produces section header rows.
     /// </summary>
     public bool ShowSectionHeaderColors => SelectedAccountingTableElement.ReportType
-        is not (AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement
+        is not (AccountingReportType.AccountsReceivableAging or AccountingReportType.AccountsPayableAging or AccountingReportType.CustomerStatement
             or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary);
 
     /// <summary>
     /// Whether the selected accounting table's report type produces total/grand total rows.
     /// </summary>
     public bool ShowTotalColors => SelectedAccountingTableElement.ReportType
-        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement
+        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging or AccountingReportType.AccountsPayableAging
+            or AccountingReportType.CustomerStatement
             or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary
             or AccountingReportType.Rentals or AccountingReportType.AssetRegister;
 

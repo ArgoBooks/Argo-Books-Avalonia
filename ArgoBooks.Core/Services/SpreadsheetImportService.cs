@@ -3604,6 +3604,11 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 purchase.PaymentMethod = ParseEnum(GetString(row, headers, "Payment Method"), PaymentMethod.Cash);
             if (Set("Shipping"))
                 purchase.ShippingCost = GetDecimal(row, headers, "Shipping");
+            if (Set("Due Date"))
+                purchase.DueDate = GetNullableDateTime(row, headers, "Due Date");
+            // A paid date means nothing without a due date: an expense with neither was paid on its own date.
+            if (Set("Paid Date", "Due Date"))
+                purchase.PaidDate = purchase.DueDate == null ? null : GetNullableDateTime(row, headers, "Paid Date");
 
             // Per-row currency detected from the amount cells, else the record's own when updating,
             // else the company currency. Left as it is when nothing it is priced from changed.

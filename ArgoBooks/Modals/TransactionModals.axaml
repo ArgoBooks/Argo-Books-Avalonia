@@ -416,6 +416,63 @@
                                       FontSize="13"
                                       Margin="0,4,0,0" />
 
+                            <!-- Paid now, or a bill to pay later (expense) -->
+                            <StackPanel Spacing="12" IsVisible="{Binding !IsRevenue}">
+                                <CheckBox IsChecked="{Binding ModalBillPaid}"
+                                          Content="{loc:Loc 'Paid'}"
+                                          FontSize="13" />
+                                <Border BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="16"
+                                        IsVisible="{Binding !ModalBillPaid}">
+                                    <StackPanel Spacing="10">
+                                        <Grid ColumnDefinitions="*,16,*">
+                                            <StackPanel Grid.Column="0" Spacing="6">
+                                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Text="{loc:Loc 'Due date'}" />
+                                                <DatePicker SelectedDate="{Binding ModalBillDueDate}"
+                                                            Classes="form-datepicker"
+                                                            HorizontalAlignment="Stretch" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2"
+                                                       VerticalAlignment="Bottom"
+                                                       Margin="0,0,0,10"
+                                                       FontSize="13"
+                                                       FontWeight="Medium"
+                                                       Text="{Binding BillDueHint}"
+                                                       Classes.overdue="{Binding IsBillOverdue}">
+                                                <TextBlock.Styles>
+                                                    <Style Selector="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                                                    </Style>
+                                                    <Style Selector="TextBlock.overdue">
+                                                        <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+                                                    </Style>
+                                                </TextBlock.Styles>
+                                            </TextBlock>
+                                        </Grid>
+                                        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   Text="{loc:Loc 'Counts as a cost on the date above, and as money out when you mark it paid. It shows as owed until then.'}" />
+                                    </StackPanel>
+                                </Border>
+                                <Grid ColumnDefinitions="*,16,*" IsVisible="{Binding ShowBillPaidDate}">
+                                    <StackPanel Grid.Column="0" Spacing="6">
+                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Text="{loc:Loc 'Paid on'}" />
+                                        <DatePicker SelectedDate="{Binding ModalBillPaidDate}"
+                                                    Classes="form-datepicker"
+                                                    HorizontalAlignment="Stretch" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,0,10"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="{Binding BillWasDueText}" />
+                                </Grid>
+                            </StackPanel>
+
                             <!-- Asset (expense) -->
                             <StackPanel Spacing="12" IsVisible="{Binding !IsRevenue}">
                                 <CheckBox IsChecked="{Binding ModalIsAsset}"

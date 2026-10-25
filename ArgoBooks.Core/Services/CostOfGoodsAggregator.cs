@@ -34,15 +34,16 @@ public static class CostOfGoodsAggregator
     public static decimal OperatingExpenseUSD(Expense expense, PurchaseTaxRule rule) =>
         PurchaseTax.CostUSD(expense, rule) - StockPurchaseUSD(expense);
 
+    /// <summary>The paid expenses in the range, without tracked stock, as the dashboard's profit counts them.</summary>
     public static decimal SumOperatingExpensesUSD(IEnumerable<Expense> expenses, DateTime start, DateTime end, PurchaseTaxRule rule) =>
         expenses
-            .Where(e => e.Date >= start && e.Date <= end)
+            .Where(e => e.IsPaid && e.Date >= start && e.Date <= end)
             .Sum(e => OperatingExpenseUSD(e, rule));
 
     public static decimal SumOperatingExpensesDisplay(
         IEnumerable<Expense> expenses, DateTime start, DateTime end, PurchaseTaxRule rule, Func<decimal, DateTime, decimal> toDisplay) =>
         expenses
-            .Where(e => e.Date >= start && e.Date <= end)
+            .Where(e => e.IsPaid && e.Date >= start && e.Date <= end)
             .Sum(e => toDisplay(OperatingExpenseUSD(e, rule), e.Date));
 
     /// <summary>

@@ -328,7 +328,7 @@ public class BankMatchingService
         if (line.MatchedRecordType is { } prevType && line.MatchedRecordId is { } prevId &&
             (prevType != candidate.RecordType || prevId != candidate.RecordId))
         {
-            SetRecordMatchState(data, prevType, prevId, matched: false, null);
+            SetRecordMatchState(data, prevType, prevId, matched: false, null, null);
         }
 
         line.MatchStatus = BankLineMatchStatus.Matched;
@@ -337,7 +337,7 @@ public class BankMatchingService
         line.MatchedDate = DateTime.UtcNow;
         line.MatchConfidence = candidate.Confidence;
 
-        SetRecordMatchState(data, candidate.RecordType, candidate.RecordId, matched: true, line.Id);
+        SetRecordMatchState(data, candidate.RecordType, candidate.RecordId, matched: true, line.Id, line.Date);
         data.MarkAsModified();
         return true;
     }
@@ -357,19 +357,21 @@ public class BankMatchingService
     {
         if (line.MatchedRecordType is { } type && line.MatchedRecordId is { } id)
         {
-            SetRecordMatchState(data, type, id, matched: false, null);
+            SetRecordMatchState(data, type, id, matched: false, null, null);
             data.MarkAsModified();
         }
         RejectMatch(line);
     }
 
-    private static void SetRecordMatchState(CompanyData data, BookRecordType type, string id, bool matched, string? lineId)
+    private static void SetRecordMatchState(CompanyData data, BookRecordType type, string id, bool matched, string? lineId, DateTime? lineDate)
     {
         var date = matched ? (DateTime?)DateTime.UtcNow : null;
         switch (type)
         {
             case BookRecordType.Expense:
-                Apply(data.Expenses.FirstOrDefault(e => e.Id == id));
+                var expense = data.Expenses.FirstOrDefault(e => e.Id == id);
+                SettleBill(expense);
+                Apply(expense);
                 break;
             case BookRecordType.Revenue:
                 Apply(data.Revenues.FirstOrDefault(r => r.Id == id));
@@ -380,6 +382,22 @@ public class BankMatchingService
             case BookRecordType.Payment:
                 ApplyPayment(data.Payments.FirstOrDefault(p => p.Id == id));
                 break;
+        }
+
+        // The bank line is the payment: matching one to an unpaid bill pays it that day, and unmatching it owes it again.
+        void SettleBill(Expense? bill)
+        {
+            if (bill == null) return;
+            if (matched && !bill.IsPaid && lineDate is { } paidOn)
+            {
+                bill.PaidDate = paidOn.Date;
+                bill.PaidByBankLineId = lineId;
+            }
+            else if (!matched && bill.PaidByBankLineId != null && bill.PaidByBankLineId == bill.BankMatchedLineId)
+            {
+                bill.PaidDate = null;
+                bill.PaidByBankLineId = null;
+            }
         }
 
         void Apply(Transaction? t)
@@ -444,7 +462,8 @@ public class BankMatchingService
             var matched = MatchedById(data.Expenses, e => e.Id, e => e.BankMatched);
             refs.AddRange(data.Expenses.Select(e => (new BookRecordRef
             {
-                Type = BookRecordType.Expense, Id = e.Id, Description = e.Description, Date = e.Date, Amount = -e.Total
+                // A bill's money leaves when it is paid, or around its due date while it is owed.
+                Type = BookRecordType.Expense, Id = e.Id, Description = e.Description, Date = e.CashDate ?? e.DueDate ?? e.Date, Amount = -e.Total
             }, matched[e.Id ?? string.Empty])));
         }
 

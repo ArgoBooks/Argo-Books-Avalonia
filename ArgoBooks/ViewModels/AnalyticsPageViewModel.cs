@@ -2023,7 +2023,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
             .Where(s => s.Date >= StartDate && s.Date <= EndDate)
             .Where(RevenueAggregator.IsCollected)
             .ToList();
-        var purchases = data.Expenses.Where(p => p.Date >= StartDate && p.Date <= EndDate).ToList();
+        var purchases = data.Expenses.Where(p => p.IsPaid && p.Date >= StartDate && p.Date <= EndDate).ToList();
 
         var totalTransactionsCount = sales.Count + purchases.Count;
         var avgTransactionValue = totalTransactionsCount > 0
@@ -2054,7 +2054,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
             .Where(s => s.Date >= prevStartDate && s.Date <= prevEndDate)
             .Where(RevenueAggregator.IsCollected)
             .ToList();
-        var prevPurchases = data.Expenses.Where(p => p.Date >= prevStartDate && p.Date <= prevEndDate).ToList();
+        var prevPurchases = data.Expenses.Where(p => p.IsPaid && p.Date >= prevStartDate && p.Date <= prevEndDate).ToList();
 
         var prevTotalTransactionsCount = prevSales.Count + prevPurchases.Count;
         var prevAvgTransactionValue = prevTotalTransactionsCount > 0
@@ -2257,7 +2257,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         var rule = PurchaseTax.RuleFor(data);
 
         var revenues = data.Revenues.Where(r => r.Date >= StartDate && r.Date <= EndDate).Where(RevenueAggregator.IsCollected).ToList();
-        var expenses = data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate).ToList();
+        var expenses = data.Expenses.Where(e => e.IsPaid && e.Date >= StartDate && e.Date <= EndDate).ToList();
 
         // EffectiveTaxAmountUSD, not a hand-rolled "USD if we have it, native otherwise". docs/Calculations.md §3 forbids summing native fields into a USD total.
         var grossTaxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);
@@ -2275,7 +2275,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         var (prevStartDate, prevEndDate) = ComparisonRange();
 
         var prevRevenues = data.Revenues.Where(r => r.Date >= prevStartDate && r.Date <= prevEndDate).Where(RevenueAggregator.IsCollected).ToList();
-        var prevExpenses = data.Expenses.Where(e => e.Date >= prevStartDate && e.Date <= prevEndDate).ToList();
+        var prevExpenses = data.Expenses.Where(e => e.IsPaid && e.Date >= prevStartDate && e.Date <= prevEndDate).ToList();
 
         var prevGrossTaxCollected = prevRevenues.Sum(r => r.EffectiveTaxAmountUSD);
         var prevTaxCollected = prevGrossTaxCollected

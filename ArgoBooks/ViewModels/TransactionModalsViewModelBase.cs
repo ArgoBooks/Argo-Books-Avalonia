@@ -128,6 +128,60 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [ObservableProperty]
     private bool _modalIsAsset;
 
+    /// <summary>Whether the expense is paid, or a bill still to pay by <see cref="ModalBillDueDate"/>. Only the expense form offers it.</summary>
+    [ObservableProperty]
+    private bool _modalBillPaid = true;
+
+    [ObservableProperty]
+    private DateTimeOffset? _modalBillDueDate;
+
+    /// <summary>When a bill being edited was paid.</summary>
+    [ObservableProperty]
+    private DateTimeOffset? _modalBillPaidDate;
+
+    /// <summary>Whether the expense being edited is a bill, which asks for the day it was paid rather than becoming an ordinary expense.</summary>
+    [ObservableProperty]
+    private bool _isEditingBill;
+
+    public bool ShowBillPaidDate => ModalBillPaid && IsEditingBill;
+
+    /// <summary>The due date of a paid bill, shown beside the day it was paid.</summary>
+    public string BillWasDueText => ModalBillDueDate is { } due
+        ? "It was due {0}.".TranslateFormat(DateFormatService.Format(due.DateTime))
+        : string.Empty;
+
+    /// <summary>When the bill is due relative to today, shown under the due date.</summary>
+    public string BillDueHint => ModalBillDueDate is not { } due
+        ? string.Empty
+        : (due.Date - DateTime.Today).Days switch
+        {
+            < 0 and var d => "Overdue by {0} days".TranslateFormat(-d),
+            0 => "Due today".Translate(),
+            1 => "Due tomorrow".Translate(),
+            var d => "Due in {0} days".TranslateFormat(d)
+        };
+
+    public bool IsBillOverdue => ModalBillDueDate is { } due && due.Date < DateTime.Today;
+
+    partial void OnModalBillPaidChanged(bool value)
+    {
+        // Bills are usually due a month after they arrive.
+        if (!value && ModalBillDueDate == null)
+            ModalBillDueDate = (ModalDate ?? DateTimeOffset.Now).AddDays(30);
+        if (value && IsEditingBill && ModalBillPaidDate == null)
+            ModalBillPaidDate = DateTimeOffset.Now;
+        OnPropertyChanged(nameof(ShowBillPaidDate));
+    }
+
+    partial void OnIsEditingBillChanged(bool value) => OnPropertyChanged(nameof(ShowBillPaidDate));
+
+    partial void OnModalBillDueDateChanged(DateTimeOffset? value)
+    {
+        OnPropertyChanged(nameof(BillDueHint));
+        OnPropertyChanged(nameof(IsBillOverdue));
+        OnPropertyChanged(nameof(BillWasDueText));
+    }
+
     [ObservableProperty]
     private IReadOnlyList<AssetTypeOption> _assetTypeOptions = [];
 
@@ -780,6 +834,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     protected void PopulateFormFromTransaction(Transaction transaction)
     {
+        IsEditingBill = false;
+        ModalBillPaid = true;
+        ModalBillDueDate = null;
+        ModalBillPaidDate = null;
         ModalDate = new DateTimeOffset(transaction.Date);
         var productId = transaction.LineItems.FirstOrDefault()?.ProductId;
         var product = productId != null ? App.CompanyManager?.CompanyData?.GetProduct(productId) : null;
@@ -1503,6 +1561,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         EditingTransactionId = string.Empty;
         _original = null;
         SetEntryCurrency(null);
+        IsEditingBill = false;
+        ModalBillPaid = true;
+        ModalBillDueDate = null;
+        ModalBillPaidDate = null;
         ModalDate = DateTimeOffset.Now;
         SelectedCounterparty = null;
         CounterpartyText = null;

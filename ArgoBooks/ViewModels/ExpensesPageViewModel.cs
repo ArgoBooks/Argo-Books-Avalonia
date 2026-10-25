@@ -36,6 +36,12 @@ public partial class ExpensesPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private int _returnsCount;
 
+    [ObservableProperty]
+    private string _billsToPay = "$0.00";
+
+    [ObservableProperty]
+    private string _billsToPaySubtext = string.Empty;
+
     #endregion
 
     #region Search and Filter
@@ -418,6 +424,17 @@ public ExpensesPageViewModel()
         {
             ReturnsCount = 0;
         }
+
+        // Each bill in the company's currency at its own date, as every other expense total is (Calculations.md Rule 4).
+        var bills = _allExpenses.Where(e => !e.IsPaid).ToList();
+        var overdue = bills.Where(e => e.IsOverdueOn(DateTime.Today)).ToList();
+        decimal Owed(IEnumerable<Expense> expenses) => expenses.Sum(e => CurrencyService.GetDisplayAmount(e.EffectiveTotalUSD, e.Date));
+        BillsToPay = CurrencyService.Format(Owed(bills));
+        BillsToPaySubtext = bills.Count == 0
+            ? "Nothing owed".Translate()
+            : overdue.Count > 0
+                ? "{0} overdue".TranslateFormat(CurrencyService.Format(Owed(overdue)))
+                : "{0} unpaid, none overdue".TranslateFormat(bills.Count);
     }
 
     [RelayCommand]
@@ -554,7 +571,8 @@ public ExpensesPageViewModel()
                 PaymentMethod = purchase.PaymentMethod,
                 IsHighlighted = purchase.Id == HighlightTransactionId,
                 IsPendingConversion = purchase.IsPendingConversion,
-                OriginalCurrency = purchase.OriginalCurrency
+                OriginalCurrency = purchase.OriginalCurrency,
+                BillDueDate = purchase.IsPaid ? null : purchase.DueDate
             };
         }).ToList();
 
@@ -593,6 +611,7 @@ public ExpensesPageViewModel()
     {
         if (lostDamagedIds.Contains(purchase.Id)) return "Lost / Damaged";
         if (returnedIds.Contains(purchase.Id)) return "Returned";
+        if (!purchase.IsPaid) return purchase.IsOverdueOn(DateTime.Today) ? "Overdue" : "Unpaid";
         return "Completed";
     }
 
@@ -721,6 +740,9 @@ public ExpensesPageViewModel()
     {
         App.ExpenseModalsViewModel?.OpenDeleteConfirm(item);
     }
+
+    [RelayCommand]
+    private void MarkBillPaid(ExpenseDisplayItem? item) => App.ExpenseModalsViewModel?.MarkBillPaid(item);
 
     [RelayCommand]
     private void MarkAsLostDamaged(ExpenseDisplayItem? item)
@@ -922,6 +944,20 @@ public partial class ExpenseDisplayItem : ObservableObject, ISelectableRow
     public bool IsReturned => StatusDisplay == "Returned";
     public bool IsPartialReturn => StatusDisplay == "Partial Return";
     public bool IsLostDamaged => StatusDisplay == "Lost / Damaged";
+
+    /// <summary>When the bill is due, while it is unpaid.</summary>
+    public DateTime? BillDueDate { get; init; }
+
+    public bool IsUnpaidBill => BillDueDate != null;
+
+    public string BillDueHint => BillDueDate is not { } due
+        ? string.Empty
+        : (due - DateTime.Today).Days switch
+        {
+            < 0 and var d => "Overdue by {0} days (due {1})".TranslateFormat(-d, DateFormatService.Format(due)),
+            0 => "Due today".Translate(),
+            var d => "Due in {0} days ({1})".TranslateFormat(d, DateFormatService.Format(due))
+        };
     public bool CanMarkAsReturned => !IsReturned && !IsLostDamaged;
     public bool CanMarkAsLostDamaged => !IsReturned && !IsLostDamaged;
 

@@ -52,6 +52,11 @@
                                    Value="{Binding ReturnsCount}"
                                    Icon="{x:Static icons:Icons.MoneyOff}"
                                    IconColor="Warning" />
+                <controls:StatCard Label="{loc:Loc 'Bills to Pay'}"
+                                   Value="{Binding BillsToPay}"
+                                   SecondaryText="{Binding BillsToPaySubtext}"
+                                   Icon="{x:Static icons:Icons.Clock}"
+                                   IconColor="Danger" />
             </controls:StatCardsRow>
 
             <!-- Main Content Card using ArgoTable -->
@@ -456,6 +461,7 @@
                                                         Padding="8,4"
                                                         CornerRadius="4"
                                                         ClipToBounds="True"
+                                                        ToolTip.Tip="{Binding BillDueHint}"
                                                         Background="{Binding StatusDisplay, Converter={x:Static local:StatusConverters.TransactionStatusBackground}}">
                                                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding StatusDisplay, Converter={StaticResource TranslateConverter}}"
@@ -492,6 +498,16 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Check}"
                                                                   Width="16" Height="16"
                                                                   Foreground="{DynamicResource WarningBrush}" />
+                                                    </Button>
+                                                    <!-- An unpaid bill (preview) -->
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Mark as paid'}"
+                                                            IsVisible="{Binding IsUnpaidBill}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).MarkBillPaidCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Check}"
+                                                                  Width="16" Height="16"
+                                                                  Foreground="{DynamicResource SuccessBrush}" />
                                                     </Button>
                                                     <!-- View Receipt Button -->
                                                     <Button Classes="icon-button"

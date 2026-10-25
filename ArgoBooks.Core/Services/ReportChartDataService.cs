@@ -109,7 +109,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var categoryTotals = new Dictionary<string, decimal>();
 
-        foreach (var p in companyData.Expenses.Where(p => p.Date >= startDate && p.Date <= endDate))
+        foreach (var p in PaidExpenses.Where(p => p.Date >= startDate && p.Date <= endDate))
         {
             // Wages and remittances have no product to take a category from, so they get their own slice.
             if (PayrollExpenseIds.Contains(p.Id))
@@ -315,7 +315,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         {
             var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
-            var transactions = companyData.Expenses
+            var transactions = PaidExpenses
                 .Where(p => p.Date >= clampedStart && p.Date <= clampedEnd)
                 .Select(p => toDisplay != null ? toDisplay(p.EffectiveTotalUSD, p.Date) : p.EffectiveTotalUSD)
                 .ToList();
@@ -412,7 +412,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             revenueValuesByDate[date].Add(revenue.EffectiveTotalUSD);
         }
 
-        foreach (var expense in companyData.Expenses.Where(p => p.Date >= startDate && p.Date <= endDate))
+        foreach (var expense in PaidExpenses.Where(p => p.Date >= startDate && p.Date <= endDate))
         {
             var date = expense.Date.Date;
             if (!expenseValuesByDate.ContainsKey(date))
@@ -469,7 +469,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             revenueCountsByDate[date] = revenueCountsByDate.GetValueOrDefault(date, 0) + 1;
         }
 
-        foreach (var expense in companyData.Expenses.Where(p => p.Date >= startDate && p.Date <= endDate))
+        foreach (var expense in PaidExpenses.Where(p => p.Date >= startDate && p.Date <= endDate))
         {
             var date = expense.Date.Date;
             expenseCountsByDate[date] = expenseCountsByDate.GetValueOrDefault(date, 0) + 1;
@@ -611,7 +611,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        return companyData.Expenses
+        return PaidExpenses
             .Where(p => p.Date >= startDate && p.Date <= endDate)
             .GroupBy(p =>
             {
@@ -638,7 +638,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         // date before grouping (Calculations.md Rule 4). Default (null) keeps USD.
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 
-        return companyData.Expenses
+        return PaidExpenses
             // Wages and remittances are not bought from a supplier anywhere.
             .Where(p => p.Date >= startDate && p.Date <= endDate && !PayrollExpenseIds.Contains(p.Id))
             .GroupBy(p =>
@@ -669,7 +669,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         // date before grouping (Calculations.md Rule 4). Default (null) keeps USD.
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 
-        return companyData.Expenses
+        return PaidExpenses
             .Where(p => p.Date >= startDate && p.Date <= endDate)
             .GroupBy(p => companyData.GetSupplier(p.SupplierId ?? "")?.Name ?? "Unknown")
             .Where(g => g.Key != "Unknown")
@@ -749,7 +749,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                 .Where(RevenueAggregator.IsCollected)
                 .Select(s => toDisplay != null ? toDisplay(s.EffectiveShippingCostUSD, s.Date) : s.EffectiveShippingCostUSD));
 
-            shippingCosts.AddRange(companyData.Expenses
+            shippingCosts.AddRange(PaidExpenses
                 .Where(p => p.Date >= clampedStart && p.Date <= clampedEnd)
                 .Select(p => toDisplay != null ? toDisplay(p.EffectiveShippingCostUSD, p.Date) : p.EffectiveShippingCostUSD));
 
@@ -785,7 +785,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             shippingByDate[date].Add(revenue.EffectiveShippingCostUSD);
         }
 
-        foreach (var purchase in companyData.Expenses.Where(p => p.Date >= startDate && p.Date <= endDate))
+        foreach (var purchase in PaidExpenses.Where(p => p.Date >= startDate && p.Date <= endDate))
         {
             var date = purchase.Date.Date;
             if (!shippingByDate.ContainsKey(date))
@@ -1426,6 +1426,9 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
     private IEnumerable<Revenue> CollectedRevenues => companyData!.Revenues.Where(RevenueAggregator.IsCollected);
 
+    // Money charts count only expenses whose money has gone out, as they count only collected revenue (Calculations.md Rule 2).
+    private IEnumerable<Expense> PaidExpenses => companyData!.Expenses.Where(ExpenseAggregator.IsPaid);
+
     private IEnumerable<Payment> Refunds => companyData!.Payments.Where(p => p.IsRefund);
 
     private Dictionary<string, Invoice> InvoicesById => _invoicesById ??= ProfitCalculator.BuildInvoiceLookup(companyData!.Invoices);
@@ -1490,7 +1493,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             return new ChartDataPoint
             {
                 Label = month.ToString("MMM yyyy"),
-                Value = (double)companyData.Expenses
+                Value = (double)PaidExpenses
                     .Where(e => e.Date >= clampedStart && e.Date <= clampedEnd)
                     .Sum(e => toDisplay != null ? toDisplay(e.EffectiveTaxAmountUSD, e.Date) : e.EffectiveTaxAmountUSD),
                 Date = month
@@ -1518,7 +1521,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var revenueDates = CollectedRevenues
             .Where(r => r.Date >= startDate && r.Date <= endDate && (r.TaxAmountUSD > 0 || r.TaxAmount > 0))
             .Select(r => r.Date.Date);
-        var expenseDates = companyData.Expenses
+        var expenseDates = PaidExpenses
             .Where(e => e.Date >= startDate && e.Date <= endDate && (e.TaxAmountUSD != 0 || e.TaxAmount != 0))
             .Select(e => e.Date.Date);
         var refundDates = Refunds
@@ -1534,7 +1537,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         // records in list order, the same figures NetTaxCollected gives for a one-day window.
         var revenuesByDay = CollectedRevenues.ToLookup(r => r.Date.Date);
         var refundsByDay = Refunds.ToLookup(p => p.Date.Date);
-        var expensesByDay = companyData.Expenses.ToLookup(e => e.Date.Date);
+        var expensesByDay = PaidExpenses.ToLookup(e => e.Date.Date);
 
         return allDates.Select(date =>
         {
@@ -1574,7 +1577,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             return [];
 
         var (startDate, endDate) = GetDateRange();
-        var taxed = CollectedRevenues.Cast<Transaction>().Concat(companyData.Expenses)
+        var taxed = CollectedRevenues.Cast<Transaction>().Concat(PaidExpenses)
             .Where(t => t.Date >= startDate && t.Date <= endDate && (t.TaxAmountUSD != 0 || t.TaxAmount != 0))
             .ToList();
         if (taxed.Count == 0)
@@ -1648,7 +1651,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .Select(RateOf)
             .ToList();
 
-        var expenseRates = companyData.Expenses
+        var expenseRates = PaidExpenses
             .Where(e => e.Date >= startDate && e.Date <= endDate)
             .Select(RateOf)
             .ToList();
@@ -1724,7 +1727,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             return new ChartDataPoint
             {
                 Label = month.ToString("MMM yyyy"),
-                Value = (double)companyData.Expenses
+                Value = (double)PaidExpenses
                     .Where(e => e.Date >= clampedStart && e.Date <= clampedEnd)
                     .Sum(e => toDisplay != null ? toDisplay(e.EffectiveTaxAmountUSD, e.Date) : e.EffectiveTaxAmountUSD),
                 Date = month

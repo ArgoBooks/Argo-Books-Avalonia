@@ -65,7 +65,7 @@ public static class ProfitCalculator
         var rule = PurchaseTax.RuleFor(data);
 
         var expensesByDay = data.Expenses
-            .Where(p => p.Date >= start && p.Date <= end)
+            .Where(p => p.IsPaid && p.Date >= start && p.Date <= end)
             .GroupBy(p => p.Date.Date)
             .ToDictionary(g => g.Key, g => g.Sum(e => CostOfGoodsAggregator.OperatingExpenseUSD(e, rule)));
 
