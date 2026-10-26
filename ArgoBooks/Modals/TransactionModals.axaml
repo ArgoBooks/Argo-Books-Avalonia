@@ -856,7 +856,7 @@
                         <!-- Notes -->
                         <StackPanel Spacing="6">
                             <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
-                                       Text="{loc:Loc 'Notes (optional)'}" />
+                                       Text="{loc:Loc 'Notes'}" />
                             <TextBox Text="{Binding ItemStatusNotes, Mode=TwoWay}"
                                      Classes="form-input"
                                      AcceptsReturn="True"

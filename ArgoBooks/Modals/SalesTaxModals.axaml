@@ -84,7 +84,7 @@
                             </Grid>
 
                             <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc 'Confirmation number (optional)'}"
+                                <TextBlock Text="{loc:Loc 'Confirmation number'}"
                                            FontSize="13" FontWeight="Medium"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <TextBox Text="{Binding ConfirmationNumber, Mode=TwoWay}"

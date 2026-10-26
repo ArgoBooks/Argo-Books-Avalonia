@@ -233,7 +233,7 @@
                                                             <DatePicker SelectedDate="{Binding RecurringStartDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
                                                         </StackPanel>
                                                         <StackPanel Spacing="4">
-                                                            <TextBlock Text="{loc:Loc 'End date (optional)'}" Classes="sidebar-label" Margin="0" />
+                                                            <TextBlock Text="{loc:Loc 'End date'}" Classes="sidebar-label" Margin="0" />
                                                             <DatePicker SelectedDate="{Binding RecurringEndDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
                                                         </StackPanel>
                                                     </StackPanel>

@@ -48,7 +48,6 @@
                                        FontWeight="Medium"
                                        Foreground="{DynamicResource TextPrimaryBrush}">
                                 <Run Text="{loc:Loc 'Reason for undo'}" />
-                                <Run Text="{loc:Loc '(optional)'}" Foreground="{DynamicResource TextTertiaryBrush}" />
                             </TextBlock>
                             <TextBox Text="{Binding #Root.Reason, Mode=TwoWay}"
                                      PlaceholderText="{Binding #Root.ReasonPlaceholder}"

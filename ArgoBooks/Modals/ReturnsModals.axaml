@@ -275,7 +275,7 @@
                                                 HorizontalAlignment="Stretch" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Restocking fee (optional)'}"
+                                    <TextBlock Text="{loc:Loc 'Restocking fee'}"
                                                FontSize="13" FontWeight="Medium"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Text="{Binding RestockingFee, Mode=TwoWay, Converter={x:Static local:NullableDecimalConverter.Instance}}"
@@ -289,7 +289,7 @@
                             <!-- Notes -->
                             <StackPanel Spacing="6">
                                 <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
-                                           Text="{loc:Loc 'Notes (optional)'}" />
+                                           Text="{loc:Loc 'Notes'}" />
                                 <TextBox Text="{Binding RecordReturnNotes, Mode=TwoWay}"
                                          Classes="form-input"
                                          AcceptsReturn="True"

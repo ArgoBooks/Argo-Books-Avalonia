@@ -91,7 +91,7 @@
                             </StackPanel>
 
                             <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc 'Ends (optional)'}"
+                                <TextBlock Text="{loc:Loc 'Ends'}"
                                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" />
                                 <DatePicker SelectedDate="{Binding EndDate}"
                                             Classes="form-datepicker"
