@@ -21,7 +21,7 @@
             <controls:StatCard Label="{loc:Loc 'Owed now'}"
                                Value="{Binding OwedNow}"
                                SecondaryText="{Binding OwedNowDetail}"
-                               Icon="{x:Static icons:Icons.Percent}"
+                               Icon="{x:Static icons:Icons.SalesTax}"
                                IconColor="Danger" />
             <controls:StatCard Label="{loc:Loc 'Next filing due'}"
                                Value="{Binding NextDue}"
@@ -53,7 +53,7 @@
                          GoToPageCommand="{Binding GoToPageCommand}"
                          GoToPreviousPageCommand="{Binding GoToPreviousPageCommand}"
                          GoToNextPageCommand="{Binding GoToNextPageCommand}"
-                         EmptyIcon="{x:Static icons:Icons.Percent}"
+                         EmptyIcon="{x:Static icons:Icons.SalesTax}"
                          EmptyTitle="{loc:Loc 'Nothing to file yet'}"
                          EmptyMessage="{loc:Loc 'Sales tax you collect and pay shows here, one row for each period you file.'}">
 

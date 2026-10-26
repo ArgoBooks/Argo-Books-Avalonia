@@ -67,10 +67,19 @@ public partial class SalesTaxPageViewModel : SortablePageViewModelBase
         if (data != null && Enum.TryParse<SalesTaxFrequency>(value, out var frequency) && data.Settings.Company.SalesTaxFrequency != frequency)
         {
             data.Settings.Company.SalesTaxFrequency = frequency;
-            App.CompanyManager?.MarkAsChanged();
+            SaveSetting();
         }
         CurrentPage = 1;
         LoadPeriods();
+    }
+
+    // How the business files is a preference rather than a change to its books, so it is saved straight away
+    // with the company's settings, the way the owner email is, and doesn't leave the company unsaved.
+    private static async void SaveSetting()
+    {
+        if (App.CompanyManager == null) return;
+        try { await App.CompanyManager.SaveSettingsOnlyAsync(); }
+        catch (Exception ex) { App.ErrorLogger?.LogWarning($"Failed to save the sales tax setting: {ex.Message}", "SalesTax"); }
     }
 
     private SalesTaxFrequency Frequency => Enum.TryParse<SalesTaxFrequency>(SelectedFrequency, out var f) ? f : SalesTaxFrequency.Quarterly;
@@ -92,7 +101,7 @@ public partial class SalesTaxPageViewModel : SortablePageViewModelBase
         if (data != null && month > 0 && SalesTaxPeriods.YearStartMonth(data) != month)
         {
             data.Settings.Company.SalesTaxYearStartMonth = month;
-            App.CompanyManager?.MarkAsChanged();
+            SaveSetting();
         }
         CurrentPage = 1;
         LoadPeriods();

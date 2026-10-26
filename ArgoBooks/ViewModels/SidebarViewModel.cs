@@ -152,7 +152,7 @@ public partial class SidebarViewModel : ViewModelBase
         MainItems.Add(CreateItem("Analytics", "Analytics", Icons.Analytics));
         MainItems.Add(CreateItem("Insights", "Insights", Icons.Insights));
         MainItems.Add(CreateItem("Reports", "Reports", Icons.Reports));
-        MainItems.Add(CreateItem("Sales Tax", "SalesTax", Icons.Percent));
+        MainItems.Add(CreateItem("Sales Tax", "SalesTax", Icons.SalesTax));
 
         // Expenses Section. The category and product pages are one page each, entered
         // on the matching tab, so these route to a page name that presets it.
