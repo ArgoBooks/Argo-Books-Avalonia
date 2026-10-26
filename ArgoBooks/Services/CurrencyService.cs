@@ -76,7 +76,7 @@ public static class CurrencyService
     /// instead of a wrong number. Returns the USD amount unchanged only when no exchange service is
     /// available (headless), which never happens in the running app.
     /// </summary>
-    private static bool TryDisplayFromUSD(decimal amountUSD, DateTime date, out decimal amount)
+    public static bool TryDisplayFromUSD(decimal amountUSD, DateTime date, out decimal amount)
     {
         var svc = ExchangeRateService.Instance;
         if (svc == null)

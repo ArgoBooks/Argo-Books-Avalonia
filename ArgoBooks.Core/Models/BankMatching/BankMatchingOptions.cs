@@ -26,11 +26,12 @@ public class BankMatchingOptions
     /// Which book record types to match against. The Revenue table is the single source of truth
     /// for income (invoices auto-create a linked revenue row), so matching only needs Revenue and
     /// Expenses. Invoices and Payments are intentionally excluded to avoid matching the same bank
-    /// line to several records for one sale.
+    /// line to several records for one sale. A sales tax return's payment leaves the bank too, and is no expense.
     /// </summary>
     public HashSet<BookRecordType> Scope { get; set; } =
     [
         BookRecordType.Expense,
-        BookRecordType.Revenue
+        BookRecordType.Revenue,
+        BookRecordType.SalesTaxFiling
     ];
 }

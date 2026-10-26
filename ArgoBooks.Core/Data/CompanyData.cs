@@ -86,6 +86,12 @@ public class CompanyData
     [JsonPropertyName("assets")]
     public List<Models.Assets.FixedAsset> Assets { get; init; } = [];
 
+    /// <summary>
+    /// The sales tax returns filed, each with the payment made or refund received.
+    /// </summary>
+    [JsonPropertyName("salesTaxFilings")]
+    public List<SalesTaxFiling> SalesTaxFilings { get; init; } = [];
+
     #endregion
 
     #region Transactions

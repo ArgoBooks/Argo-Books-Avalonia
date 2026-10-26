@@ -97,6 +97,28 @@ public static class StatusConverters
 
     #endregion
 
+    #region Sales Tax Filing Status
+
+    public static readonly IValueConverter SalesTaxStatusBackground = new StatusToBrushConverter(
+        new Dictionary<string, string>
+        {
+            ["Open"] = BlueBg,
+            ["Due"] = OrangeBg,
+            ["Overdue"] = RedBg,
+            ["Filed"] = GreenBg
+        });
+
+    public static readonly IValueConverter SalesTaxStatusForeground = new StatusToBrushConverter(
+        new Dictionary<string, string>
+        {
+            ["Open"] = BlueFg,
+            ["Due"] = OrangeFg,
+            ["Overdue"] = RedFg,
+            ["Filed"] = GreenFg
+        }, GrayFg);
+
+    #endregion
+
     #region Invoice Status
 
     public static readonly IValueConverter InvoiceStatusBackground = new StatusToBrushConverter(

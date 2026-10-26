@@ -98,6 +98,9 @@ public enum FeatureName
     AssetCreated,
     AssetDisposed,
 
+    // A sales tax return filed, with the frequency and whether it paid or was refunded in the context.
+    SalesTaxFiled,
+
     // A bulk edit, with the records, the change and how many in the context, such as "expense:supplier:12".
     BulkEdited,
 

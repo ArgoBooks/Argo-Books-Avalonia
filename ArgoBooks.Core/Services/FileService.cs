@@ -463,6 +463,9 @@ public class FileService(
         // Absent from every file written before assets shipped, which ReadJsonAsync handles by returning null.
         var assetsTask            = ReadJsonAsync<List<Models.Assets.FixedAsset>>(tempDirectory, "assets.json", cancellationToken);
 
+        // Absent from every file written before sales tax filing shipped.
+        var salesTaxFilingsTask   = ReadJsonAsync<List<Models.Transactions.SalesTaxFiling>>(tempDirectory, "salesTaxFilings.json", cancellationToken);
+
         // Mobile sync. Absent from every file written before they were persisted, which
         // ReadJsonAsync handles by returning null.
         var pairedDevicesTask     = ReadJsonAsync<List<Models.Tracking.PairedDevice>>(tempDirectory, "pairedDevices.json", cancellationToken);
@@ -479,7 +482,7 @@ public class FileService(
             rentalInventoryTask, rentalsTask, returnsTask, lostDamagedTask, receiptsTask,
             invoiceTemplatesTask, eventLogTask, pendingConversionsTask,
             forecastRecordsTask, bankImportSessionsTask,
-            employeesTask, payRunsTask, assetsTask,
+            employeesTask, payRunsTask, assetsTask, salesTaxFilingsTask,
             pairedDevicesTask, ingestedScanUidsTask
         ];
 
@@ -532,6 +535,7 @@ public class FileService(
             Employees = employeesTask.Result ?? [],
             PayRuns = payRunsTask.Result ?? [],
             Assets = assetsTask.Result ?? [],
+            SalesTaxFilings = salesTaxFilingsTask.Result ?? [],
             PairedDevices = pairedDevicesTask.Result ?? [],
             IngestedScanUids = ingestedScanUidsTask.Result ?? []
         };
@@ -601,6 +605,7 @@ public class FileService(
         Add("employees.json", data.Employees);
         Add("payRuns.json", data.PayRuns);
         Add("assets.json", data.Assets);
+        Add("salesTaxFilings.json", data.SalesTaxFilings);
         Add("pairedDevices.json", data.PairedDevices);
         Add("ingestedScanUids.json", data.IngestedScanUids);
 

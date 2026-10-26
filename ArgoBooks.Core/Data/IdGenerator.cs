@@ -89,6 +89,14 @@ public class IdGenerator(CompanyData companyData)
         return Next(() => checked(++highest), n => $"AST-{n:D3}", taken, ids);
     }
 
+    /// <summary>Generates a new sales tax filing ID (STX-001), numbered past the highest one on file. The company file has no counter for filings.</summary>
+    public string NextSalesTaxFilingId()
+    {
+        var ids = companyData.SalesTaxFilings.Select(f => f.Id);
+        var highest = HighestNumber(ids, "STX-");
+        return Next(() => checked(++highest), n => $"STX-{n:D3}", null, ids);
+    }
+
     /// <summary>Generates a new invoice template ID (template-1).</summary>
     public string NextInvoiceTemplateId() =>
         Next(() => checked(++Counters.InvoiceTemplate), n => $"template-{n}", null, companyData.InvoiceTemplates.Select(t => t.Id));

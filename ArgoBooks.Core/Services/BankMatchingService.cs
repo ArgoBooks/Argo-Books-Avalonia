@@ -203,10 +203,13 @@ public class BankMatchingService
     /// </summary>
     public List<BankMatchCandidate> GetManualMatchOptions(BankStatementLine line, CompanyData data, BankMatchingOptions options)
     {
+        // A sales tax return is money out when it paid and money in when it was refunded.
         return UnmatchedRecordRefs(data, options.Scope)
             .Where(r => line.Amount == 0
-                        || (line.Amount < 0 && r.Type == BookRecordType.Expense)
-                        || (line.Amount > 0 && r.Type != BookRecordType.Expense))
+                        || (r.Type == BookRecordType.SalesTaxFiling
+                            ? Math.Sign(r.Amount) == Math.Sign(line.Amount)
+                            : (line.Amount < 0 && r.Type == BookRecordType.Expense)
+                              || (line.Amount > 0 && r.Type != BookRecordType.Expense)))
             .OrderByDescending(r => r.Date)
             .Select(r => new BankMatchCandidate
             {
@@ -382,6 +385,11 @@ public class BankMatchingService
             case BookRecordType.Payment:
                 ApplyPayment(data.Payments.FirstOrDefault(p => p.Id == id));
                 break;
+            case BookRecordType.SalesTaxFiling when data.SalesTaxFilings.FirstOrDefault(f => f.Id == id) is { } filing:
+                filing.BankMatched = matched;
+                filing.BankMatchedDate = date;
+                filing.BankMatchedLineId = lineId;
+                break;
         }
 
         // The bank line is the payment: matching one to an unpaid bill pays it that day, and unmatching it owes it again.
@@ -438,6 +446,8 @@ public class BankMatchingService
                 return (i.BankMatched, i.BankMatchedLineId);
             case BookRecordType.Payment when data.Payments.FirstOrDefault(p => p.Id == id) is { } p:
                 return (p.BankMatched, p.BankMatchedLineId);
+            case BookRecordType.SalesTaxFiling when data.SalesTaxFilings.FirstOrDefault(f => f.Id == id) is { } f:
+                return (f.BankMatched, f.BankMatchedLineId);
             default:
                 return null;
         }
@@ -490,6 +500,16 @@ public class BankMatchingService
                 Date = p.Date,
                 Amount = p.Amount // refunds are stored negative => money out
             }, matched[p.Id ?? string.Empty])));
+        }
+
+        if (scope.Contains(BookRecordType.SalesTaxFiling))
+        {
+            var matched = MatchedById(data.SalesTaxFilings, f => f.Id, f => f.BankMatched);
+            refs.AddRange(data.SalesTaxFilings.Select(f => (new BookRecordRef
+            {
+                Type = BookRecordType.SalesTaxFiling, Id = f.Id, Description = SalesTaxPeriods.Describe(f),
+                Date = f.PaidDate, Amount = -f.Amount
+            }, matched[f.Id ?? string.Empty])));
         }
 
         if (scope.Contains(BookRecordType.Invoice))

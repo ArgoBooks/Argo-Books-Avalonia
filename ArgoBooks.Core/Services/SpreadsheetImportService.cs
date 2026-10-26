@@ -883,6 +883,9 @@ public class SpreadsheetImportService
             case SpreadsheetSheetType.Assets:
                 ImportAssets(data, headers, rows, options);
                 break;
+            case SpreadsheetSheetType.SalesTaxFilings:
+                // Export only: a return records what was reported to the government, so it is filed on the Sales Tax page.
+                break;
             case SpreadsheetSheetType.Returns:
                 ImportReturns(data, headers, rows, options);
                 break;

@@ -310,11 +310,52 @@ public partial class DashboardPageViewModel : ChartPageViewModelBase, ICleanupVi
 
     #endregion
 
+    #region Sales Tax Banner
+
+    [ObservableProperty]
+    private bool _showSalesTaxBanner;
+
+    [ObservableProperty]
+    private string _salesTaxBannerMessage = string.Empty;
+
+    /// <summary>
+    /// Reminds the business of a sales tax return due within two weeks or overdue, once it has chosen how
+    /// often it files. It stays until the return is filed, unlike the other banners, which can be closed.
+    /// </summary>
+    public void RefreshSalesTaxBanner()
+    {
+        var data = _companyManager?.CompanyData;
+        if (data == null || SalesTaxPeriods.ComingDue(data, DateTime.Today) is not { } due)
+        {
+            ShowSalesTaxBanner = false;
+            return;
+        }
+
+        var name = SalesTaxPeriods.NameOf(due.Period, due.Frequency);
+        var date = DateFormatService.Format(due.Period.DueDate);
+        SalesTaxBannerMessage = due.Period.DueDate < DateTime.Today
+            ? "Your sales tax return for {0} was due on {1}.".TranslateFormat(name, date)
+            : "Your sales tax return for {0} is due on {1}.".TranslateFormat(name, date);
+        ShowSalesTaxBanner = true;
+    }
+
+    partial void OnShowSalesTaxBannerChanged(bool value) => TrackBannerShown(value, SalesTaxBanner);
+
+    [RelayCommand]
+    private void OpenSalesTax()
+    {
+        TrackBanner(FeatureName.BannerOpened, SalesTaxBanner);
+        App.NavigationService?.NavigateTo(PageNames.SalesTax);
+    }
+
+    #endregion
+
     #region Banner Tracking
 
     private const string SourceSurveyBanner = "source_survey";
     private const string UpdateEmailBanner = "update_email";
     private const string ReviewBanner = "review";
+    private const string SalesTaxBanner = "sales_tax";
 
     // A banner counts as shown when it appears, not on every refresh that keeps it up.
     private static void TrackBannerShown(bool shown, string banner)
@@ -461,6 +502,7 @@ public partial class DashboardPageViewModel : ChartPageViewModelBase, ICleanupVi
         if (data == null || !IsOnScreen) return;
 
         RefreshPresetDates();
+        RefreshSalesTaxBanner();
 
         // Correct rental statuses before displaying
         CorrectRentalStatuses(data);

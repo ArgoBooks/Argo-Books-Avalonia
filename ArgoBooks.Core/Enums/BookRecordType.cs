@@ -8,5 +8,6 @@ public enum BookRecordType
     Expense,
     Revenue,
     Invoice,
-    Payment
+    Payment,
+    SalesTaxFiling
 }

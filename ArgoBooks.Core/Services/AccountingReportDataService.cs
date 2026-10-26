@@ -677,7 +677,11 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var (cashFromAssetSales, salesPending) = AssetSaleProceeds(cashFrom, RangeEnd);
         cashPending |= salesPending;
 
-        var cash = openingCash + cashFromRevenue + cashFromPayments - cashPaidForExpenses + cashFromAssetSales;
+        // Sales tax paid with a return leaves the bank too, though it is no expense (docs/Calculations.md §17).
+        var (salesTaxPaidSinceOpening, salesTaxPending) = SalesTaxPeriods.PaidBetween(companyData, cashFrom, RangeEnd, DisplayCode);
+        cashPending |= salesTaxPending;
+
+        var cash = openingCash + cashFromRevenue + cashFromPayments - cashPaidForExpenses + cashFromAssetSales - salesTaxPaidSinceOpening;
 
         // Accounts Receivable = what was still owed at the end date, each balance converted at the
         // invoice's issue date.
@@ -736,7 +740,13 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var taxPaidOnExpenses = companyData.Expenses
             .Where(e => IsOnOrBeforeEndDate(e.Date))
             .Sum(e => ToDisplay(PurchaseTax.ClaimableUSD(e, Rule), e.Date));
-        var salesTaxPayable = taxCollected - taxRefunded - taxPaidOnExpenses;
+        // What returns already paid is no longer owed, and nor are the fractions of a cent their periods held, since a return reports whole cents.
+        var (salesTaxPaid, salesTaxPaidPending) = SalesTaxPeriods.PaidBetween(companyData, DateTime.MinValue, RangeEnd, DisplayCode);
+        var filedFractions = companyData.SalesTaxFilings
+            .Where(f => IsOnOrBeforeEndDate(f.PaidDate))
+            .Select(f => new SalesTaxPeriods.Period(f.PeriodStart, f.PeriodEnd, f.DueDate))
+            .Sum(p => SalesTaxPeriods.For(companyData, p, ToDisplay, toCents: false).Net - SalesTaxPeriods.For(companyData, p, ToDisplay).Net);
+        var salesTaxPayable = taxCollected - taxRefunded - taxPaidOnExpenses - salesTaxPaid - filedFractions;
 
         // A security deposit is not earned (docs/Calculations.md §4), but the invoice total carrying it is cash or receivables from the day it is issued.
         var paymentsToDate = companyData.Payments.Where(p => IsOnOrBeforeEndDate(p.Date)).ToList();
@@ -775,7 +785,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Without the opening balance's rate the cash, and every total built on it, is unknown rather than zero.
         string CashBased(decimal amount) => cashPending ? PendingText : FormatCurrencyWithSign(amount);
         string AssetBased(decimal amount) => assetsPending ? PendingText : FormatCurrencyWithSign(amount);
-        string TotalBased(decimal amount) => cashPending || assetsPending || payrollPending ? PendingText : FormatCurrencyWithSign(amount);
+        string TotalBased(decimal amount) => cashPending || assetsPending || payrollPending || salesTaxPaidPending ? PendingText : FormatCurrencyWithSign(amount);
         string EarningsBased(decimal amount) => earningsPending ? PendingText : FormatCurrencyWithSign(amount);
 
         // ASSETS
@@ -895,12 +905,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             RowType = AccountingRowType.DataRow
         });
 
-        if (salesTaxPayable != 0)
+        if (salesTaxPayable != 0 || salesTaxPaidPending)
         {
             data.Rows.Add(new AccountingRow
             {
                 Label = t.TaxPayableLabel,
-                Values = [FormatCurrencyWithSign(salesTaxPayable)],
+                Values = [salesTaxPaidPending ? PendingText : FormatCurrencyWithSign(salesTaxPayable)],
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
@@ -931,7 +941,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "TOTAL LIABILITIES",
-            Values = [payrollPending ? PendingText : FormatCurrencyWithSign(totalLiabilities)],
+            Values = [payrollPending || salesTaxPaidPending ? PendingText : FormatCurrencyWithSign(totalLiabilities)],
             RowType = AccountingRowType.TotalRow
         });
 
@@ -1060,7 +1070,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                                   - cashPaidForAssets;
         var (cashFromAssetSales, salesPending) = AssetSaleProceeds(RangeStart, RangeEnd);
 
-        var totalOperating = cashFromSales + cashFromInvoicePayments - cashPaidForExpenses;
+        var (salesTaxPaidInRange, salesTaxPending) = SalesTaxPeriods.PaidBetween(companyData, RangeStart, RangeEnd, DisplayCode);
+        var totalOperating = cashFromSales + cashFromInvoicePayments - cashPaidForExpenses - salesTaxPaidInRange;
         var totalInvesting = cashFromAssetSales - cashPaidForAssets;
 
         var netChange = totalOperating + totalInvesting;
@@ -1098,10 +1109,21 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             RowType = AccountingRowType.DataRow
         });
 
+        if (salesTaxPaidInRange != 0 || salesTaxPending)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Sales Tax Paid",
+                Values = [salesTaxPending ? PendingText : FormatCurrencyWithSign(-salesTaxPaidInRange)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
         data.Rows.Add(new AccountingRow
         {
             Label = "Net Cash from Operating Activities",
-            Values = [FormatCurrencyWithSign(totalOperating)],
+            Values = [salesTaxPending ? PendingText : FormatCurrencyWithSign(totalOperating)],
             RowType = AccountingRowType.SubtotalRow
         });
 
@@ -1148,7 +1170,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "NET CHANGE IN CASH",
-            Values = [SalesBased(netChange)],
+            Values = [salesTaxPending ? PendingText : SalesBased(netChange)],
             RowType = AccountingRowType.GrandTotalRow
         });
 

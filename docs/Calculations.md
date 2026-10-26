@@ -309,7 +309,7 @@ refund = items returned − discount × share + tax × share + shipping? + fee?
 
 Each part is rounded to the cent. Returning everything with the shipping and fee refunds the transaction's whole total. The tax part is stored on the return (`Return.RefundTax`). A restocking fee comes off the refund and is never more than it. Recording a return also records the refund, dated on the return:
 
-- **A returned sale** comes off what the customer still owes first, the way accounting software applies a credit note, and only the rest is paid back. What is owed is the invoice's total less what was paid and credited, or, for a sale with no invoice, its total less earlier credit notes until it is marked paid and nothing after. The part owed becomes a credit note (§8) and the rest a refund payment, at most what the customer has paid toward the sale and not had back: the invoice's net paid, or for a sale with no invoice that was collected, its total less what its earlier returns credited and refunded. So a $100 invoice with $60 paid gets a $30 return as a credit note, leaving $10 owed, and a $50 return as a $40 credit note and a $10 refund. Each gives back the return's tax in its share of the return's refund (`RefundTaxAmount`). That tax comes off tax collected and the rest off revenue. Both are linked to the sale's invoice when there is one, so its balance and status follow. A cash refund on an invoice paid online is left to the payment provider, and arrives with the payment sync. The form says which of these applies before it is saved. An unpaid sale with no invoice that has a return can't be edited, so its row has a Mark as paid button.
+- **A returned sale** comes off what the customer still owes first, the way accounting software applies a credit note, and only the rest is paid back. What is owed is the invoice's total less what was paid and credited, or, for a sale with no invoice, its total less earlier credit notes until it is marked paid and nothing after. The part owed becomes a credit note (§8) and the rest a refund payment, at most what the customer has paid toward the sale and not had back: the invoice's net paid, or for a sale with no invoice that was collected, its total less what its earlier returns credited and refunded. So a \$100 invoice with \$60 paid gets a \$30 return as a credit note, leaving \$10 owed, and a \$50 return as a \$40 credit note and a \$10 refund. Each gives back the return's tax in its share of the return's refund (`RefundTaxAmount`). That tax comes off tax collected and the rest off revenue. Both are linked to the sale's invoice when there is one, so its balance and status follow. A cash refund on an invoice paid online is left to the payment provider, and arrives with the payment sync. The form says which of these applies before it is saved. An unpaid sale with no invoice that has a return can't be edited, so its row has a Mark as paid button.
 - **A returned purchase** records a supplier credit (§9) for `NetRefund`, carrying copies of only the returned lines at the returned quantity, so it comes off the same categories. The credit follows its purchase's bill (`ReturnRefunds.FollowBill`): on a bill not paid yet it is owed too, so it comes off what is owed straight away, and it counts as paid, and comes off expenses and cash, on the later of the day the bill is paid and the day of the return. On a purchase paid on the day it is paid on the return date. The credit is not a row on the Expenses page: like a sale's refund on the Revenue page, it shows as its purchase being returned.
 
 When the products track stock, the form offers to move them, ticked by default (Cost of goods sold, §14). A sale or purchase with a return can't be edited, since the return points at its lines and amounts, and can't be marked lost or damaged. Undoing a return, from its row or the Returns page, removes its refund and puts back any stock it moved. The row's undo takes back the latest return of that transaction. Deleting a sale or purchase takes its returns out with it, and undoing the delete puts them back.
@@ -595,3 +595,38 @@ Each asset amount is converted at the asset's purchase date (Rule 4), and a sale
 - **Asset Register:** each asset held at the end date with its cost, the depreciation in the range, the total so far and its book value, then the ones that left the books in the range.
 
 The dashboard, Analytics and Insights count money as it moves (Rule 2), so they count an asset's purchase as an expense on the day it was paid, like any other expense. Net Profit, Profit Margin and Profit Over Time add its sale price, converted at the sale date, on the day it was sold (`ProfitCalculator.AssetSalesByDayUSD`). The sale price isn't revenue, so the revenue cards leave it out, and Insights' forecasts leave it out because a sale happens once.
+
+## 17. Sales tax filing
+
+The Sales Tax page lists the periods a business files sales tax for, monthly, quarterly or yearly as it chooses (`CompanyInfo.SalesTaxFrequency`), and the returns filed for them (`SalesTaxFiling`). The periods start at the first sale or purchase, no further back than two years.
+
+### What a period owes
+
+```
+owed = Σ tax collected on sales dated in the period (EffectiveTotalUSD − EffectiveSubtotalUSD)
+     − tax handed back on refunds dated in the period (§8)
+     − tax on purchases dated in the period that can be claimed back (PurchaseTax.ClaimableUSD)
+```
+
+This is the Tax Summary report's net for the same dates (`SalesTaxPeriods.For`), with each part rounded to the cent as a return reports it. Each amount is converted at its own date (Rule 4). While a sale, purchase or refund in the period is waiting for its exchange rate, what it owes shows Pending and it can't be filed (`SalesTaxPeriods.IsWaitingForRate`). Below zero, the government owes the business a refund.
+
+A return is due by the usual deadline in the company's country (`SalesTaxPeriods.DueDate`): in Canada the last day of the month after its period ends, or three months after for a yearly return; in the United States the 20th of the next month, as most states set it; in the United Kingdom a month and seven days after, or two months for a yearly return; and in Australia the 28th of the next month for a quarter (28 February for the October to December quarter), the 21st for a month and 31 October after a year. Anywhere else it is the end of the next month.
+
+Yearly and quarterly periods count from the month the business's tax year starts in, chosen on the page beside the frequency (`CompanyInfo.SalesTaxYearStartMonth`, `SalesTaxPeriods.YearStartMonth`). Until one is chosen it is July in Australia, whose financial year runs July to June, and January anywhere else. A year that starts after January is named by both its years, such as 2024-25, and a quarter that isn't a calendar quarter by its months, such as Feb - Apr 2024. A period is Open until it ends, then Due, then Overdue after its due date, and Filed once a return is recorded. One with nothing to pay shows Nothing to pay instead of Due or Overdue: a nil return can still be recorded for it, but it isn't chased. Until the business chooses how often it files, the periods are listed quarterly and the frequency picker reads Choose.
+
+### Filing a return
+
+Filing records what the period owed, as it stood, in the company's currency, with the day it was paid and how. The day has to be after the period ends. A return filed at one frequency stays in the list if the business changes frequency later, and the dates it covers aren't shown again: a period it covers only part of is listed for the rest, such as Feb - Mar after filing January monthly and switching to quarterly. Filing and taking a filing back can be undone. Taking one back unmatches the bank line matched to its payment, and undoing that matches it again.
+
+The payment is never an expense: the tax was never the business's money, so profit doesn't change.
+
+- **Balance Sheet:** Sales Tax Payable is what has been collected less what was claimed back and refunded, less every return paid by the end date (`SalesTaxPeriods.PaidBetween`), and less the fractions of a cent those returns' periods held, since a return reports whole cents. Cash goes down by the paid amount, at the rate on the day it was paid. A refund received does the opposite. A filing whose rate is missing makes both read Pending.
+- **Cash Flow Statement:** **Sales Tax Paid** under operating activities, for returns paid in the range.
+- **Bank Matching:** a return's payment can be matched to a money-out bank line, and a refund to a money-in one, like an expense (`BookRecordType.SalesTaxFiling`).
+- **Spreadsheet export:** a Sales Tax Filings sheet lists each return paid in the range. It is export only, like pay runs: a return records what was reported to the government, so an import skips the sheet.
+
+A filed period's figures aren't locked. If a sale or purchase in it changes after filing, its row says how much more or less it now owes, and that difference is part of what the page shows as owed now, to be put right on the next return.
+
+### Reminder
+
+Once the business has chosen how often it files, the dashboard shows a banner for the earliest return that has ended, owes or is owed something, and is due within 14 days or overdue (`SalesTaxPeriods.ComingDue`). It goes away when that return is filed.
