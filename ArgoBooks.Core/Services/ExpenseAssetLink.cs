@@ -16,6 +16,22 @@ public static class ExpenseAssetLink
     public static FixedAsset? AssetFor(CompanyData data, string expenseId) =>
         data.Assets.FirstOrDefault(a => a.ExpenseId == expenseId);
 
+    /// <summary>Takes out the assets bought with an expense being deleted, and returns them for <see cref="PutBack"/>.</summary>
+    public static List<FixedAsset> RemoveFor(CompanyData data, string expenseId)
+    {
+        var bought = data.Assets.Where(a => a.ExpenseId == expenseId).ToList();
+        foreach (var asset in bought)
+            data.Assets.RemoveRecord(asset);
+        return bought;
+    }
+
+    /// <summary>Puts back what <see cref="RemoveFor"/> took out, when the expense's delete is undone.</summary>
+    public static void PutBack(CompanyData data, IEnumerable<FixedAsset> assets)
+    {
+        foreach (var asset in assets)
+            data.Assets.RestoreRecord(asset);
+    }
+
     private static void UseCca(FixedAsset asset, CcaChoice cca)
     {
         asset.Method = DepreciationMethod.DecliningBalance;

@@ -82,6 +82,8 @@ public static class ReceiptTypeSwitchService
             "{0} is matched to a bank statement line. Unmatch it first.".TranslateFormat(receipt.TransactionId),
         ReceiptSwitchBlock.MovedStock =>
             "{0} changed stock levels, so it cannot be moved. Delete it and enter it again on the other side.".TranslateFormat(receipt.TransactionId),
+        ReceiptSwitchBlock.BoughtAsset =>
+            "{0} bought an asset, so it has to stay an expense.".TranslateFormat(receipt.TransactionId),
         _ => string.Empty
     };
 }

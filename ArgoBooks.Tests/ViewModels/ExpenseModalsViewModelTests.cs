@@ -399,4 +399,59 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         Assert.Same(receipt, Assert.Single(Company.Receipts));
         Assert.Equal(receipt.Id, expense.ReceiptId);
     }
+
+    [Fact]
+    public async Task EditingTheYearsOfAnAssetExpense_KeepsOneAsset()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 1000m);
+        vm.ModalIsAsset = true;
+        vm.ModalAssetUsefulLife = 5;
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+        var expenseId = Company.Expenses.Single().Id;
+        Assert.Single(Company.Assets);
+
+        vm.OpenEditModal(new ExpenseDisplayItem { Id = expenseId });
+        vm.ModalAssetUsefulLife = 7;
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        Assert.Equal(7, Assert.Single(Company.Assets).UsefulLifeYears);
+    }
+
+    [Fact]
+    public async Task DeletingAnAssetExpense_RemovesItsAsset()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 1000m);
+        vm.ModalIsAsset = true;
+        vm.ModalAssetUsefulLife = 5;
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        vm.DeleteExpense(Company.Expenses.Single().Id);
+
+        Assert.Empty(Company.Expenses);
+        Assert.Empty(Company.Assets);
+
+        Undo();
+        Assert.Equal(Company.Expenses.Single().Id, Assert.Single(Company.Assets).ExpenseId);
+
+        Redo();
+        Assert.Empty(Company.Assets);
+    }
+
+    [Fact]
+    public async Task DeletingAssetExpensesTogether_RemovesTheirAssets()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 1000m);
+        vm.ModalIsAsset = true;
+        vm.ModalAssetUsefulLife = 5;
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        vm.DeleteMany([Company.Expenses.Single().Id]);
+        Assert.Empty(Company.Assets);
+
+        Undo();
+        Assert.Single(Company.Assets);
+    }
 }

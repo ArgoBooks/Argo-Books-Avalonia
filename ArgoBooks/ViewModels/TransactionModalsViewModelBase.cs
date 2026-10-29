@@ -2151,6 +2151,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var queued = new List<PendingConversion>[targets.Count];
         var stockChanges = new List<StockChange>[targets.Count];
         var returns = new List<TransactionReturns.Change>[targets.Count];
+        var assets = new List<FixedAsset>[targets.Count];
         var reason = IsExpenseForm ? "Expense deleted" : "Revenue deleted";
 
         void Remove()
@@ -2163,6 +2164,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 queued[i] = UsdConversion.Snapshot(data, [keys[i]]);
                 UsdConversion.Set(data, keys[i], null);
                 returns[i] = TransactionReturns.RemoveAll(data, targets[i].Id);
+                assets[i] = IsExpenseForm ? ExpenseAssetLink.RemoveFor(data, targets[i].Id) : [];
                 stockChanges[i] = AdjustInventoryForEdit(data, targets[i], targets[i].LineItems, [], IsExpenseForm, reason);
             }
             data.MarkAsModified();
@@ -2178,6 +2180,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 UsdConversion.Restore(data, [keys[i]], queued[i]);
                 RevertInventoryAdjustments(data, stockChanges[i]);
                 TransactionReturns.PutBackAll(data, returns[i]);
+                ExpenseAssetLink.PutBack(data, assets[i]);
             }
             data.MarkAsModified();
         }
@@ -2213,6 +2216,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         List<StockChange> stockChanges = [];
         List<PendingConversion> queued = [];
         List<TransactionReturns.Change> returns = [];
+        List<FixedAsset> assets = [];
 
         // The queued conversion leaves with the row and comes back with it as it was, keeping the
         // date whose rate it waits for.
@@ -2226,6 +2230,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 queued = UsdConversion.Snapshot(companyData, [queueKey]);
                 UsdConversion.Set(companyData, queueKey, null);
                 returns = TransactionReturns.RemoveAll(companyData, transaction.Id);
+                if (isExpense)
+                    assets = ExpenseAssetLink.RemoveFor(companyData, transaction.Id);
                 stockChanges = AdjustInventoryForEdit(companyData, transaction, transaction.LineItems, [], isExpense, reason);
             },
             onRestore: () =>
@@ -2235,6 +2241,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 UsdConversion.Restore(companyData, [queueKey], queued);
                 RevertInventoryAdjustments(companyData, stockChanges);
                 TransactionReturns.PutBackAll(companyData, returns);
+                ExpenseAssetLink.PutBack(companyData, assets);
             });
 
         App.CompanyManager?.MarkAsChanged();
