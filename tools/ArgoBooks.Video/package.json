@@ -1,0 +1,8 @@
+{
+  "name": "argobooks-video-pages",
+  "private": true,
+  "description": "Captures the web pages the marketing videos show.",
+  "dependencies": {
+    "playwright-core": "1.48.2"
+  }
+}

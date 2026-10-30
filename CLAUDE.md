@@ -56,6 +56,7 @@ Developer tools live in `tools/`, separate from the app. Each has a README expla
 | **ArgoBooks.Recovery** | Opens a company file when the password is lost |
 | **ArgoBooks.UnusedCode** | Reports members that nothing references |
 | **ArgoBooks.RegionFlags** | Downloads the province and state flags from Wikidata |
+| **ArgoBooks.Video** | Records the app without a window and cuts the marketing videos |
 
 ### Data Storage
 
