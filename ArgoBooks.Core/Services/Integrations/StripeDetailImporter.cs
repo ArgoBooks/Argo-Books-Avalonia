@@ -280,7 +280,7 @@ public class StripeDetailImporter
     /// A return <see cref="ApplyRefunds"/> made: no items and no note. One entered in the app
     /// always lists the item returned.
     /// </summary>
-    private static bool IsFromImport(Return rt) => rt.Items.Count == 0 && string.IsNullOrEmpty(rt.Notes);
+    private static bool IsFromImport(Return rt) => rt.Items.Count == 0 && string.IsNullOrEmpty(rt.Notes) && !TransactionReturns.IsByLine(rt);
 
     private static DateTime RefundDate(StripeRefund refund) =>
         DateTimeOffset.FromUnixTimeSeconds(refund.CreatedUnix).LocalDateTime;

@@ -831,7 +831,7 @@ public class ReturnTableRow
     public string ReturnType { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     /// <summary>In <see cref="Currency"/>, the currency of the sale it came from; not USD-normalized.</summary>
     public decimal RefundAmount { get; set; }
     public string Currency { get; set; } = "USD";

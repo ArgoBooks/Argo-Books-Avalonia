@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Integrations;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Invoices;
@@ -181,6 +182,20 @@ public class CompanyInfo
     /// </summary>
     [JsonPropertyName("postalCode")]
     public string? PostalCode { get; set; }
+
+    /// <summary>
+    /// How often the business files sales tax. Null until it is chosen on the Sales Tax page, and only then
+    /// does the dashboard remind the business of a return coming due.
+    /// </summary>
+    [JsonPropertyName("salesTaxFrequency")]
+    public SalesTaxFrequency? SalesTaxFrequency { get; set; }
+
+    /// <summary>
+    /// The month (1 to 12) the business's tax year starts in, which yearly and quarterly sales tax periods count
+    /// from. Null for the country's usual one: July in Australia, January elsewhere.
+    /// </summary>
+    [JsonPropertyName("salesTaxYearStartMonth")]
+    public int? SalesTaxYearStartMonth { get; set; }
 
     /// <summary>
     /// CRA payroll program account, the fifteen character BN15 in the form 000000000RP0000.

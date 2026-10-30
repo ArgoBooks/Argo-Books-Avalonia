@@ -65,7 +65,7 @@ public static class DisplayCurrency
 
     /// <summary>
     /// Every date a report converts at: its revenue, expenses, payments, purchase orders, invoices,
-    /// returns and losses, the opening bank balance, plus the end date that point-in-time figures
+    /// returns and losses, sales tax filings, the opening bank balance, plus the end date that point-in-time figures
     /// such as inventory are valued at.
     /// </summary>
     public static IEnumerable<DateTime> ReportDates(CompanyData data, DateTime? endDate)
@@ -83,6 +83,7 @@ public static class DisplayCurrency
             yield return a.PurchaseDate;
             if (a.DisposedDate is { } disposed) yield return disposed;
         }
+        foreach (var f in data.SalesTaxFilings) yield return f.PaidDate;
         yield return endDate ?? DateTime.Today;
     }
 

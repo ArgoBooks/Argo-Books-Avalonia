@@ -5,7 +5,7 @@ namespace ArgoBooks.Core.Services;
 /// <summary>
 /// Aggregations for the Refunds tab on the Analytics page. All metrics are
 /// computed locally from the company's Payment list (no server roundtrip).
-/// Refund Payments are identified by IsRefund==true and have negative Amount;
+/// Refund Payments are identified by IsRefund==true and have negative Amount; a credit note is left out, since no money went back.
 /// the absolute value of EffectiveAmountUSD is the refund amount.
 ///
 /// Sums are USD-normalized (Payment.EffectiveAmountUSD) by default so multi-currency
@@ -26,7 +26,7 @@ public static class RefundAnalyticsService
     /// <summary>Total refunded over a window, in USD.</summary>
     public static decimal TotalRefundedUSD(CompanyData company, DateTime since)
         => company.Payments
-            .Where(p => p.IsRefund && p.Date >= since)
+            .Where(p => p.IsRefund && !p.IsCreditNote && p.Date >= since)
             .Sum(p => Math.Abs(p.EffectiveAmountUSD));
 
     /// <summary>
@@ -35,7 +35,7 @@ public static class RefundAnalyticsService
     /// </summary>
     public static decimal TotalRefundedDisplay(CompanyData company, DateTime since, Func<decimal, DateTime, decimal> toDisplay)
         => company.Payments
-            .Where(p => p.IsRefund && p.Date >= since)
+            .Where(p => p.IsRefund && !p.IsCreditNote && p.Date >= since)
             .Sum(p => toDisplay(Math.Abs(p.EffectiveAmountUSD), p.Date));
 
     /// <summary>Refund rate = sum(refunds) / sum(positive payments) over the window. 0 if no payments.</summary>
@@ -60,7 +60,7 @@ public static class RefundAnalyticsService
         var buckets = new Dictionary<DateTime, decimal>();
         for (int i = 0; i < months; i++)
             buckets[firstMonth.AddMonths(i)] = 0m;
-        foreach (var p in company.Payments.Where(p => p.IsRefund && p.Date >= firstMonth))
+        foreach (var p in company.Payments.Where(p => p.IsRefund && !p.IsCreditNote && p.Date >= firstMonth))
         {
             var key = new DateTime(p.Date.Year, p.Date.Month, 1);
             if (!buckets.ContainsKey(key)) continue;
@@ -83,7 +83,7 @@ public static class RefundAnalyticsService
     {
         var convert = toDisplay ?? IdentityUSD;
         var byCustomer = company.Payments
-            .Where(p => p.IsRefund && p.Date >= since)
+            .Where(p => p.IsRefund && !p.IsCreditNote && p.Date >= since)
             .GroupBy(p => p.CustomerId)
             .Select(g => new
             {
@@ -114,7 +114,7 @@ public static class RefundAnalyticsService
         var convert = toDisplay ?? IdentityUSD;
         var byProduct = new Dictionary<string, decimal>();
         var refundsByInvoice = company.Payments
-            .Where(p => p.IsRefund && p.Date >= since)
+            .Where(p => p.IsRefund && !p.IsCreditNote && p.Date >= since)
             .GroupBy(p => p.InvoiceId)
             // Convert each refund at its own date before summing per invoice.
             .ToDictionary(g => g.Key, g => g.Sum(p => convert(Math.Abs(p.EffectiveAmountUSD), p.Date)));
@@ -150,7 +150,7 @@ public static class RefundAnalyticsService
     {
         var convert = toDisplay ?? IdentityUSD;
         return company.Payments
-            .Where(p => p.IsRefund && p.Date >= since && !string.IsNullOrWhiteSpace(p.RefundReason))
+            .Where(p => p.IsRefund && !p.IsCreditNote && p.Date >= since && !string.IsNullOrWhiteSpace(p.RefundReason))
             .GroupBy(p => p.RefundReason!.Trim(), StringComparer.OrdinalIgnoreCase)
             .Select(g => new RefundReasonCount(g.Key, g.Count(), g.Sum(p => convert(Math.Abs(p.EffectiveAmountUSD), p.Date))))
             .OrderByDescending(r => r.Count)
@@ -168,7 +168,7 @@ public static class RefundAnalyticsService
     {
         var convert = toDisplay ?? IdentityUSD;
         return company.Payments
-            .Where(p => p.IsRefund && p.Date >= since)
+            .Where(p => p.IsRefund && !p.IsCreditNote && p.Date >= since)
             .GroupBy(p => p.PaymentMethod.ToString())
             .ToDictionary(g => g.Key, g => g.Sum(p => convert(Math.Abs(p.EffectiveAmountUSD), p.Date)));
     }
@@ -177,7 +177,7 @@ public static class RefundAnalyticsService
     public static double AverageRefundLatencyDays(CompanyData company, DateTime since)
     {
         var pairs = new List<double>();
-        foreach (var refund in company.Payments.Where(p => p.IsRefund && p.Date >= since))
+        foreach (var refund in company.Payments.Where(p => p.IsRefund && !p.IsCreditNote && p.Date >= since))
         {
             if (string.IsNullOrEmpty(refund.RefundedFromPaymentId)) continue;
             var source = company.Payments.FirstOrDefault(p => p.Id == refund.RefundedFromPaymentId);

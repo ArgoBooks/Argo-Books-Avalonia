@@ -51,6 +51,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
     #endregion
 
+    public ExpenseModalsViewModel()
+    {
+        // Bills are the expense form's own statuses, after Completed.
+        StatusFilterOptions.Insert(2, "Unpaid");
+        StatusFilterOptions.Insert(3, "Overdue");
+    }
+
     #region Expense-Specific Properties
 
     // Supplier alias for counterparty
@@ -158,14 +165,26 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         ModalAssetType = type;
     }
 
-    private ExpenseAssetLink.Change? ApplyAssetChoice(CompanyData companyData, Expense expense, decimal? costBeforeEdit, string? currencyBeforeEdit) =>
-        ExpenseAssetLink.Apply(companyData, expense, costBeforeEdit, currencyBeforeEdit,
+    private ExpenseAssetLink.Change? ApplyAssetChoice(CompanyData companyData, Expense expense, decimal? costBeforeEdit, string? currencyBeforeEdit)
+    {
+        var hadAsset = companyData.Assets.Any(a => a.ExpenseId == expense.Id);
+        var change = ExpenseAssetLink.Apply(companyData, expense, costBeforeEdit, currencyBeforeEdit,
             ModalIsAsset, ModalAssetType?.Type ?? AssetType.Other, ModalAssetUsefulLife, AssetCcaChoice(expense.Date));
+        if (change != null && ModalIsAsset && !hadAsset)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.AssetCreated, $"expense-form:{ModalAssetType?.Type ?? AssetType.Other}");
+        return change;
+    }
 
     protected override Transaction? LoadIntoForm(ExpenseDisplayItem item)
     {
-        var expense = App.CompanyManager?.CompanyData?.Expenses.FirstOrDefault(p => p.Id == item.Id);
+        var companyData = App.CompanyManager?.CompanyData;
+        var expense = companyData?.Expenses.FirstOrDefault(p => p.Id == item.Id);
         if (expense == null) return null;
+
+        // A return points at the purchase's lines and amounts, so they stay as they were while it has one.
+        if (ReturnRefunds.ReturnForCredit(companyData!, expense.Id) != null
+            || companyData!.Returns.Any(r => r.OriginalTransactionId == expense.Id))
+            return null;
 
         LoadCounterpartyOptions();
         LoadCategoryOptions();
@@ -174,6 +193,10 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         SelectedSupplier = SupplierOptions.FirstOrDefault(s => s.Id == expense.SupplierId);
         LoadAssetChoice(expense.Id);
         PopulateFormFromTransaction(expense);
+        IsEditingBill = expense.IsBill;
+        ModalBillDueDate = expense.DueDate is { } due ? new DateTimeOffset(due) : null;
+        ModalBillPaidDate = expense.PaidDate is { } paid ? new DateTimeOffset(paid) : null;
+        ModalBillPaid = expense.IsPaid;
         return expense;
     }
 
@@ -228,8 +251,10 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     // Payroll wages and remittances stay as the pay run that made them recorded them.
     protected override Func<Transaction, bool> MadeElsewhere(CompanyData data)
     {
+        // Wages come from pay runs and supplier credits from returns, so each is changed where it was made.
         var payrollIds = PayrollBooks.ExpenseIds(data);
-        return record => payrollIds.Contains(record.Id);
+        var creditIds = ReturnRefunds.SupplierCreditIds(data);
+        return record => payrollIds.Contains(record.Id) || creditIds.Contains(record.Id);
     }
 
     #endregion
@@ -241,19 +266,17 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.LostDamaged), "Mark as Lost / Damaged", "Mark as Lost / Damaged", false, LostDamagedReasonOptions);
     }
 
+    /// <summary>Opens the return form for the row, where some or all of it can be returned.</summary>
     public void OpenMarkAsReturnedModal(ExpenseDisplayItem? item)
     {
-        OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.Returned), "Mark as Returned", "Mark as Returned", false, ReturnReasonOptions);
+        var transaction = item == null ? null : App.CompanyManager?.CompanyData?.Expenses.FirstOrDefault(t => t.Id == item.Id);
+        if (transaction != null)
+            App.ReturnsModalsViewModel?.OpenRecordReturnModal(transaction, ReturnReasonOptions);
     }
 
     public void OpenUndoLostDamagedModal(ExpenseDisplayItem? item)
     {
         OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.UndoLostDamaged), "Undo Lost / Damaged Status", "Undo Status", true, UndoReasonOptions);
-    }
-
-    public void OpenUndoReturnedModal(ExpenseDisplayItem? item)
-    {
-        OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.UndoReturned), "Undo Returned Status", "Undo Status", true, UndoReasonOptions);
     }
 
     protected override string GetItemStatusDescription(ExpenseDisplayItem item)
@@ -320,28 +343,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                     }));
                 break;
             }
-            case ArgoBooks.Core.Enums.ItemStatusAction.Returned:
-            {
-                var record = CreateReturnRecord(companyData, purchase);
-                var refund = ReturnRefunds.Record(companyData, record);
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Mark expense '{purchase.Id}' as returned",
-                    () =>
-                    {
-                        companyData.Returns.RemoveRecord(record);
-                        if (refund != null) ReturnRefunds.Remove(companyData, refund);
-                        companyData.MarkAsModified();
-                        RaiseTransactionSaved();
-                    },
-                    () =>
-                    {
-                        companyData.Returns.RestoreRecord(record);
-                        if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
-                        companyData.MarkAsModified();
-                        RaiseTransactionSaved();
-                    }));
-                break;
-            }
             case ArgoBooks.Core.Enums.ItemStatusAction.UndoLostDamaged:
             {
                 var record = companyData.LostDamaged.FirstOrDefault(ld => ld.InventoryItemId == purchase.Id);
@@ -359,33 +360,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                         () =>
                         {
                             companyData.LostDamaged.RemoveRecord(record);
-                            companyData.MarkAsModified();
-                            RaiseTransactionSaved();
-                        }));
-                }
-                break;
-            }
-            case ArgoBooks.Core.Enums.ItemStatusAction.UndoReturned:
-            {
-                var record = companyData.Returns.FirstOrDefault(r => r.OriginalTransactionId == purchase.Id);
-                if (record != null)
-                {
-                    var refund = ReturnRefunds.Find(companyData, record);
-                    companyData.Returns.RemoveRecord(record);
-                    if (refund != null) ReturnRefunds.Remove(companyData, refund);
-                    RecordStatusUndo(new DelegateAction(
-                        $"Undo returned status for expense '{purchase.Id}'",
-                        () =>
-                        {
-                            companyData.Returns.RestoreRecord(record);
-                            if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
-                            companyData.MarkAsModified();
-                            RaiseTransactionSaved();
-                        },
-                        () =>
-                        {
-                            companyData.Returns.RemoveRecord(record);
-                            if (refund != null) ReturnRefunds.Remove(companyData, refund);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));
@@ -424,40 +398,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         return lostDamaged;
     }
 
-    private Return CreateReturnRecord(CompanyData companyData, Expense purchase)
-    {
-        var productId = purchase.LineItems.FirstOrDefault()?.ProductId ?? "";
-
-        var returnRecord = new Return
-        {
-            Id = new IdGenerator(companyData).NextReturnId(),
-            OriginalTransactionId = purchase.Id,
-            ReturnType = "Expense",
-            SupplierId = purchase.SupplierId ?? "",
-            CustomerId = "",
-            ReturnDate = DateTime.UtcNow,
-            Items =
-            [
-                new ReturnItem
-                {
-                    ProductId = productId,
-                    Quantity = (int)purchase.Quantity,
-                    Reason = SelectedItemStatusReason ?? "Other"
-                }
-            ],
-            RefundAmount = ReturnLossAmounts.RefundFor(purchase, purchase.Amount),
-            RestockingFee = 0,
-            Status = ReturnStatus.Completed,
-            Notes = ItemStatusNotes,
-            ProcessedBy = purchase.AccountantId ?? "",
-            CreatedAt = DateTime.UtcNow
-        };
-
-        companyData.Returns.Add(returnRecord);
-        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReturnRecorded);
-        return returnRecord;
-    }
-
     #endregion
 
     #region Save Implementation
@@ -494,6 +434,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             OriginalCurrency = SaveCurrency
         };
         UsdConversion.Apply(companyData, expense, SaveRate);
+        ApplyBillChoice(expense);
 
         var (addedReceipts, _) = ApplyAttachments(companyData, expense, "Expense", SelectedSupplier?.Name ?? "");
 
@@ -580,6 +521,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         expense.Notes = ModalNotes;
         expense.UpdatedAt = DateTime.UtcNow;
         expense.OriginalCurrency = SaveCurrency;
+        ApplyBillChoice(expense);
         UsdConversion.Apply(companyData, expense, SaveRate);
         var editedQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
@@ -635,6 +577,44 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         return true;
     }
 
+    /// <summary>
+    /// Makes the expense a bill when Paid is unticked, keeping its due date and the day it was paid.
+    /// A bill stays a bill once paid, so its history is kept; an expense paid on the day has neither date.
+    /// </summary>
+    private void ApplyBillChoice(Expense expense)
+    {
+        var isBill = !ModalBillPaid || IsEditingBill;
+        var paidBefore = expense.PaidDate;
+        expense.DueDate = isBill ? (ModalBillDueDate?.Date ?? expense.Date.Date.AddDays(30)) : null;
+        expense.PaidDate = isBill && ModalBillPaid ? (ModalBillPaidDate?.Date ?? DateTime.Today) : null;
+        // A payment changed by hand is no longer the bank match's to take back.
+        if (expense.PaidDate != paidBefore)
+            expense.PaidByBankLineId = null;
+    }
+
+    /// <summary>Records a bill as paid today, with undo. Editing it sets another day.</summary>
+    public void MarkBillPaid(ExpenseDisplayItem? item)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var expense = companyData?.Expenses.FirstOrDefault(e => e.Id == item?.Id);
+        if (expense == null || expense.IsPaid) return;
+
+        var paidOn = DateTime.Today;
+        void SetPaid(DateTime? date)
+        {
+            expense.PaidDate = date;
+            ReturnRefunds.FollowBill(companyData!, expense);
+        }
+
+        SetPaid(paidOn);
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            $"Mark bill {expense.Id} as paid",
+            () => { SetPaid(null); RaiseTransactionSaved(); },
+            () => { SetPaid(paidOn); RaiseTransactionSaved(); }));
+        App.CompanyManager?.MarkAsChanged();
+        RaiseTransactionSaved();
+    }
+
     protected override string CounterpartyNameOf(CompanyData companyData, Transaction transaction) =>
         transaction is Expense expense && !string.IsNullOrEmpty(expense.SupplierId)
             ? companyData.GetSupplier(expense.SupplierId)?.Name ?? string.Empty
@@ -682,13 +662,22 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         };
     }
 
-    private static TransactionState CaptureTransactionState(Expense expense) =>
-        TransactionState.Capture(expense, expense.SupplierId);
+    private static TransactionState CaptureTransactionState(Expense expense)
+    {
+        var state = TransactionState.Capture(expense, expense.SupplierId);
+        state.DueDate = expense.DueDate;
+        state.PaidDate = expense.PaidDate;
+        state.PaidByBankLineId = expense.PaidByBankLineId;
+        return state;
+    }
 
     private static void RestoreTransactionState(Expense expense, TransactionState state)
     {
         state.RestoreTo(expense);
         expense.SupplierId = state.CounterpartyId;
+        expense.DueDate = state.DueDate;
+        expense.PaidDate = state.PaidDate;
+        expense.PaidByBankLineId = state.PaidByBankLineId;
     }
 
     #endregion
@@ -742,6 +731,10 @@ internal class TransactionState
     public decimal TaxAmountUSD { get; set; }
     public decimal DiscountUSD { get; set; }
     public decimal FeeUSD { get; set; }
+    // A bill's dates, which only an expense has.
+    public DateTime? DueDate { get; set; }
+    public DateTime? PaidDate { get; set; }
+    public string? PaidByBankLineId { get; set; }
 
     /// <summary>The fields an edit can change that every transaction has. The caller adds anything of its own.</summary>
     public static TransactionState Capture(Transaction transaction, string? counterpartyId) => new()

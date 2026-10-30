@@ -1,0 +1,113 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:controls="using:ArgoBooks.Controls"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="ArgoBooks.Modals.SalesTaxModals"
+             x:DataType="vm:SalesTaxModalsViewModel">
+
+    <Panel>
+        <!-- File and Pay Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsFileModalOpen}"
+                               ClosingCommand="{Binding CloseFileModalCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border Classes="modal-card"
+                        Width="480"
+                        MaxHeight="720">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{Binding FileTitle}"
+                                          Subtitle="{Binding FileSubtitle}"
+                                          CloseCommand="{Binding CloseFileModalCommand}" />
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="24" Spacing="20">
+                            <!-- What the period owes -->
+                            <Border Background="{DynamicResource SurfaceAltBrush}"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Tax collected on sales'}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding CollectedText}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasRefunds}">
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Less tax on refunds'}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding RefundedText}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Less tax paid on purchases'}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding ClaimedBackText}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,4" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding NetLabel}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding NetText}" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- The payment -->
+                            <Grid ColumnDefinitions="*,12,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Text="{Binding PaidOnLabel}"
+                                               FontSize="13" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <DatePicker SelectedDate="{Binding PaidOn}"
+                                                Classes="form-datepicker"
+                                                MinWidth="0"
+                                                HorizontalAlignment="Stretch" />
+                                    <TextBlock Text="{Binding PaidOnError}"
+                                               IsVisible="{Binding PaidOnError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource ErrorBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'Paid by'}"
+                                               FontSize="13" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <ComboBox ItemsSource="{Binding PaidFromOptions}"
+                                              SelectedItem="{Binding PaidFrom}"
+                                              Classes="form-combobox"
+                                              HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Loc 'Confirmation number'}"
+                                           FontSize="13" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBox Text="{Binding ConfirmationNumber, Mode=TwoWay}"
+                                         Classes="form-input"
+                                         MaxLength="100" />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding FileNote}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextTertiaryBrush}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button" Content="{loc:Loc 'Cancel'}" Command="{Binding CloseFileModalCommand}" />
+                            <Button Classes="primary-button" Content="{Binding ConfirmText}" Command="{Binding ConfirmFileCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+    </Panel>
+</UserControl>

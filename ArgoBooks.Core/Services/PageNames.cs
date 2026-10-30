@@ -27,6 +27,7 @@ public static class PageNames
     public const string Customers = "Customers";
     public const string Suppliers = "Suppliers";
     public const string Assets = "Assets";
+    public const string SalesTax = "SalesTax";
     public const string RentalInventory = "RentalInventory";
     public const string RentalRecords = "RentalRecords";
     public const string Returns = "Returns";

@@ -76,7 +76,7 @@ public static class CurrencyService
     /// instead of a wrong number. Returns the USD amount unchanged only when no exchange service is
     /// available (headless), which never happens in the running app.
     /// </summary>
-    private static bool TryDisplayFromUSD(decimal amountUSD, DateTime date, out decimal amount)
+    public static bool TryDisplayFromUSD(decimal amountUSD, DateTime date, out decimal amount)
     {
         var svc = ExchangeRateService.Instance;
         if (svc == null)
@@ -266,7 +266,7 @@ public static class CurrencyService
         CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, start, end, collectedOnly: true)
         || RevenueAggregator.AnyCollectedWaiting(data.Revenues, start, end)
         || ExpenseAggregator.AnyWaiting(data.Expenses, start, end)
-        || RefundAggregator.AnyRefundWaiting(data.Payments, start, end)
+        || RefundAggregator.AnyRefundWaiting(RefundAggregator.ForPaidSales(data), start, end)
         || ProfitCalculator.AnyAssetSaleWaiting(data.Assets, start, end)
             ? PendingMarker
             : FormatTotalOrPending(convert => ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert));

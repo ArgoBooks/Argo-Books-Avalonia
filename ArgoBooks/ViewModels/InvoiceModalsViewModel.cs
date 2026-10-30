@@ -1361,13 +1361,16 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
         foreach (var payment in payments)
         {
+            // A credit note is changed through its return, on the Revenue or Returns page.
             historyEntries.Add(new InvoiceHistoryDisplayItem
             {
                 ActionType = "Payment",
-                Description = $"Payment of {CurrencyService.Format(payment.Amount)} received via {payment.PaymentMethod}",
+                Description = payment.IsCreditNote
+                    ? $"Credit note of {CurrencyService.Format(Math.Abs(payment.Amount))} for returned items"
+                    : $"Payment of {CurrencyService.Format(payment.Amount)} received via {payment.PaymentMethod}",
                 DateTime = payment.Date,
                 PaymentId = payment.Id,
-                CanEditPayment = payment.Source != PaymentSource.Online
+                CanEditPayment = payment.Source != PaymentSource.Online && !payment.IsCreditNote
             });
         }
 

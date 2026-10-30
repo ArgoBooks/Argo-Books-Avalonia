@@ -151,6 +151,14 @@ public class Payment : IRecord
     public bool IsRefund { get; set; }
 
     /// <summary>
+    /// A credit note: the part of a return taken off what the customer still owed on the sale, rather than
+    /// paid back to them. It is also a refund (<see cref="IsRefund"/>), so it comes off revenue and tax the
+    /// same way, but no money moves, so it is never cash and never matched to a bank line.
+    /// </summary>
+    [JsonPropertyName("isCreditNote")]
+    public bool IsCreditNote { get; set; }
+
+    /// <summary>
     /// Local Payment.Id of the original payment this refund offsets, when known.
     /// Null for refunds that arrived before the corresponding payment was synced
     /// (rare, but possible if sync is out of order).

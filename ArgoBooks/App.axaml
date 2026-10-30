@@ -11,6 +11,11 @@
         <local:ViewLocator/>
     </Application.DataTemplates>
 
+    <!-- Declared before startup so macOS never gets Avalonia's default app menu, which has an "About Avalonia" item; App.axaml.cs fills it in. -->
+    <NativeMenu.Menu>
+        <NativeMenu />
+    </NativeMenu.Menu>
+
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />

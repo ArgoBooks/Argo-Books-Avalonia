@@ -27,6 +27,7 @@ public static class ReportTemplateFactory
         public const string CashFlowStatement = "Cash Flow Statement";
         public const string GeneralLedger = "General Ledger";
         public const string ARaging = "Accounts Receivable Aging";
+        public const string APaging = "Accounts Payable Aging";
         public const string TaxSummary = "Tax Summary";
         public const string ProductSales = "Sales by Product";
         public const string PayrollRemittance = "Payroll Remittance";
@@ -60,6 +61,7 @@ public static class ReportTemplateFactory
                templateName == TemplateNames.CashFlowStatement ||
                templateName == TemplateNames.GeneralLedger ||
                templateName == TemplateNames.ARaging ||
+               templateName == TemplateNames.APaging ||
                templateName == TemplateNames.TaxSummary ||
                templateName == TemplateNames.ProductSales ||
                templateName == TemplateNames.PayrollRemittance ||
@@ -91,6 +93,7 @@ public static class ReportTemplateFactory
             TemplateNames.CashFlowStatement => CreateAccountingTemplate(AccountingReportType.CashFlowStatement, "Cash Flow Statement", DatePresetNames.YearToDate),
             TemplateNames.GeneralLedger => CreateAccountingTemplate(AccountingReportType.GeneralLedger, "General Ledger", DatePresetNames.ThisMonth),
             TemplateNames.ARaging => CreateAccountingTemplate(AccountingReportType.AccountsReceivableAging, "Accounts Receivable Aging", DatePresetNames.AllTime),
+            TemplateNames.APaging => CreateAccountingTemplate(AccountingReportType.AccountsPayableAging, "Accounts Payable Aging", DatePresetNames.AllTime),
             TemplateNames.TaxSummary => CreateAccountingTemplate(AccountingReportType.TaxSummary, "Tax Summary", DatePresetNames.YearToDate),
             TemplateNames.ProductSales => CreateAccountingTemplate(AccountingReportType.ProductSales, "Sales by Product", DatePresetNames.YearToDate),
             TemplateNames.PayrollRemittance => CreateAccountingTemplate(AccountingReportType.PayrollRemittance, "Payroll Remittance", DatePresetNames.ThisMonth),
@@ -807,8 +810,9 @@ public static class ReportTemplateFactory
 
         var context = new LayoutContext(config);
 
-        // AR Aging and the Customer Statement give their own dates in the table, and the Balance Sheet gets an "As of" date.
-        var datesInTable = reportType is AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement;
+        // AR and AP Aging and the Customer Statement give their own dates in the table, and the Balance Sheet gets an "As of" date.
+        var datesInTable = reportType is AccountingReportType.AccountsReceivableAging or AccountingReportType.AccountsPayableAging
+            or AccountingReportType.CustomerStatement;
 
         if (!datesInTable)
         {

@@ -55,7 +55,7 @@ The refund terms are defined in §8.
 
 ### Rule 2: The dashboard counts only money actually received.
 
-Every revenue total on the dashboard, in Analytics and in `ReportChartDataService` first keeps only collected revenue (`RevenueAggregator.IsCollected`, §7). Tax figures follow the same rule.
+Every revenue total on the dashboard, in Analytics and in `ReportChartDataService` first keeps only collected revenue (`RevenueAggregator.IsCollected`, §7). Every expense total there keeps only paid expenses, which leaves out bills not paid yet (`ExpenseAggregator.IsPaid`, §9). Tax figures follow the same rule.
 
 Unpaid revenue counts only in:
 - Outstanding and Overdue Invoices, which exist to show what hasn't been paid.
@@ -139,8 +139,9 @@ A revenue's or expense's lines follow one rule in both imports (`SpreadsheetImpo
 | Field | How it's worked out | Notes |
 |---|---|---|
 | `AmountPaid` | Σ `Amount` of the payments that aren't refunds, in the invoice's currency | Refunds don't reduce it. |
-| `AmountRefunded` | Σ of the refund amounts as positive numbers, in the invoice's currency | Never negative. |
-| `Balance` / `BalanceUSD` | `max(0, Total − AmountPaid)`. In USD: `max(0, TotalUSD − Σ EffectiveAmountUSD of the payments that aren't refunds)` | What the customer still owes. A refund doesn't increase it. |
+| `AmountRefunded` | Σ of the refund amounts as positive numbers, in the invoice's currency, leaving out credit notes | Never negative. |
+| `AmountCredited` | Σ of the credit note amounts as positive numbers, in the invoice's currency | What returns took off what the customer owed (§10). |
+| `Balance` / `BalanceUSD` | `max(0, Total − AmountPaid − AmountCredited)`. In USD: `max(0, TotalUSD − Σ EffectiveAmountUSD of the payments that aren't refunds − Σ |EffectiveAmountUSD| of the credit notes)` | What the customer still owes. A refund doesn't increase it. |
 
 When a company opens, these totals are recalculated once for every invoice that has payments, to repair any old errors (`CompanyManager.HealInvoiceTotalsIfNeeded`). It only runs again when that repair logic changes. An invoice imported without payments keeps the `AmountPaid` the import gave it.
 
@@ -159,19 +160,19 @@ A refund never changes the payment it gives money back on. The original payment 
 | `Sent` | Sent to the customer, waiting for payment. | When the invoice is sent. |
 | `Viewed` | The customer opened it. | Only by a spreadsheet import. |
 | `Partial` | The customer paid some and still owes the rest. | Some paid, but not paid in full. |
-| `Paid` | Paid in full (`Invoice.IsPaidInFull`). | When a payment covers the balance. |
+| `Paid` | Paid in full (`Invoice.IsPaidInFull`), counting credit notes as paid. | When a payment or credit note covers the balance. An invoice a credit note settles shows as Paid, as accounting software shows an invoice a credit note closes. |
 | `Overdue` | Past its due date and still owed (not paid in full, and `Balance > 0`), and not a Draft, Paid, Refunded or Cancelled invoice. | Always worked out when shown (`Invoice.IsOverdue`), never saved. A spreadsheet import reads a sheet's Overdue as Sent. An old file can still hold a saved Overdue; it counts for nothing, and the invoice shows as Sent until it really is overdue. |
 | `Cancelled` | The invoice was voided. | Only by a spreadsheet import. |
 | `PartiallyRefunded` | Paid, then refunded less than `Total`, or refunded in full and then paid again. | The refund status rule below. |
 | `Refunded` | Paid, then refunded in full with no later payment. | The refund status rule below. |
 
-**Paid in full** compares the amount paid with the total as the invoice reads, both rounded to the currency's displayed places (`Invoice.IsPaidInFull`), not the stored figures. A payment one displayed cent short has not paid it. Totals are stored at full precision and only the displayed figure is rounded (§2, Rule 3), so a percentage tax, discount or fee routinely leaves a total like 37.6629 on an invoice that reads $37.66. The customer pays what it reads, and the third of a cent left over would otherwise keep the invoice owing, and eventually overdue, while the revenue linked to it already counted as collected. Every question about whether an invoice is settled goes through `Invoice.IsPaidInFull`: the status above, `Invoice.IsOverdue` (§6), and the payment status of the revenue it is linked to (`SyncLinkedRevenueStatus`, §7).
+**Paid in full** compares the amount paid, plus any credit notes, with the total as the invoice reads, both rounded to the currency's displayed places (`Invoice.IsPaidInFull`), not the stored figures. A payment one displayed cent short has not paid it. Totals are stored at full precision and only the displayed figure is rounded (§2, Rule 3), so a percentage tax, discount or fee routinely leaves a total like 37.6629 on an invoice that reads $37.66. The customer pays what it reads, and the third of a cent left over would otherwise keep the invoice owing, and eventually overdue, while the revenue linked to it already counted as collected. Every question about whether an invoice is settled goes through `Invoice.IsPaidInFull`: the status above, `Invoice.IsOverdue` (§6), and the payment status of the revenue it is linked to (`SyncLinkedRevenueStatus`, §7).
 
 `InvoiceTotalsService.RecalculateStatus` sets the four payment statuses: Paid, Partial, PartiallyRefunded and Refunded. An invoice keeps any other status until its first payment or refund arrives, and that earlier status is saved in `Invoice.StatusBeforePayment`. If every payment is later removed (deleted, undone, or moved to another invoice), the invoice goes back to that status, so it is owed again and can become overdue. A spreadsheet import saves the earlier status the same way when it works an invoice's status out from its amounts (below): the status the sheet gives (for one that says Paid or Partial, the invoice's own earlier status, or Sent) is kept in `StatusBeforePayment` as the amount paid moves the invoice on. Only a payment status set with no amounts, as by a sheet that updates just the Status column, leaves an invoice without an earlier status unless it already had one, and such an invoice keeps the status it has.
 
 **Imported invoices.** The spreadsheet importer takes the sheet's status, reading Overdue as Sent. Cancelled, Refunded and PartiallyRefunded can't be worked out from an amount paid, so one the sheet gives is taken at its word whatever the amounts, and so is one an existing invoice already has when the sheet gives no status: a cancelled invoice with a payment stays Cancelled, and so is never overdue. Every other status, Draft included, is one the amounts decide. The invoice starts from the status it had before any payment (`StatusBeforePayment`, or Sent when it has none), and `RecalculateStatus` moves it on with the imported amounts, as if the amount paid had arrived as a payment. So an Overdue or Sent invoice with 50 of 100 paid becomes Partial, one paid in full becomes Paid, an unpaid Draft, Pending, Sent or Viewed invoice keeps its status, a Draft with an amount paid becomes Partial or Paid, as `RecalculateStatus` moves a Draft on at its first payment, and one marked Paid or Partial with nothing paid is Sent and owes its total. A row for a new invoice that gives no status is read as Draft, so one paid in full still becomes Paid. A row that updates an existing invoice and gives no status keeps that invoice's own status, which its amounts then work out the same way when the sheet gives any. A status counts as given only when it is one of the statuses above, in any case and ignoring spaces, hyphens and underscores, or one of a few other spellings: Canceled, Void and Voided are Cancelled, Paid in full is Paid, and Partially paid is Partial. Anything else, such as Open or Unpaid, is read as giving no status, so the amounts decide it (`SpreadsheetImportService.ParseImportedInvoiceStatus`). A sheet that updates existing invoices with a Status column and no amount columns, such as one marking a batch paid, sets the status as given, except that Overdue is still worked out from the stored amounts.
 
-**Refund status rule** (`InvoiceTotalsService.RefundedStatus`). If less than `Total` has been refunded, the status is PartiallyRefunded. If at least `Total` has been refunded, it is Refunded, unless the customer then paid again so that net paid (`AmountPaid − AmountRefunded`) is still at least `Total`, in which case it is PartiallyRefunded. A processing fee the customer paid isn't refunded, so a $100 invoice paid with a $3 fee and refunded $100 is Refunded.
+**Refund status rule** (`InvoiceTotalsService.RefundedStatus`). `Total` here is the total less any credit notes, what the customer was to pay. If less than `Total` has been refunded, the status is PartiallyRefunded. If at least `Total` has been refunded, it is Refunded, unless the customer then paid again so that net paid (`AmountPaid − AmountRefunded`) is still at least `Total`, in which case it is PartiallyRefunded. A processing fee the customer paid isn't refunded, so a $100 invoice paid with a $3 fee and refunded $100 is Refunded.
 
 Screens and report tables show `InvoiceTotalsService.DisplayStatus`: Overdue if the invoice is overdue; otherwise, if it has refunds, the refund status rule worked out fresh; otherwise the saved status, with a saved Overdue shown as Sent. Never show the saved `Status` on its own. The Invoices page's status filter matches this displayed status.
 
@@ -203,6 +204,8 @@ Always check with `RevenueAggregator.IsCollected(revenue)` rather than comparing
 ## 8. Refunds
 
 A refund is subtracted from revenue, profit and tax owed on the day the refund was issued, not on the day of the original payment.
+
+A **credit note** (`Payment.IsCreditNote`) is the part of a return taken off what the customer still owed rather than paid back (§10). It is stored as a refund, so it comes off revenue and tax on its date the same way, but no money moves: it is left out of cash, the cash flow statement, the general ledger's payments, bank matching and the refund figures on the Analytics page, and it comes off the invoice's balance and receivables like a payment. A figure that counts only paid sales, such as the dashboard, counts a credit note only once the sale it credits is paid (`RefundAggregator.ForPaidSales`), since until then it hasn't counted the sale either. The formal reports count every sale and every credit note.
 
 ### Effect on revenue
 
@@ -244,7 +247,18 @@ A deposit was never revenue (§4), so the part of a refund that returns it doesn
 
 ## 9. Expenses
 
-Expenses have no paid or unpaid status, so every expense counts. Expense totals include tax (`EffectiveTotalUSD`, Rule 1). Profit uses `OperatingExpenseUSD` instead, which leaves out tracked stock (§14).
+An expense is paid on the day it is recorded, unless it is a **bill**: one paid after it arrived, which has a `DueDate` and, once paid, a `PaidDate`. Unticking Paid on the expense form makes it a bill, due 30 days after its date unless another day is picked. It is paid by ticking Paid again, by Mark as paid on the Expenses page, or by matching it to a bank line, which pays it on the line's date and owes it again if the match is undone. Once paid it stays a bill, so its due date is kept.
+
+| | Unpaid bill | Paid bill |
+|---|---|---|
+| Dashboard, Analytics, charts, Insights | Left out (Rule 2) | Counted on its own date, as collected revenue is |
+| Income Statement, General Ledger, Tax Summary | Counted on its own date (accrual) | Counted on its own date |
+| Cash Flow Statement, Balance Sheet cash | Left out | Counted on its `PaidDate` |
+| Balance Sheet Accounts Payable, AP Aging | Owed from its date until its `PaidDate` (`Expense.IsOwedOn`) | Not owed |
+
+Always check with `ExpenseAggregator.IsPaid(expense)` or `Expense.IsOwedOn(date)` rather than reading the dates yourself. Every amount is converted at the bill's own date, as for any expense (Rule 4).
+
+Expense totals include tax (`EffectiveTotalUSD`, Rule 1). Profit uses `OperatingExpenseUSD` instead, which leaves out tracked stock (§14).
 
 A **supplier credit** is an expense below zero: every amount on it, tax included, is negative, so it comes off expenses, cash paid and the tax claimed back on its own date, as standard bookkeeping takes a credit note off the purchase it refunds. Marking a purchase returned records one (Returns and Losses, §10). Its lines are copies of the purchase's, so it comes off the same categories, and the tax it gives back is the purchase's tax in the share of the purchase's whole refund that the credit is (`PurchaseTax.Claimable` mirrors the purchase's claim).
 
@@ -261,7 +275,8 @@ Expenses count money as it leaves, so the dashboard, Analytics and the Cash Flow
 - The Income Statement, General Ledger and Report Builder revenue tables show revenue without tax (`EffectiveSubtotalUSD`), because the Balance Sheet shows tax separately as Sales Tax Payable. Their expense amounts are what each expense cost the business (`PurchaseTax.CostUSD`, Rule 1), so tax claimed back comes off Sales Tax Payable instead and tax that can't be claimed is an expense. Cash figures and Sales by Product (§13) include tax (`EffectiveTotalUSD`).
 - The Tax Summary and the Balance Sheet set only the tax claimed back against the tax collected. Where none is claimed back, the Tax Summary leaves out its tax paid section.
 - They count all revenue in the date range, paid or not. Accountants call this the accrual basis.
-- Cash (on the Cash Flow Statement and the Balance Sheet's Cash line) includes tax: paid revenue that has no invoice, plus every payment (refunds count as negative), minus every expense.
+- Cash (on the Cash Flow Statement and the Balance Sheet's Cash line) includes tax: paid revenue that has no invoice, plus every payment (refunds count as negative), minus every expense on the day its money left, which for a bill is its `PaidDate` (`ExpenseAggregator.SumCashPaidDisplay`, §9).
+- The Balance Sheet's **Accounts Payable** is purchase orders sent and not yet received, plus the bills owed on the end date (§9). The **AP Aging** report lists those bills by supplier and by days past due; purchase orders are owed on delivery, so it leaves them out.
 - The Balance Sheet lists **Inventory** as a current asset (`InventoryValuationService.TotalValueAsOf`). It counts each item's stock on hand as of the report's end date, placing each stock change on the date of its sale or purchase, or on its own date when it has neither. Stock is valued at the item's current `UnitCost` in USD, because the app doesn't keep a history of costs, and converted at the end date's rate (§14, Stock value). The Income Statement shows a Cost of Goods Sold line and Gross Profit whenever a sale in the date range has a cost (§14).
 - The Balance Sheet lists **Security Deposits** as a liability: the deposit on every invoice issued by the end date, less what refunds by then gave back and any part kept by then (`SecurityDeposits.StillHeld`).
 - **Payroll** counts on the pay date, as a cost incurred then whenever it is paid. The Income Statement shows each pay run's gross pay as Wages and Salaries and the employer's contributions as Employer Payroll Contributions, converted from the company's currency at the pay date, and leaves out the expenses that recorded the net pay and the remittances, which would count it again (`PayrollBooks.ExpenseIds`). The Balance Sheet lists **Payroll Remittances Owing** as a liability: each pay run's remittance, run by run at its pay date, until an expense dated by the end date records paying it (`PayrollBooks.OwingAsOf`). The General Ledger lists the wage and remittance expenses under Payroll, and Expenses by Supplier gives them one Payroll row.
@@ -283,12 +298,21 @@ The Insights tab (trends, anomalies, forecasts, recommendations) uses collected 
 
 A return (items returned by customers or sent back to suppliers) and a loss (lost or damaged stock) are records of goods. A return's money reaches the books through the refund recorded with it (`ReturnRefunds`, `Return.RefundRecordId`), which is what changes revenue, expenses, tax and cash; a loss changes none of them. The Financial Impact charts and stat cards add up `Return.RefundAmount` and `LostDamaged.ValueLost`. The Returns page shows `Return.NetRefund`, which is the refund less any restocking fee.
 
-Marking a sale or purchase as returned records its items after the transaction's discount, plus the tax charged, as the refund (`ReturnLossAmounts.RefundFor`). Shipping and fees are left out, since a shop keeps them when goods come back. Sales and purchases follow the same rule. It also records the refund, dated on the return:
+Sales and purchases are returned the same way, from the Record Return form on their row (`TransactionReturns`). The user picks how many of each line came back, every unit by default, and whether the shipping and the fee are refunded too, which they are not by default since a shop usually keeps them. Each return item keeps the line it came from (`ReturnItem.LineIndex`), so a later return offers only what is left. The row shows **Partial Return** while anything is left to return and **Returned** once everything has come back. A return not made from the form, such as one recorded before returns could be partial or a refund imported from Stripe or the Argo Books API, has no lines, and counts as the whole transaction (`TransactionReturns.IsByLine`).
 
-- **A returned sale** records a refund payment (§8) for `NetRefund`, at most what the customer paid toward the sale: the sale's total when it was collected, or its invoice's net paid. Its `RefundTaxAmount` is the sale's tax in the share of the sale's whole refund (`RefundFor`) that the refund is, so returning part of a sale gives back part of its tax. That tax comes off tax collected and the rest off revenue. It is linked to the sale's invoice when there is one, so the invoice shows as refunded. A sale nobody has paid for gets no refund, since no money changed hands, and neither does one paid online, whose refund is made through the payment provider and arrives with the payment sync.
-- **A returned purchase** records a supplier credit (§9) for `NetRefund`.
+The refund is the chosen lines' share of the items, less the same share of the discount, plus the same share of the tax, plus the shipping and fee when chosen (`TransactionReturns.AmountsFor`):
 
-Undoing the return removes its refund too.
+```
+share  = Σ chosen li.Subtotal × (returned / li.Quantity)  ÷  Σ every li.Subtotal
+refund = items returned − discount × share + tax × share + shipping? + fee?
+```
+
+Each part is rounded to the cent. Returning everything with the shipping and fee refunds the transaction's whole total. The tax part is stored on the return (`Return.RefundTax`). A restocking fee comes off the refund and is never more than it. Recording a return also records the refund, dated on the return:
+
+- **A returned sale** comes off what the customer still owes first, the way accounting software applies a credit note, and only the rest is paid back. What is owed is the invoice's total less what was paid and credited, or, for a sale with no invoice, its total less earlier credit notes until it is marked paid and nothing after. The part owed becomes a credit note (§8) and the rest a refund payment, at most what the customer has paid toward the sale and not had back: the invoice's net paid, or for a sale with no invoice that was collected, its total less what its earlier returns credited and refunded. So a \$100 invoice with \$60 paid gets a \$30 return as a credit note, leaving \$10 owed, and a \$50 return as a \$40 credit note and a \$10 refund. Each gives back the return's tax in its share of the return's refund (`RefundTaxAmount`). That tax comes off tax collected and the rest off revenue. Both are linked to the sale's invoice when there is one, so its balance and status follow. A cash refund on an invoice paid online is left to the payment provider, and arrives with the payment sync. The form says which of these applies before it is saved. An unpaid sale with no invoice that has a return can't be edited, so its row has a Mark as paid button.
+- **A returned purchase** records a supplier credit (§9) for `NetRefund`, carrying copies of only the returned lines at the returned quantity, so it comes off the same categories. The credit follows its purchase's bill (`ReturnRefunds.FollowBill`): on a bill not paid yet it is owed too, so it comes off what is owed straight away, and it counts as paid, and comes off expenses and cash, on the later of the day the bill is paid and the day of the return. On a purchase paid on the day it is paid on the return date. The credit is not a row on the Expenses page: like a sale's refund on the Revenue page, it shows as its purchase being returned.
+
+When the products track stock, the form offers to move them, ticked by default (Cost of goods sold, §14). A sale or purchase with a return can't be edited, since the return points at its lines and amounts, and can't be marked lost or damaged. Undoing a return, from its row or the Returns page, removes its refund and puts back any stock it moved. The row's undo takes back the latest return of that transaction. Deleting a sale or purchase takes its returns out with it, and undoing the delete puts them back.
 
 Neither record stores a USD amount or its own currency. The amount is in the currency of the sale or purchase it came from (`Return.OriginalTransactionId`, `LostDamaged.InventoryItemId`), or in the company's currency if there is none, and it is converted from that currency at the record's own date (`ReturnLossAmounts.CurrencyOf`, `DisplayCurrency.FromNative`). An amount already in the display currency is used as it is. If the rate is missing, the amount counts as 0 on a chart and shows Pending on a stat card or page total.
 
@@ -314,7 +338,8 @@ Use this table to check where a number on screen comes from. For a new chart or 
 |---|---|---|---|---|
 | Total Revenue card (dashboard, Analytics and the Revenue page's Monthly Revenue card), Revenue Over Time, Revenue Growth (Analytics) | `EffectiveTotalUSD` | — | Yes | Yes, in full |
 | Top Customers (the Analytics chart and the dashboard widget, both over the selected date range, `TopCustomers.Rank`) | `EffectiveTotalUSD` | — | Yes | Yes, in full, the refunds issued in the range. A customer left at or below 0 is not listed |
-| Total Expenses card (dashboard, Analytics and the Expenses page's Monthly Expenses card), Expenses Over Time | — | `EffectiveTotalUSD` | n/a | n/a |
+| Total Expenses card (dashboard, Analytics and the Expenses page's Monthly Expenses card), Expenses Over Time | — | `EffectiveTotalUSD`, paid expenses only (§9) | n/a | n/a |
+| Bills to Pay card (Expenses page) | — | `EffectiveTotalUSD` of unpaid bills and their unpaid supplier credits, leaving out bills returned in full | n/a | n/a |
 | Net Profit card, Profit Margin (Analytics), Profit Over Time | `EffectiveSubtotalUSD`, plus fixed asset sale prices (§16) | `OperatingExpenseUSD` (`PurchaseTax.CostUSD` less tracked stock), plus cost of goods sold (§14) | Yes | Yes, the pre-tax part |
 | Revenue vs Expenses | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue) | Yes, in full (revenue) |
 | Report Summary box total | The same as the Total Revenue card (Revenue reports), the Total Expenses card (Expenses reports) or the Net Profit card (all other reports) | | | |
@@ -337,7 +362,8 @@ Helpers for adding things up, in `ArgoBooks.Core/Services/` unless the entry say
 
 - `RevenueAggregator.SumCollectedRevenueUSD(revenues, start, end)`: collected revenue, tax included, in USD.
 - `RevenueAggregator.SumCollectedRevenuePreTaxUSD(revenues, start, end)`: collected revenue without tax, in USD (for profit, not for display).
-- `ExpenseAggregator.SumExpensesUSD(expenses, start, end)`: expenses, tax included, in USD.
+- `ExpenseAggregator.SumExpensesUSD(expenses, start, end)`: paid expenses, tax included, in USD.
+- `ExpenseAggregator.SumCashPaidDisplay(expenses, start, end, toDisplay)`: the cash paid out for expenses in the range, placing each bill on the day it was paid.
 - `RefundAggregator.GroupRefundsByDayUSD(payments, start, end)`: refunds by day, for time-series charts.
 - `ProfitCalculator.CalculateNetProfitUSD(data, start, end)` and `CalculateNetProfitByDayUSD`: the Rule 1 net profit, as a total and by day. Every screen that shows profit calls these rather than working it out again.
 - `CostOfGoodsAggregator`: cost of goods sold on sales (`SumCostOfGoodsSoldUSD`, paid only or all), and expenses without the tracked stock they bought (`SumOperatingExpensesUSD`). `ProfitCalculator` uses both.
@@ -428,6 +454,18 @@ Undoing a change puts the stock record's cost back as it was before the change. 
 Net profit is the Rule 1 formula. The dashboard counts only paid sales, for both revenue and cost of goods sold (Rule 2). The Income Statement counts every sale in the date range, shows **Cost of Goods Sold** and **Gross Profit** under revenue whenever that cost isn't zero, and leaves tracked stock out of its expense categories. The Expenses card, the Expenses page and cash flow still count every purchase in full, because that money really was spent.
 
 **Profit while a sale waits for its stock's cost.** A sale waiting for its stock's cost counts that cost as 0, so a figure that subtracts cost of goods sold would read high. While any sale it counts is waiting (`CostOfGoodsAggregator.IsCostOfGoodsPending`), such a figure follows the all-or-nothing Pending rule of Rule 4 and shows Pending until the cost converts. That covers the dashboard's Net Profit card, the Analytics Net Profit and Profit Margin cards (`CurrencyService.FormatNetProfitOrPending`), and the report Summary box's net profit. The cards' change against the previous period is left blank, and the Summary box's net profit growth rate reads Pending, while a sale in either period is waiting (`CostOfGoodsAggregator.IsProfitChangePending`), since a period that reads high makes the change wrong either way. On the Income Statement the Cost of Goods Sold, Gross Profit and Net Income lines read Pending, while its revenue and expense lines still show their amounts. Profit Over Time is a chart and can't show Pending, so it plots the cost as 0.
+
+### Returned stock
+
+A return can move the stock of tracked products (`InventoryStockService.ApplyReturn`). Goods a customer returns go back into stock, and goods sent back to a supplier come out of it. Each move is a stock adjustment marked automatic, with the return's id as its reference, so undoing the return finds and reverses it (`InventoryStockService.RemoveReturn`).
+
+When a customer's goods go back into stock they were not sold after all, so what they cost comes off cost of goods sold on the return date:
+
+```
+Return.CostOfGoodsReturnedUSD = Σ restocked lines of li.CostOfGoodsUSD × (returned / li.Quantity)
+```
+
+`CostOfGoodsAggregator.ReturnedCostUSD` adds these up for returns in the date range. The dashboard and Profit Over Time take off only the returns of paid sales, as they count only paid sales' cost of goods sold to begin with. The Income Statement takes off every one. Goods that come back but are not put back in stock, such as broken ones, leave cost of goods sold as it was.
 
 ### Stock on hand when this began (opening units)
 
@@ -557,3 +595,38 @@ Each asset amount is converted at the asset's purchase date (Rule 4), and a sale
 - **Asset Register:** each asset held at the end date with its cost, the depreciation in the range, the total so far and its book value, then the ones that left the books in the range.
 
 The dashboard, Analytics and Insights count money as it moves (Rule 2), so they count an asset's purchase as an expense on the day it was paid, like any other expense. Net Profit, Profit Margin and Profit Over Time add its sale price, converted at the sale date, on the day it was sold (`ProfitCalculator.AssetSalesByDayUSD`). The sale price isn't revenue, so the revenue cards leave it out, and Insights' forecasts leave it out because a sale happens once.
+
+## 17. Sales tax filing
+
+The Sales Tax page lists the periods a business files sales tax for, monthly, quarterly or yearly as it chooses (`CompanyInfo.SalesTaxFrequency`), and the returns filed for them (`SalesTaxFiling`). The periods start at the first sale or purchase, no further back than two years.
+
+### What a period owes
+
+```
+owed = Σ tax collected on sales dated in the period (EffectiveTotalUSD − EffectiveSubtotalUSD)
+     − tax handed back on refunds dated in the period (§8)
+     − tax on purchases dated in the period that can be claimed back (PurchaseTax.ClaimableUSD)
+```
+
+This is the Tax Summary report's net for the same dates (`SalesTaxPeriods.For`), with each part rounded to the cent as a return reports it. Each amount is converted at its own date (Rule 4). While a sale, purchase or refund in the period is waiting for its exchange rate, what it owes shows Pending and it can't be filed (`SalesTaxPeriods.IsWaitingForRate`). Below zero, the government owes the business a refund.
+
+A return is due by the usual deadline in the company's country (`SalesTaxPeriods.DueDate`): in Canada the last day of the month after its period ends, or three months after for a yearly return; in the United States the 20th of the next month, as most states set it; in the United Kingdom a month and seven days after, or two months for a yearly return; and in Australia the 28th of the next month for a quarter (28 February for the October to December quarter), the 21st for a month and 31 October after a year. Anywhere else it is the end of the next month.
+
+Yearly and quarterly periods count from the month the business's tax year starts in, chosen on the page beside the frequency (`CompanyInfo.SalesTaxYearStartMonth`, `SalesTaxPeriods.YearStartMonth`). Until one is chosen it is July in Australia, whose financial year runs July to June, and January anywhere else. A year that starts after January is named by both its years, such as 2024-25, and a quarter that isn't a calendar quarter by its months, such as Feb - Apr 2024. A period is Open until it ends, then Due, then Overdue after its due date, and Filed once a return is recorded. One with nothing to pay shows Nothing to pay instead of Due or Overdue: a nil return can still be recorded for it, but it isn't chased. Until the business chooses how often it files, the periods are listed quarterly and the frequency picker reads Choose.
+
+### Filing a return
+
+Filing records what the period owed, as it stood, in the company's currency, with the day it was paid and how. The day has to be after the period ends. A return filed at one frequency stays in the list if the business changes frequency later, and the dates it covers aren't shown again: a period it covers only part of is listed for the rest, such as Feb - Mar after filing January monthly and switching to quarterly. Filing and taking a filing back can be undone. Taking one back unmatches the bank line matched to its payment, and undoing that matches it again.
+
+The payment is never an expense: the tax was never the business's money, so profit doesn't change.
+
+- **Balance Sheet:** Sales Tax Payable is what has been collected less what was claimed back and refunded, less every return paid by the end date (`SalesTaxPeriods.PaidBetween`), and less the fractions of a cent those returns' periods held, since a return reports whole cents. Cash goes down by the paid amount, at the rate on the day it was paid. A refund received does the opposite. A filing whose rate is missing makes both read Pending.
+- **Cash Flow Statement:** **Sales Tax Paid** under operating activities, for returns paid in the range.
+- **Bank Matching:** a return's payment can be matched to a money-out bank line, and a refund to a money-in one, like an expense (`BookRecordType.SalesTaxFiling`).
+- **Spreadsheet export:** a Sales Tax Filings sheet lists each return paid in the range. It is export only, like pay runs: a return records what was reported to the government, so an import skips the sheet.
+
+A filed period's figures aren't locked. If a sale or purchase in it changes after filing, its row says how much more or less it now owes, and that difference is part of what the page shows as owed now, to be put right on the next return.
+
+### Reminder
+
+Once the business has chosen how often it files, the dashboard shows a banner for the earliest return that has ended, owes or is owed something, and is due within 14 days or overdue (`SalesTaxPeriods.ComingDue`). It goes away when that return is filed.

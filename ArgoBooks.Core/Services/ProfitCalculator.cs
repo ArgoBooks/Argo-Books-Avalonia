@@ -26,9 +26,10 @@ public static class ProfitCalculator
         var revenuePreTax = RevenueAggregator.SumCollectedRevenuePreTaxUSD(
             data.Revenues, start, end);
         var expenses = CostOfGoodsAggregator.SumOperatingExpensesUSD(data.Expenses, start, end, PurchaseTax.RuleFor(data));
-        var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldUSD(data.Revenues, start, end, collectedOnly: true);
+        var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldUSD(data.Revenues, start, end, collectedOnly: true)
+                          - CostOfGoodsAggregator.ReturnedCostUSD(data, start, end, collectedOnly: true);
         var refundsPreTax = RefundAggregator.GetRefundedPreTaxInDateRangeUSD(
-            data.Payments, BuildInvoiceLookup(data.Invoices), start, end);
+            RefundAggregator.ForPaidSales(data), BuildInvoiceLookup(data.Invoices), start, end);
         var assetSales = AssetSalesByDayUSD(data.Assets, start, end).Values.Sum();
         return revenuePreTax - expenses - costOfGoods - refundsPreTax + assetSales;
     }
@@ -46,9 +47,10 @@ public static class ProfitCalculator
             data.Revenues, start, end, toDisplay);
         var expenses = CostOfGoodsAggregator.SumOperatingExpensesDisplay(data.Expenses, start, end, PurchaseTax.RuleFor(data), toDisplay);
         var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldDisplay(
-            data.Revenues, start, end, collectedOnly: true, toDisplay);
+            data.Revenues, start, end, collectedOnly: true, toDisplay)
+                          - CostOfGoodsAggregator.ReturnedCostDisplay(data, start, end, collectedOnly: true, toDisplay);
         var refundsPreTax = RefundAggregator.GetRefundedPreTaxInDateRangeDisplay(
-            data.Payments, BuildInvoiceLookup(data.Invoices), start, end, toDisplay);
+            RefundAggregator.ForPaidSales(data), BuildInvoiceLookup(data.Invoices), start, end, toDisplay);
         var assetSales = AssetSalesByDayUSD(data.Assets, start, end).Sum(kv => toDisplay(kv.Value, kv.Key));
         return revenuePreTax - expenses - costOfGoods - refundsPreTax + assetSales;
     }
@@ -65,17 +67,19 @@ public static class ProfitCalculator
         var rule = PurchaseTax.RuleFor(data);
 
         var expensesByDay = data.Expenses
-            .Where(p => p.Date >= start && p.Date <= end)
+            .Where(p => p.IsPaid && p.Date >= start && p.Date <= end)
             .GroupBy(p => p.Date.Date)
             .ToDictionary(g => g.Key, g => g.Sum(e => CostOfGoodsAggregator.OperatingExpenseUSD(e, rule)));
 
-        var refundsByDay = RefundAggregator.GroupPreTaxRefundsByDayUSD(data.Payments, BuildInvoiceLookup(data.Invoices), start, end);
+        var refundsByDay = RefundAggregator.GroupPreTaxRefundsByDayUSD(RefundAggregator.ForPaidSales(data), BuildInvoiceLookup(data.Invoices), start, end);
 
         var costOfGoodsByDay = data.Revenues
             .Where(s => s.Date >= start && s.Date <= end)
             .Where(RevenueAggregator.IsCollected)
             .GroupBy(s => s.Date.Date)
             .ToDictionary(g => g.Key, g => g.Sum(CostOfGoodsAggregator.CostOfGoodsSoldUSD));
+        foreach (var (day, returned) in CostOfGoodsAggregator.ReturnedCostByDayUSD(data, start, end, collectedOnly: true))
+            costOfGoodsByDay[day] = costOfGoodsByDay.GetValueOrDefault(day) - returned;
 
         var assetSalesByDay = AssetSalesByDayUSD(data.Assets, start, end);
 

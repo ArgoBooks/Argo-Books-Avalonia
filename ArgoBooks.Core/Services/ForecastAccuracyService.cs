@@ -280,7 +280,7 @@ public class ForecastAccuracyService : IForecastAccuracyService
             .ToDictionary(g => g.Key, g => g.Sum(s => s.EffectiveTotalUSD));
 
         // Aggregate purchases by month
-        var purchasesByMonth = companyData.Expenses
+        var purchasesByMonth = ExpenseAggregator.OnlyPaid(companyData.Expenses)
             .GroupBy(p => new DateTime(p.Date.Year, p.Date.Month, 1))
             .ToDictionary(g => g.Key, g => g.Sum(p => p.EffectiveTotalUSD));
 

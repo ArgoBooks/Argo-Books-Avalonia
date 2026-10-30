@@ -194,6 +194,8 @@ public static class ImportSchemaDefinition
                 new("Reference", "string", "External reference number", JsonName: "referenceNumber"),
                 new("Payment Method", "enum:Cash,CreditCard,DebitCard,BankTransfer,Check,PayPal,Other", "How payment was made", JsonName: "paymentMethod"),
                 new("Shipping", "decimal", "Cost of shipping", JsonName: "shippingCost"),
+                new("Due Date", "datetime", "When a bill paid after it arrived is due. Leave unmapped unless the sheet tracks bills to pay later", JsonName: "dueDate"),
+                new("Paid Date", "datetime", "When a bill with a due date was paid. Blank means it is still owed", JsonName: "paidDate"),
                 new("Currency", "string", "ISO currency code the amounts are in (e.g., USD, EUR, GBP). Map when the sheet has a per-row currency column, OR when an amount cell itself contains a currency symbol or code (e.g. '£100', '$10 CAD'): output the ISO code, or the raw symbol if the code is unclear. Leave unmapped if all amounts are plainly in the company currency", JsonName: "originalCurrency"),
             ],
 

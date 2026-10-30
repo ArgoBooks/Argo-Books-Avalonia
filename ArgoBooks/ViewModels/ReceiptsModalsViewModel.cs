@@ -239,6 +239,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     // undo action instead of being rolled back when the modal closes.
     private bool _createdEntitiesCommitted;
 
+    // The single scan's review form as the scan filled it in, so saving can report what was corrected.
+    private ScannedReceiptFields? _scannedFields;
+
     private const string SampleReceiptFileName = "sample-receipt.png";
 
     [ObservableProperty]
@@ -1320,6 +1323,8 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             ShowCreateSupplierSuggestion = item.ShowCreateSupplierSuggestion;
             SuggestedSupplierName = item.SuggestedSupplierName ?? string.Empty;
         }
+
+        item.ScannedFields ??= ReviewFormFields();
     }
 
     [RelayCommand]
@@ -1443,6 +1448,8 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         }).ToList();
 
         item.LineItemProductIds = LineItems.Select(li => li.SelectedProduct?.Id).ToList();
+        if (item.ScannedFields != null)
+            item.CorrectedFields = ReviewFormFields().CorrectedSince(item.ScannedFields);
 
         var supplier = ExtractedSupplier;
         if (string.IsNullOrEmpty(supplier) && SelectedSupplier != null)
@@ -1641,13 +1648,25 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
+        foreach (var item in approvedItems)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReceiptScanSaved, $"bulk:{item.CorrectedFields}");
+        TrackBulkScansDiscarded(BulkSucceededItems.Except(approvedItems).Count());
         ReceiptScanned?.Invoke(this, EventArgs.Empty);
         CloseBulkReview();
+    }
+
+    private static void TrackBulkScansDiscarded(int count)
+    {
+        for (var i = 0; i < count; i++)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReceiptScanDiscarded, "bulk");
     }
 
     [RelayCommand]
     private void CloseBulkReview()
     {
+        if (!_createdEntitiesCommitted)
+            TrackBulkScansDiscarded(BulkSucceededItems.Count);
+
         IsBulkReviewOpen = false;
         IsBulkScanComplete = false;
         IsBulkScanning = false;
@@ -2151,6 +2170,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
             // Populate fields with extracted data
             PopulateScanResults(result);
+            _scannedFields = ReviewFormFields();
 
             HasScanResult = true;
             IsScanning = false;
@@ -2182,6 +2202,23 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         UsageTier = usageCheck.Tier;
         ResetsAt = usageCheck.ResetsAt;
         IsNearLimit = usageCheck.MonthlyLimit > 0 && usageCheck.Remaining > 0 && usageCheck.Remaining <= usageCheck.MonthlyLimit / 10;
+    }
+
+    /// <summary>The review form's values in a form that compares equal whatever way an amount was typed.</summary>
+    private ScannedReceiptFields ReviewFormFields()
+    {
+        static decimal Amount(string? text) => decimal.TryParse(text, out var value) ? value : 0m;
+
+        return new ScannedReceiptFields(
+            ExtractedSupplier.Trim(),
+            ExtractedDate?.Date,
+            Amount(ExtractedSubtotal),
+            Amount(ExtractedTax),
+            Amount(ExtractedDiscount),
+            Amount(ExtractedShipping),
+            Amount(ExtractedTotal),
+            ScanCurrencyCode,
+            string.Join("\n", LineItems.Select(li => $"{li.Description.Trim()}|{Amount(li.Quantity)}|{Amount(li.TotalPrice)}")));
     }
 
     private void PopulateScanResults(ReceiptScanResult result)
@@ -2269,6 +2306,10 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         IsScanReviewModalOpen = false;
         IsFullscreen = false;
+
+        if (_scannedFields != null && !_createdEntitiesCommitted)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReceiptScanDiscarded, "one");
+        _scannedFields = null;
 
         // Suggested products, supplier and category are created while the user reviews, so closing without adding rolls them back.
         if (!_createdEntitiesCommitted)
@@ -2540,6 +2581,12 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         // Credited at the commit point rather than where the entities are created, because a cancelled review rolls those back.
         TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ScanReceipt);
+
+        if (_scannedFields is { } scanned)
+        {
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReceiptScanSaved, $"one:{ReviewFormFields().CorrectedSince(scanned)}");
+            _scannedFields = null;
+        }
 
         App.CompanyManager?.MarkAsChanged();
         ReceiptScanned?.Invoke(this, EventArgs.Empty);

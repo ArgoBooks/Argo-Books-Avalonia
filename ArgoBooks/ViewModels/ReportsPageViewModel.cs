@@ -64,6 +64,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Icons.DocumentStackAdd, AppColors.ReportSlate, AppColors.FlatSlateLight),
         new(ReportTemplateFactory.TemplateNames.ARaging, "AR Aging", "Who owes you and for how long",
             Icons.DollarCircleAlt, AppColors.FlatTeal, AppColors.FlatTealLight),
+        new(ReportTemplateFactory.TemplateNames.APaging, "AP Aging", "Which bills you owe and how overdue",
+            Icons.Clock, AppColors.MdCyan, AppColors.MdCyanLight),
         new(ReportTemplateFactory.TemplateNames.CustomerStatement, "Customer Statement", "What one customer owes you",
             Icons.Receipts, AppColors.Violet, AppColors.VioletLight),
         new(ReportTemplateFactory.TemplateNames.SalesByCustomer, "Sales by Customer", "How much each customer bought",
@@ -680,14 +682,15 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// Whether the selected accounting table's report type produces section header rows.
     /// </summary>
     public bool ShowSectionHeaderColors => SelectedAccountingTableElement.ReportType
-        is not (AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement
+        is not (AccountingReportType.AccountsReceivableAging or AccountingReportType.AccountsPayableAging or AccountingReportType.CustomerStatement
             or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary);
 
     /// <summary>
     /// Whether the selected accounting table's report type produces total/grand total rows.
     /// </summary>
     public bool ShowTotalColors => SelectedAccountingTableElement.ReportType
-        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement
+        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging or AccountingReportType.AccountsPayableAging
+            or AccountingReportType.CustomerStatement
             or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary
             or AccountingReportType.Rentals or AccountingReportType.AssetRegister;
 
@@ -1739,7 +1742,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
             if (success)
             {
-                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReportGenerated);
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReportGenerated, ReportTelemetryContext());
                 var doneMessage = exportPath == ExportFilePath
                     ? "Export completed successfully!"
                     : $"{Path.GetFileName(ExportFilePath)} already exists, so this was saved as {Path.GetFileName(exportPath)}.";
@@ -2697,6 +2700,20 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Configuration.Filters.StartDate = start;
             Configuration.Filters.EndDate = end;
         }
+    }
+
+    /// <summary>
+    /// Which report was made and in what format, for telemetry. A template the user saved is sent as
+    /// "saved", since its name is whatever they typed.
+    /// </summary>
+    private string ReportTelemetryContext()
+    {
+        var template = IsChartsTabSelected
+            ? ReportTemplateFactory.TemplateNames.Custom
+            : ReportTemplateFactory.IsBuiltInTemplate(SelectedTemplateName) ? SelectedTemplateName : "saved";
+        if (IsSalesByCustomer && !string.IsNullOrEmpty(Configuration.Filters.CustomerId))
+            template += " (one customer)";
+        return $"{template}:{SelectedExportFormat}";
     }
 
     private void ApplyFiltersToConfiguration()

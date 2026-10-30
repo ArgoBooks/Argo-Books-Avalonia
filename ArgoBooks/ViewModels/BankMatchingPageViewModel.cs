@@ -416,6 +416,9 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
             BookRecordType.Payment => data.Payments.FirstOrDefault(p => p.Id == id) is { } pmt
                 ? (string.IsNullOrWhiteSpace(pmt.Notes) ? pmt.ReferenceNumber : pmt.Notes)
                 : null,
+            BookRecordType.SalesTaxFiling => data.SalesTaxFilings.FirstOrDefault(f => f.Id == id) is { } filing
+                ? SalesTaxPeriods.Describe(filing)
+                : null,
             _ => null
         };
         if (desc == null) return null;
@@ -468,6 +471,7 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
             BookRecordType.Revenue => data.Revenues.FirstOrDefault(r => r.Id == id) is { } r ? r.Total : null,
             BookRecordType.Invoice => data.Invoices.FirstOrDefault(i => i.Id == id) is { } inv ? inv.Total : null,
             BookRecordType.Payment => data.Payments.FirstOrDefault(p => p.Id == id) is { } p ? p.Amount : null,
+            BookRecordType.SalesTaxFiling => data.SalesTaxFilings.FirstOrDefault(f => f.Id == id) is { } f ? -f.Amount : null,
             _ => null
         };
     }

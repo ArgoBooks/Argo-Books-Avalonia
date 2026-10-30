@@ -277,7 +277,8 @@ public enum AccountingReportType
     ExpensesBySupplier,
     PayrollSummary,
     Rentals,
-    AssetRegister
+    AssetRegister,
+    AccountsPayableAging
 }
 
 /// <summary>
@@ -465,6 +466,7 @@ public static class ReportEnumExtensions
             AccountingReportType.PayrollSummary => "Payroll Summary",
             AccountingReportType.Rentals => "Rentals",
             AccountingReportType.AssetRegister => "Asset Register",
+            AccountingReportType.AccountsPayableAging => "Accounts Payable Aging",
             _ => reportType.ToString()
         };
     }

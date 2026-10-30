@@ -4042,7 +4042,7 @@ public class ReportRenderer : IDisposable
         {
             TransactionType.Revenue =>
                 RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, start, end, convert)
-                - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, start, end, convert),
+                - RefundAggregator.GetRefundedInDateRangeDisplay(RefundAggregator.ForPaidSales(data), start, end, convert),
             TransactionType.Expenses => ExpenseAggregator.SumExpensesDisplay(data.Expenses, start, end, convert),
             _ => ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert)
         };

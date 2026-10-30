@@ -169,7 +169,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         // Total Revenue display uses gross-of-tax USD per docs/Calculations.md
         // §2 Rule 1, paid-only per Rule 2, full refund subtraction per §8.
         var grossUSD = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, startDate, endDate);
-        var refundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, startDate, endDate);
+        var refundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(RefundAggregator.ForPaidSales(data), startDate, endDate);
         var currentUSD = grossUSD - refundsUSD;
         Value = DashboardCalculations.FormatRevenue(data, startDate, endDate);
 
@@ -177,7 +177,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
         {
             var prevGrossUSD = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, prevStart, prevEnd);
-            var prevRefundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, prevStart, prevEnd);
+            var prevRefundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(RefundAggregator.ForPaidSales(data), prevStart, prevEnd);
             var prevUSD = prevGrossUSD - prevRefundsUSD;
             ChangeValue = DashboardCalculations.CalculatePercentageChange(prevUSD, currentUSD);
             ChangeText = DashboardCalculations.FormatPercentageChange(ChangeValue);

@@ -24,11 +24,11 @@ public static class DashboardCalculations
     /// its own date, or Pending. The dashboard card and the Revenue page card both show this.
     /// </summary>
     public static string FormatRevenue(CompanyData data, DateTime start, DateTime end) =>
-        RevenueAggregator.AnyCollectedWaiting(data.Revenues, start, end) || RefundAggregator.AnyRefundWaiting(data.Payments, start, end)
+        RevenueAggregator.AnyCollectedWaiting(data.Revenues, start, end) || RefundAggregator.AnyRefundWaiting(RefundAggregator.ForPaidSales(data), start, end)
             ? CurrencyService.PendingMarker
             : CurrencyService.FormatTotalOrPending(convert =>
             RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, start, end, convert)
-            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, start, end, convert));
+            - RefundAggregator.GetRefundedInDateRangeDisplay(RefundAggregator.ForPaidSales(data), start, end, convert));
 
     /// <summary>
     /// The Total Expenses figure (§9): every expense, tax included, each converted at its own date, or

@@ -141,6 +141,12 @@ public partial class BulkScanItem : ObservableObject
     /// </summary>
     public bool HasAiSuggestionsRun { get; set; }
 
+    /// <summary>The review form as the scan first filled it in, set on the first visit.</summary>
+    public ScannedReceiptFields? ScannedFields { get; set; }
+
+    /// <summary>Which of the scanned fields the user changed before approving, for telemetry.</summary>
+    public string CorrectedFields { get; set; } = ScannedReceiptFields.NoneCorrected;
+
     /// <summary>
     /// Saved product IDs for each line item (parallel to ScanResult.LineItems).
     /// Null entries mean no product was selected for that line item.
@@ -265,5 +271,32 @@ public partial class BulkScanItem : ObservableObject
         OnPropertyChanged(nameof(IsScanning));
         OnPropertyChanged(nameof(IsSucceeded));
         OnPropertyChanged(nameof(IsFailed));
+    }
+}
+
+/// <summary>
+/// The values a receipt scan put in the review form, compared at saving to learn which ones the user
+/// had to correct, which is how well the scanner reads receipts in practice.
+/// </summary>
+public sealed record ScannedReceiptFields(
+    string Supplier, DateTime? Date, decimal Subtotal, decimal Tax, decimal Discount, decimal Shipping,
+    decimal Total, string Currency, string Items)
+{
+    public const string NoneCorrected = "none";
+
+    /// <summary>The fields that differ from <paramref name="scanned"/>, short enough to fit a telemetry context.</summary>
+    public string CorrectedSince(ScannedReceiptFields scanned)
+    {
+        var changed = new List<string>();
+        if (!string.Equals(Supplier, scanned.Supplier, StringComparison.Ordinal)) changed.Add("supplier");
+        if (Date != scanned.Date) changed.Add("date");
+        if (Subtotal != scanned.Subtotal) changed.Add("sub");
+        if (Tax != scanned.Tax) changed.Add("tax");
+        if (Discount != scanned.Discount) changed.Add("disc");
+        if (Shipping != scanned.Shipping) changed.Add("ship");
+        if (Total != scanned.Total) changed.Add("total");
+        if (!string.Equals(Currency, scanned.Currency, StringComparison.Ordinal)) changed.Add("cur");
+        if (!string.Equals(Items, scanned.Items, StringComparison.Ordinal)) changed.Add("items");
+        return changed.Count == 0 ? NoneCorrected : string.Join(",", changed);
     }
 }

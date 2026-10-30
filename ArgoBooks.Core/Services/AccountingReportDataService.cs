@@ -191,8 +191,9 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// </summary>
     private List<(Invoice Invoice, decimal BalanceUSD)> GetReceivablesAsOfEndDate()
     {
+        // A credit note comes off what was owed the way a payment does.
         var paymentsByInvoice = companyData!.Payments
-            .Where(p => !p.IsRefund && p.Amount > 0 && !string.IsNullOrEmpty(p.InvoiceId))
+            .Where(p => ((!p.IsRefund && p.Amount > 0) || p.IsCreditNote) && !string.IsNullOrEmpty(p.InvoiceId))
             .ToLookup(p => p.InvoiceId);
 
         var receivables = new List<(Invoice, decimal)>();
@@ -211,12 +212,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                          string.Equals(p.OriginalCurrency, invoice.OriginalCurrency, StringComparison.OrdinalIgnoreCase)))
             {
                 // The share still owed in the invoice's own currency, valued at the invoice's rate.
-                var owed = Math.Round(invoice.Total - paidByEnd.Sum(p => p.Amount), 2, MidpointRounding.AwayFromZero);
+                var owed = Math.Round(invoice.Total - paidByEnd.Sum(p => Math.Abs(p.Amount)), 2, MidpointRounding.AwayFromZero);
                 balanceUSD = owed <= 0 ? 0m : invoice.EffectiveTotalUSD * Math.Min(1m, owed / invoice.Total);
             }
             else
             {
-                balanceUSD = Math.Max(0m, invoice.EffectiveTotalUSD - paidByEnd.Sum(p => p.EffectiveAmountUSD));
+                balanceUSD = Math.Max(0m, invoice.EffectiveTotalUSD - paidByEnd.Sum(p => Math.Abs(p.EffectiveAmountUSD)));
             }
 
             if (Math.Round(balanceUSD, 2, MidpointRounding.AwayFromZero) > 0)
@@ -237,6 +238,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             AccountingReportType.CashFlowStatement => GetCashFlowData(),
             AccountingReportType.GeneralLedger => GetGeneralLedgerData(),
             AccountingReportType.AccountsReceivableAging => GetARAgingData(),
+            AccountingReportType.AccountsPayableAging => GetAPAgingData(),
             AccountingReportType.TaxSummary => GetTaxSummaryData(),
             AccountingReportType.PayrollRemittance => GetPayrollRemittanceData(),
             AccountingReportType.ProductSales => GetProductSalesData(),
@@ -593,7 +595,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         return new IncomeFigures(
             GroupTransactionsByCategory(revenues), refunds,
-            revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date)),
+            revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date))
+                - CostOfGoodsAggregator.ReturnedCostDisplay(companyData!, RangeStart, RangeEnd, collectedOnly: false, ToDisplay),
             GroupExpensesByCategory(expenses), wages, employer, depreciation, gainOnDisposal,
             assetsPending, payrollPending,
             // A sale waiting for its stock's cost counts none yet, so the figures that subtract cost of goods sold aren't known (Calculations.md §14).
@@ -665,15 +668,20 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         // Everything except revenue-linked, which is already counted by its own Revenue row.
         var cashFromPayments = companyData.Payments
-            .Where(p => string.IsNullOrEmpty(p.RevenueId) && p.Date >= cashFrom && IsOnOrBeforeEndDate(p.Date))
+            .Where(p => string.IsNullOrEmpty(p.RevenueId) && !p.IsCreditNote && p.Date >= cashFrom && IsOnOrBeforeEndDate(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
-        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, cashFrom, RangeEnd, ToDisplay);
+        // A bill leaves the bank on the day it is paid, not the day it arrived.
+        var cashPaidForExpenses = ExpenseAggregator.SumCashPaidDisplay(companyData.Expenses, cashFrom, RangeEnd, ToDisplay);
 
         var (cashFromAssetSales, salesPending) = AssetSaleProceeds(cashFrom, RangeEnd);
         cashPending |= salesPending;
 
-        var cash = openingCash + cashFromRevenue + cashFromPayments - cashPaidForExpenses + cashFromAssetSales;
+        // Sales tax paid with a return leaves the bank too, though it is no expense (docs/Calculations.md §17).
+        var (salesTaxPaidSinceOpening, salesTaxPending) = SalesTaxPeriods.PaidBetween(companyData, cashFrom, RangeEnd, DisplayCode);
+        cashPending |= salesTaxPending;
+
+        var cash = openingCash + cashFromRevenue + cashFromPayments - cashPaidForExpenses + cashFromAssetSales - salesTaxPaidSinceOpening;
 
         // Accounts Receivable = what was still owed at the end date, each balance converted at the
         // invoice's issue date.
@@ -718,6 +726,11 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                          && IsOnOrBeforeEndDate(po.OrderDate))
             .Sum(po => ToDisplay(po.EffectiveTotalUSD, po.OrderDate));
 
+        // Plus the bills received by the end date and not paid by then, each at its own date's rate.
+        accountsPayable += companyData.Expenses
+            .Where(e => e.IsOwedOn(EndDateForValuation))
+            .Sum(e => ToDisplay(e.EffectiveTotalUSD, e.Date));
+
         // Sales Tax Payable = tax collected on all revenue, less tax handed back on refunds (docs/Calculations.md §8), minus the tax on expenses the company claims back.
         var taxCollected = companyData.Revenues
             .Where(r => IsOnOrBeforeEndDate(r.Date))
@@ -727,7 +740,13 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var taxPaidOnExpenses = companyData.Expenses
             .Where(e => IsOnOrBeforeEndDate(e.Date))
             .Sum(e => ToDisplay(PurchaseTax.ClaimableUSD(e, Rule), e.Date));
-        var salesTaxPayable = taxCollected - taxRefunded - taxPaidOnExpenses;
+        // What returns already paid is no longer owed, and nor are the fractions of a cent their periods held, since a return reports whole cents.
+        var (salesTaxPaid, salesTaxPaidPending) = SalesTaxPeriods.PaidBetween(companyData, DateTime.MinValue, RangeEnd, DisplayCode);
+        var filedFractions = companyData.SalesTaxFilings
+            .Where(f => IsOnOrBeforeEndDate(f.PaidDate))
+            .Select(f => new SalesTaxPeriods.Period(f.PeriodStart, f.PeriodEnd, f.DueDate))
+            .Sum(p => SalesTaxPeriods.For(companyData, p, ToDisplay, toCents: false).Net - SalesTaxPeriods.For(companyData, p, ToDisplay).Net);
+        var salesTaxPayable = taxCollected - taxRefunded - taxPaidOnExpenses - salesTaxPaid - filedFractions;
 
         // A security deposit is not earned (docs/Calculations.md §4), but the invoice total carrying it is cash or receivables from the day it is issued.
         var paymentsToDate = companyData.Payments.Where(p => IsOnOrBeforeEndDate(p.Date)).ToList();
@@ -766,7 +785,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Without the opening balance's rate the cash, and every total built on it, is unknown rather than zero.
         string CashBased(decimal amount) => cashPending ? PendingText : FormatCurrencyWithSign(amount);
         string AssetBased(decimal amount) => assetsPending ? PendingText : FormatCurrencyWithSign(amount);
-        string TotalBased(decimal amount) => cashPending || assetsPending || payrollPending ? PendingText : FormatCurrencyWithSign(amount);
+        string TotalBased(decimal amount) => cashPending || assetsPending || payrollPending || salesTaxPaidPending ? PendingText : FormatCurrencyWithSign(amount);
         string EarningsBased(decimal amount) => earningsPending ? PendingText : FormatCurrencyWithSign(amount);
 
         // ASSETS
@@ -886,12 +905,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             RowType = AccountingRowType.DataRow
         });
 
-        if (salesTaxPayable != 0)
+        if (salesTaxPayable != 0 || salesTaxPaidPending)
         {
             data.Rows.Add(new AccountingRow
             {
                 Label = t.TaxPayableLabel,
-                Values = [FormatCurrencyWithSign(salesTaxPayable)],
+                Values = [salesTaxPaidPending ? PendingText : FormatCurrencyWithSign(salesTaxPayable)],
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
@@ -922,7 +941,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "TOTAL LIABILITIES",
-            Values = [payrollPending ? PendingText : FormatCurrencyWithSign(totalLiabilities)],
+            Values = [payrollPending || salesTaxPaidPending ? PendingText : FormatCurrencyWithSign(totalLiabilities)],
             RowType = AccountingRowType.TotalRow
         });
 
@@ -1040,18 +1059,19 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Everything except revenue-linked, matching cashFromSales above and the balance
         // sheet's cashFromPayments. See the note there on why this tests RevenueId.
         var cashFromInvoicePayments = companyData.Payments
-            .Where(p => string.IsNullOrEmpty(p.RevenueId) && IsInDateRange(p.Date))
+            .Where(p => string.IsNullOrEmpty(p.RevenueId) && !p.IsCreditNote && IsInDateRange(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
-        // The share of an expense that bought a fixed asset is an investment rather than a running cost.
+        // The share of an expense that bought a fixed asset is an investment rather than a running cost. Both count a bill on the day it was paid.
         var cashPaidForAssets = companyData.Expenses
-            .Where(e => IsInDateRange(e.Date) && CapitalizedShares.ContainsKey(e.Id))
+            .Where(e => e.CashDate is { } paid && IsInDateRange(paid) && CapitalizedShares.ContainsKey(e.Id))
             .Sum(e => ToDisplay(PurchaseTax.CostUSD(e, Rule) * CapitalizedShares[e.Id], e.Date));
-        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, RangeStart, RangeEnd, ToDisplay)
+        var cashPaidForExpenses = ExpenseAggregator.SumCashPaidDisplay(companyData.Expenses, RangeStart, RangeEnd, ToDisplay)
                                   - cashPaidForAssets;
         var (cashFromAssetSales, salesPending) = AssetSaleProceeds(RangeStart, RangeEnd);
 
-        var totalOperating = cashFromSales + cashFromInvoicePayments - cashPaidForExpenses;
+        var (salesTaxPaidInRange, salesTaxPending) = SalesTaxPeriods.PaidBetween(companyData, RangeStart, RangeEnd, DisplayCode);
+        var totalOperating = cashFromSales + cashFromInvoicePayments - cashPaidForExpenses - salesTaxPaidInRange;
         var totalInvesting = cashFromAssetSales - cashPaidForAssets;
 
         var netChange = totalOperating + totalInvesting;
@@ -1089,10 +1109,21 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             RowType = AccountingRowType.DataRow
         });
 
+        if (salesTaxPaidInRange != 0 || salesTaxPending)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Sales Tax Paid",
+                Values = [salesTaxPending ? PendingText : FormatCurrencyWithSign(-salesTaxPaidInRange)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
         data.Rows.Add(new AccountingRow
         {
             Label = "Net Cash from Operating Activities",
-            Values = [FormatCurrencyWithSign(totalOperating)],
+            Values = [salesTaxPending ? PendingText : FormatCurrencyWithSign(totalOperating)],
             RowType = AccountingRowType.SubtotalRow
         });
 
@@ -1139,7 +1170,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = "NET CHANGE IN CASH",
-            Values = [SalesBased(netChange)],
+            Values = [salesTaxPending ? PendingText : SalesBased(netChange)],
             RowType = AccountingRowType.GrandTotalRow
         });
 
@@ -1252,14 +1283,18 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         {
             var customerName = companyData.GetCustomer(pmt.CustomerId)?.Name ?? "Unknown";
             var amount = ToDisplay(pmt.EffectiveAmountUSD, pmt.Date);
-            AddLedgerEntry(entries, t.PaymentsReceivedCategory, new LedgerEntry
+            // A credit note moves no money, so it only comes off revenue below.
+            if (!pmt.IsCreditNote)
             {
-                Date = pmt.Date,
-                Description = $"Payment from {customerName}",
-                Reference = pmt.Id,
-                Debit = pmt.IsRefund ? 0 : amount,
-                Credit = pmt.IsRefund ? -amount : 0
-            });
+                AddLedgerEntry(entries, t.PaymentsReceivedCategory, new LedgerEntry
+                {
+                    Date = pmt.Date,
+                    Description = $"Payment from {customerName}",
+                    Reference = pmt.Id,
+                    Debit = pmt.IsRefund ? 0 : amount,
+                    Credit = pmt.IsRefund ? -amount : 0
+                });
+            }
 
             // A refund also comes off revenue on its own date, before tax (docs/Calculations.md §8).
             if (pmt.IsRefund)
@@ -1267,7 +1302,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 AddLedgerEntry(entries, t.RevenueCategory, new LedgerEntry
                 {
                     Date = pmt.Date,
-                    Description = $"Refund to {customerName}",
+                    Description = pmt.IsCreditNote ? $"Credit note for {customerName}" : $"Refund to {customerName}",
                     Reference = pmt.Id,
                     Debit = ToDisplay(RefundAggregator.PreTaxPortionUSD(pmt, InvoicesById), pmt.Date),
                     Credit = 0
@@ -1532,6 +1567,79 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
     #endregion
 
+    #region Accounts Payable Aging
+
+    /// <summary>
+    /// The bills still owed on the report's end date, by supplier and by how far past due, adding up to
+    /// the bills in the Balance Sheet's Accounts Payable. Purchase orders not yet received are left out:
+    /// they are owed on delivery, so they have no due date to age by.
+    /// </summary>
+    private AccountingTableData GetAPAgingData()
+    {
+        var t = GetAccountingTerms();
+        var data = new AccountingTableData
+        {
+            Title = t.APAgingTitle,
+            Subtitle = GetCurrencySubtitle(),
+            ColumnHeaders = ["Supplier", "Current", "1-30 Days", "31-60 Days", "61-90 Days", "90+ Days", "Total"],
+            ColumnWidthRatios = [0.25, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125]
+        };
+
+        var asOf = EndDateForValuation;
+        var bySupplier = (companyData?.Expenses ?? [])
+            .Where(e => e.IsOwedOn(asOf))
+            .GroupBy(e => e.SupplierId ?? "")
+            .Select(g => (Name: BillSupplierName(g.Key), Known: !string.IsNullOrEmpty(g.Key) && companyData!.GetSupplier(g.Key) != null, Bills: g.ToList()))
+            .OrderBy(s => s.Known ? 0 : 1)
+            .ThenBy(s => s.Name)
+            .ToList();
+
+        var totals = new decimal[6];
+        foreach (var supplier in bySupplier)
+        {
+            var buckets = new decimal[6];
+            foreach (var bill in supplier.Bills)
+            {
+                var daysPastDue = (asOf.Date - bill.DueDate!.Value.Date).Days;
+                var bucket = daysPastDue <= 0 ? 0 : daysPastDue <= 30 ? 1 : daysPastDue <= 60 ? 2 : daysPastDue <= 90 ? 3 : 4;
+                // Converted at the bill's own date, as the Balance Sheet does (Calculations.md Rule 4).
+                var owed = ToDisplay(bill.EffectiveTotalUSD, bill.Date);
+                buckets[bucket] += owed;
+                buckets[5] += owed;
+            }
+
+            for (var i = 0; i < 6; i++)
+                totals[i] += buckets[i];
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = supplier.Name,
+                Values = buckets.Select(FormatCurrency).ToList(),
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        if (bySupplier.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No unpaid bills", Values = ["", "", "", "", "", ""] });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL",
+            Values = totals.Select(FormatCurrency).ToList(),
+            RowType = AccountingRowType.TotalRow
+        });
+
+        return data;
+    }
+
+    private string BillSupplierName(string supplierId) =>
+        string.IsNullOrEmpty(supplierId)
+            ? "(Bills with no supplier)"
+            : companyData?.GetSupplier(supplierId)?.Name ?? "(Supplier no longer on file)";
+
+    #endregion
+
     #region Customer Statement
 
     /// <summary>One of the customer's invoices, with its total and each payment on it in the display currency.</summary>
@@ -1543,7 +1651,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     }
 
     /// <summary>A payment on a statement invoice. DateKnown is false for a paid amount imported without its payments.</summary>
-    private sealed record StatementPayment(DateTime Date, decimal Amount, bool DateKnown);
+    private sealed record StatementPayment(DateTime Date, decimal Amount, bool DateKnown, bool IsCreditNote = false);
 
     /// <summary>A statement for one customer: what they owe today, or what was invoiced and paid between the dates.</summary>
     private AccountingTableData GetCustomerStatementData()
@@ -1578,7 +1686,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     private List<StatementInvoice> GetStatementInvoices(string customerId)
     {
         var paymentsByInvoice = companyData!.Payments
-            .Where(p => !p.IsRefund && p.Amount > 0 && !string.IsNullOrEmpty(p.InvoiceId))
+            .Where(p => ((!p.IsRefund && p.Amount > 0) || p.IsCreditNote) && !string.IsNullOrEmpty(p.InvoiceId))
             .ToLookup(p => p.InvoiceId);
 
         var result = new List<StatementInvoice>();
@@ -1606,14 +1714,14 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                     break;
 
                 var amount = invoice.Total > 0 && string.Equals(payment.OriginalCurrency, invoice.OriginalCurrency, StringComparison.OrdinalIgnoreCase)
-                    ? total * payment.Amount / invoice.Total
-                    : ToDisplay(payment.EffectiveAmountUSD, invoice.IssueDate);
+                    ? total * Math.Abs(payment.Amount) / invoice.Total
+                    : ToDisplay(Math.Abs(payment.EffectiveAmountUSD), invoice.IssueDate);
                 amount = Math.Min(Math.Round(amount, 2, MidpointRounding.AwayFromZero), remaining);
                 remaining -= amount;
 
                 // A payment taken before the invoice was issued is shown on the issue date, so it never lands outside the invoice's own period.
                 var date = payment.Date.Date < invoice.IssueDate.Date ? invoice.IssueDate : payment.Date;
-                payments.Add(new StatementPayment(date, amount, true));
+                payments.Add(new StatementPayment(date, amount, true, payment.IsCreditNote));
             }
 
             result.Add(new StatementInvoice(invoice, total, payments));
@@ -1715,7 +1823,10 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             }
 
             foreach (var payment in item.Payments.Where(p => p.Date.Date >= start && p.Date.Date <= end))
-                entries.Add((payment.Date, 1, payment.DateKnown ? $"Payment for {number}" : $"Payment for {number} (date not recorded)", 0m, payment.Amount));
+                entries.Add((payment.Date, 1,
+                    payment.IsCreditNote ? $"Credit note for {number}"
+                    : payment.DateKnown ? $"Payment for {number}" : $"Payment for {number} (date not recorded)",
+                    0m, payment.Amount));
         }
 
         data.Rows.Add(new AccountingRow
@@ -1876,7 +1987,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         foreach (var refund in companyData.Payments.Where(p => p.IsRefund && p.Date >= RangeStart && p.Date <= RangeEnd
                                                                && RefundCustomerId(p) == customer.Id))
         {
-            var description = InvoicesById.TryGetValue(refund.InvoiceId ?? "", out var invoice) ? $"Refund for {invoice.InvoiceNumber}" : "Refund";
+            var kind = refund.IsCreditNote ? "Credit note" : "Refund";
+            var description = InvoicesById.TryGetValue(refund.InvoiceId ?? "", out var invoice) ? $"{kind} for {invoice.InvoiceNumber}" : kind;
             entries.Add((refund.Date, 1, description, refund.Id,
                 -ToDisplay(RefundAggregator.PreTaxPortionUSD(refund, InvoicesById), refund.Date),
                 -ToDisplay(Math.Abs(refund.EffectiveAmountUSD), refund.Date)));
@@ -2302,6 +2414,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         public string AccountsPayable { get; set; } = "Accounts Payable";
 
         public string ARAgingTitle { get; set; } = "Accounts Receivable Aging";
+        public string APAgingTitle { get; set; } = "Accounts Payable Aging";
         public string CustomerColumn { get; set; } = "Customer";
 
         // General Ledger
@@ -2375,6 +2488,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 terms.AccountsReceivable = "Trade Debtors";
                 terms.AccountsPayable = "Trade Creditors";
                 terms.ARAgingTitle = "Trade Debtors Aging";
+                terms.APAgingTitle = "Trade Creditors Aging";
                 terms.RevenueCategory = "Turnover";
                 break;
 
@@ -2383,6 +2497,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 terms.AccountsReceivable = "Trade Receivables";
                 terms.AccountsPayable = "Trade Payables";
                 terms.ARAgingTitle = "Trade Receivables Aging";
+                terms.APAgingTitle = "Trade Payables Aging";
                 break;
         }
 

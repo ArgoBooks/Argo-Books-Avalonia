@@ -226,6 +226,7 @@ public partial class App : Application
     public static LocationsModalsViewModel? LocationsModalsViewModel => _appShellViewModel?.LocationsModalsViewModel;
 
     public static AssetModalsViewModel? AssetModalsViewModel => _appShellViewModel?.AssetModalsViewModel;
+    public static SalesTaxModalsViewModel? SalesTaxModalsViewModel => _appShellViewModel?.SalesTaxModalsViewModel;
     public static PayrollModalsViewModel? PayrollModalsViewModel => _appShellViewModel?.PayrollModalsViewModel;
 
     public static PayRunModalsViewModel? PayRunModalsViewModel => _appShellViewModel?.PayRunModalsViewModel;
@@ -1080,6 +1081,7 @@ public partial class App : Application
     public static Controls.ColumnWidths.LocationsTableColumnWidths LocationsColumnWidths { get; } = new();
 
     public static Controls.ColumnWidths.AssetsTableColumnWidths AssetsColumnWidths { get; } = new();
+    public static Controls.ColumnWidths.SalesTaxTableColumnWidths SalesTaxColumnWidths { get; } = new();
     public static Controls.ColumnWidths.EmployeesTableColumnWidths EmployeesColumnWidths { get; } = new();
 
     public static Controls.ColumnWidths.PayRunsTableColumnWidths PayRunsColumnWidths { get; } = new();
@@ -1145,6 +1147,7 @@ public partial class App : Application
     private static CustomersPageViewModel? _customersPageViewModel;
     private static SuppliersPageViewModel? _suppliersPageViewModel;
     private static AssetsPageViewModel? _assetsPageViewModel;
+    private static SalesTaxPageViewModel? _salesTaxPageViewModel;
     private static RentalInventoryPageViewModel? _rentalInventoryPageViewModel;
     private static RentalRecordsPageViewModel? _rentalRecordsPageViewModel;
     private static ReturnsPageViewModel? _returnsPageViewModel;
@@ -1163,7 +1166,7 @@ public partial class App : Application
             _revenuePageViewModel, _expensesPageViewModel, _invoicesPageViewModel, _quotesPageViewModel,
             _bankMatchingPageViewModel, _productsPageViewModel, _stockLevelsPageViewModel, _locationsPageViewModel,
             _stockAdjustmentsPageViewModel, _purchaseOrdersPageViewModel, _categoriesPageViewModel,
-            _customersPageViewModel, _suppliersPageViewModel, _assetsPageViewModel, _rentalInventoryPageViewModel,
+            _customersPageViewModel, _suppliersPageViewModel, _assetsPageViewModel, _salesTaxPageViewModel, _rentalInventoryPageViewModel,
             _rentalRecordsPageViewModel, _returnsPageViewModel, _lostDamagedPageViewModel, _receiptsPageViewModel,
             _employeesPageViewModel, _payRunsPageViewModel
         })
@@ -1189,6 +1192,7 @@ public partial class App : Application
         _customersPageViewModel = null;
         _suppliersPageViewModel = null;
         _assetsPageViewModel = null;
+        _salesTaxPageViewModel = null;
         _rentalInventoryPageViewModel = null;
         _rentalRecordsPageViewModel = null;
         _returnsPageViewModel = null;
@@ -1218,10 +1222,13 @@ public partial class App : Application
     private static void StartCompanyOpenTiming(string kind, string filePath) =>
         _companyOpenTiming = new CompanyOpenTiming(System.Diagnostics.Stopwatch.StartNew(), kind, filePath);
 
-    /// <summary>Starts the timing for a file picked by path, which may be the sample company's.</summary>
-    private static void StartFileOpenTiming(string filePath) =>
+    /// <summary>
+    /// Starts the timing for a file opened by path, which may be the sample company's. The source says
+    /// how it was reached: recent (welcome screen), menu-recent, switcher, browse, shell (double-clicked), update or backup.
+    /// </summary>
+    private static void StartFileOpenTiming(string filePath, string source) =>
         StartCompanyOpenTiming(
-            string.Equals(filePath, SampleCompanyService.GetSampleCompanyPath(), StringComparison.OrdinalIgnoreCase) ? "sample" : "file",
+            string.Equals(filePath, SampleCompanyService.GetSampleCompanyPath(), StringComparison.OrdinalIgnoreCase) ? "sample" : source,
             filePath);
 
     private static void CancelCompanyOpenTiming() => _companyOpenTiming = null;
@@ -2245,10 +2252,11 @@ public partial class App : Application
         var file = shell.FileMenuPanelViewModel;
 
         // macOS lists the application's menu under the app's name, and only a window's menu as menus in the bar itself.
-        NativeMenu.SetMenu(this,
-        [
-            Item("Settings...", "Cmd+,", () => shell.SettingsModalViewModel.OpenCommand.Execute(null)),
-        ]);
+        var settings = Item("Settings...", "Cmd+,", () => shell.SettingsModalViewModel.OpenCommand.Execute(null));
+        if (NativeMenu.GetMenu(this) is { } appMenu)
+            appMenu.Items.Add(settings);
+        else
+            NativeMenu.SetMenu(this, [settings]);
 
         NativeMenu.SetMenu(window,
         [
@@ -2324,7 +2332,7 @@ public partial class App : Application
             while (CompanyManager?.IsOpening == true)
                 await Task.Delay(100);
 
-            await OpenCompanyWithRetryAsync(path);
+            await OpenCompanyWithRetryAsync(path, "shell");
         }
         catch (Exception ex)
         {
@@ -2341,6 +2349,7 @@ public partial class App : Application
     private static async Task TryOpenStartupCompanyAsync()
     {
         var requestedFile = StartupFileArgs.GetCompanyFilePath(_startupArgs) ?? _macActivationFile;
+        var source = "shell";
 
         // Past this point the shell is up, so an Apple Event that lands later opens directly
         // instead of being parked in _macActivationFile where nothing would read it.
@@ -2365,6 +2374,7 @@ public partial class App : Application
         {
             if (requestedFile == null && reopenAfterUpdate)
             {
+                source = "update";
                 // The file that needed the update comes first: it is the one the user was
                 // trying to open, and a failed open never added it to the recent list.
                 requestedFile = fileFromUpdatePrompt is { } pending && File.Exists(pending)
@@ -2375,7 +2385,7 @@ public partial class App : Application
             if (requestedFile == null)
                 return;
 
-            await OpenCompanyWithRetryAsync(requestedFile);
+            await OpenCompanyWithRetryAsync(requestedFile, source);
         }
         catch (Exception ex)
         {
@@ -3491,7 +3501,7 @@ public partial class App : Application
             File.Copy(backupPath, destPath, overwrite: true);
 
             // Open it as a new company (this closes the current one)
-            await OpenCompanyWithRetryAsync(destPath, leavingConfirmed: true);
+            await OpenCompanyWithRetryAsync(destPath, "backup", leavingConfirmed: true);
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.BackupRestored);
         }
         catch (Exception ex)
@@ -4257,7 +4267,7 @@ public partial class App : Application
         if (files.Count > 0)
         {
             var filePath = files[0].Path.LocalPath;
-            await OpenCompanyWithRetryAsync(filePath);
+            await OpenCompanyWithRetryAsync(filePath, "browse");
         }
     }
 
@@ -4382,8 +4392,9 @@ public partial class App : Application
     /// Shows password modal on encrypted files and retries on wrong password.
     /// </summary>
     /// <param name="filePath">The company file to open.</param>
+    /// <param name="source">How the file was reached, reported with the open's timing.</param>
     /// <param name="leavingConfirmed">True when the caller has already asked about unsaved changes.</param>
-    private static async Task OpenCompanyWithRetryAsync(string filePath, bool leavingConfirmed = false)
+    private static async Task OpenCompanyWithRetryAsync(string filePath, string source, bool leavingConfirmed = false)
     {
         if (CompanyManager == null || _mainWindowViewModel == null || _appShellViewModel == null) return;
         if (!leavingConfirmed && !await ConfirmLeavingCompanyAsync()) return;
@@ -4392,7 +4403,7 @@ public partial class App : Application
 
         _isOpeningCompany = true;
         _mainWindowViewModel.ShowLoading("Opening company...".Translate());
-        StartFileOpenTiming(filePath);
+        StartFileOpenTiming(filePath, source);
 
         try
         {
@@ -4436,7 +4447,7 @@ public partial class App : Application
 
             // Close the modal and retry with the new password
             passwordModal.Close();
-            await OpenCompanyWithPasswordRetryAsync(filePath, newPassword);
+            await OpenCompanyWithPasswordRetryAsync(filePath, newPassword, source);
         }
         catch (FileNotFoundException)
         {
@@ -4511,7 +4522,7 @@ public partial class App : Application
     /// <summary>
     /// Retries opening a company file with a specific password.
     /// </summary>
-    private static async Task<bool> OpenCompanyWithPasswordRetryAsync(string filePath, string password)
+    private static async Task<bool> OpenCompanyWithPasswordRetryAsync(string filePath, string password, string source)
     {
         if (CompanyManager == null || _mainWindowViewModel == null || _appShellViewModel == null)
             return false;
@@ -4519,7 +4530,7 @@ public partial class App : Application
         var passwordModal = _appShellViewModel.PasswordPromptModalViewModel;
 
         _mainWindowViewModel.ShowLoading("Opening company...".Translate());
-        StartFileOpenTiming(filePath);
+        StartFileOpenTiming(filePath, source);
 
         try
         {
@@ -4557,7 +4568,7 @@ public partial class App : Application
 
             // Close the modal and retry recursively
             passwordModal.Close();
-            return await OpenCompanyWithPasswordRetryAsync(filePath, newPassword);
+            return await OpenCompanyWithPasswordRetryAsync(filePath, newPassword, source);
         }
         catch (CompanyAlreadyOpenException)
         {
@@ -5266,6 +5277,7 @@ public partial class App : Application
             return new SuppliersPage { DataContext = _suppliersPageViewModel };
         });
         navigationService.RegisterPage("Assets", _ => new AssetsPage { DataContext = _assetsPageViewModel ??= new AssetsPageViewModel() });
+        navigationService.RegisterPage("SalesTax", _ => new SalesTaxPage { DataContext = _salesTaxPageViewModel ??= new SalesTaxPageViewModel() });
 
         // Rentals Section
         navigationService.RegisterPage("RentalInventory", _ => new RentalInventoryPage { DataContext = _rentalInventoryPageViewModel ??= new RentalInventoryPageViewModel() });

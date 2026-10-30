@@ -1929,7 +1929,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         // Revenue stat uses gross-of-tax (Total) per Calculations.md §2 Rule 1, refunds subtracted at full amount.
         var totalPurchasesUSD = ExpenseAggregator.SumExpensesUSD(data.Expenses, StartDate, EndDate);
         var grossRevenueUSD = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, StartDate, EndDate);
-        var refundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, StartDate, EndDate);
+        var refundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(RefundAggregator.ForPaidSales(data), StartDate, EndDate);
         var totalRevenueUSD = grossRevenueUSD - refundsUSD;
         var totalRevenuePreTaxUSD = RevenueAggregator.SumCollectedRevenuePreTaxUSD(data.Revenues, StartDate, EndDate);
         var netProfitUSD = ProfitCalculator.CalculateNetProfitUSD(data, StartDate, EndDate);
@@ -1940,7 +1940,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
 
         var prevPurchasesUSD = ExpenseAggregator.SumExpensesUSD(data.Expenses, prevStartDate, prevEndDate);
         var prevGrossRevenueUSD = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, prevStartDate, prevEndDate);
-        var prevRefundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, prevStartDate, prevEndDate);
+        var prevRefundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(RefundAggregator.ForPaidSales(data), prevStartDate, prevEndDate);
         var prevSalesUSD = prevGrossRevenueUSD - prevRefundsUSD;
         var prevSalesPreTaxUSD = RevenueAggregator.SumCollectedRevenuePreTaxUSD(data.Revenues, prevStartDate, prevEndDate);
         var prevNetProfit = ProfitCalculator.CalculateNetProfitUSD(data, prevStartDate, prevEndDate);
@@ -2023,7 +2023,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
             .Where(s => s.Date >= StartDate && s.Date <= EndDate)
             .Where(RevenueAggregator.IsCollected)
             .ToList();
-        var purchases = data.Expenses.Where(p => p.Date >= StartDate && p.Date <= EndDate).ToList();
+        var purchases = data.Expenses.Where(p => p.IsPaid && p.Date >= StartDate && p.Date <= EndDate).ToList();
 
         var totalTransactionsCount = sales.Count + purchases.Count;
         var avgTransactionValue = totalTransactionsCount > 0
@@ -2054,7 +2054,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
             .Where(s => s.Date >= prevStartDate && s.Date <= prevEndDate)
             .Where(RevenueAggregator.IsCollected)
             .ToList();
-        var prevPurchases = data.Expenses.Where(p => p.Date >= prevStartDate && p.Date <= prevEndDate).ToList();
+        var prevPurchases = data.Expenses.Where(p => p.IsPaid && p.Date >= prevStartDate && p.Date <= prevEndDate).ToList();
 
         var prevTotalTransactionsCount = prevSales.Count + prevPurchases.Count;
         var prevAvgTransactionValue = prevTotalTransactionsCount > 0
@@ -2070,9 +2070,9 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
 
         // Revenue growth (period over period), net of refunds on their own dates as the Revenue card counts it
         var currentRevenueTotal = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, StartDate, EndDate)
-            - RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, StartDate, EndDate);
+            - RefundAggregator.GetRefundedInDateRangeUSD(RefundAggregator.ForPaidSales(data), StartDate, EndDate);
         var prevRevenueTotal = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, prevStartDate, prevEndDate)
-            - RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, prevStartDate, prevEndDate);
+            - RefundAggregator.GetRefundedInDateRangeUSD(RefundAggregator.ForPaidSales(data), prevStartDate, prevEndDate);
         var revenueGrowthValue = prevRevenueTotal > 0 ? ((currentRevenueTotal - prevRevenueTotal) / prevRevenueTotal) * 100 : 0;
 
         var transactionsChange = prevTotalTransactionsCount > 0 ? ((double)(totalTransactionsCount - prevTotalTransactionsCount) / prevTotalTransactionsCount) * 100 : 0;
@@ -2257,12 +2257,12 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         var rule = PurchaseTax.RuleFor(data);
 
         var revenues = data.Revenues.Where(r => r.Date >= StartDate && r.Date <= EndDate).Where(RevenueAggregator.IsCollected).ToList();
-        var expenses = data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate).ToList();
+        var expenses = data.Expenses.Where(e => e.IsPaid && e.Date >= StartDate && e.Date <= EndDate).ToList();
 
         // EffectiveTaxAmountUSD, not a hand-rolled "USD if we have it, native otherwise". docs/Calculations.md §3 forbids summing native fields into a USD total.
         var grossTaxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);
         var taxCollectedUSD = grossTaxCollectedUSD
-            - RefundAggregator.GetRefundedTaxInDateRangeUSD(data.Payments, invoicesById, StartDate, EndDate);
+            - RefundAggregator.GetRefundedTaxInDateRangeUSD(RefundAggregator.ForPaidSales(data), invoicesById, StartDate, EndDate);
         var taxPaidUSD = expenses.Sum(e => e.EffectiveTaxAmountUSD);
         var netLiability = taxCollectedUSD - expenses.Sum(e => PurchaseTax.ClaimableUSD(e, rule));
 
@@ -2275,11 +2275,11 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         var (prevStartDate, prevEndDate) = ComparisonRange();
 
         var prevRevenues = data.Revenues.Where(r => r.Date >= prevStartDate && r.Date <= prevEndDate).Where(RevenueAggregator.IsCollected).ToList();
-        var prevExpenses = data.Expenses.Where(e => e.Date >= prevStartDate && e.Date <= prevEndDate).ToList();
+        var prevExpenses = data.Expenses.Where(e => e.IsPaid && e.Date >= prevStartDate && e.Date <= prevEndDate).ToList();
 
         var prevGrossTaxCollected = prevRevenues.Sum(r => r.EffectiveTaxAmountUSD);
         var prevTaxCollected = prevGrossTaxCollected
-            - RefundAggregator.GetRefundedTaxInDateRangeUSD(data.Payments, invoicesById, prevStartDate, prevEndDate);
+            - RefundAggregator.GetRefundedTaxInDateRangeUSD(RefundAggregator.ForPaidSales(data), invoicesById, prevStartDate, prevEndDate);
         var prevTaxPaid = prevExpenses.Sum(e => e.EffectiveTaxAmountUSD);
         var prevNetLiability = prevTaxCollected - prevExpenses.Sum(e => PurchaseTax.ClaimableUSD(e, rule));
         var prevTotalPreTax = prevRevenues.Sum(r => r.EffectiveSubtotalUSD) + prevExpenses.Sum(e => e.EffectiveSubtotalUSD);
@@ -2299,7 +2299,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
             revenues, r => r.TaxAmount, r => r.OriginalCurrency, r => r.EffectiveTaxAmountUSD, r => r.Date, out var grossTaxCollectedDisplay);
         // Refund tax is only known in USD, so it always converts from USD at the refund's date.
         var refundedComplete = CurrencyService.TryComputeDisplay(convert =>
-            RefundAggregator.GetRefundedTaxInDateRangeDisplay(data.Payments, invoicesById, StartDate, EndDate, convert),
+            RefundAggregator.GetRefundedTaxInDateRangeDisplay(RefundAggregator.ForPaidSales(data), invoicesById, StartDate, EndDate, convert),
             out var taxRefundedDisplay);
         var collectedComplete = grossCollectedComplete && refundedComplete;
         var taxCollectedDisplay = grossTaxCollectedDisplay - taxRefundedDisplay;

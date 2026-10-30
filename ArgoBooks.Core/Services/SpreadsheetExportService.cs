@@ -301,6 +301,7 @@ public class SpreadsheetExportService
             "Employees" => GetEmployeesData(data),
             "Pay Runs" => GetPayRunsData(data, startDate, endDate),
             "Assets" => GetAssetsData(data),
+            "Sales Tax Filings" => GetSalesTaxFilingsData(data, startDate, endDate),
             _ => ([], [])
         };
     }
@@ -418,7 +419,7 @@ public class SpreadsheetExportService
         // The name sits beside the id so a sheet of scanned receipts can be read on its own, without holding it next to the Suppliers sheet to find out who SUP-014 is. Presentation only.
         var supplierNames = NameLookup(data.Suppliers, s => s.Id, s => s.Name);
 
-        var headers = new[] { "ID", "Date", "Supplier ID", "Supplier Name", "Product", "Quantity", "Unit Price", "Tax", "Shipping", "Total", "Reference", "Payment Method", "Currency" };
+        var headers = new[] { "ID", "Date", "Supplier ID", "Supplier Name", "Product", "Quantity", "Unit Price", "Tax", "Shipping", "Total", "Reference", "Payment Method", "Due Date", "Paid Date", "Currency" };
         var filtered = data.Expenses.Where(p => IsInDateRange(p.Date, startDate, endDate));
         var rows = filtered.Select(p => new object[]
         {
@@ -434,6 +435,8 @@ public class SpreadsheetExportService
             p.Total,
             p.ReferenceNumber,
             p.PaymentMethod.ToString(),
+            p.DueDate is { } due ? (object)due : "",
+            p.PaidDate is { } paid ? (object)paid : "",
             p.OriginalCurrency
         }).ToList();
         return (headers, rows);
@@ -778,6 +781,39 @@ public class SpreadsheetExportService
             a.SalePrice,
             a.Notes
         }).ToList();
+
+        return (headers, rows);
+    }
+
+    /// <summary>Every sales tax return filed in the range, by the day it was paid, with what it reported and paid.</summary>
+    private static (string[] Headers, List<object[]> Rows) GetSalesTaxFilingsData(CompanyData data, DateTime? startDate, DateTime? endDate)
+    {
+        var headers = new[]
+        {
+            "ID", "Period", "Period Start", "Period End", "Due Date", "Paid Date", "Tax Collected", "Tax on Refunds",
+            "Tax Claimed Back", "Amount Paid", "Currency", "Paid By", "Confirmation Number"
+        };
+
+        var rows = data.SalesTaxFilings
+            .Where(f => IsInDateRange(f.PaidDate, startDate, endDate))
+            .OrderBy(f => f.PeriodStart)
+            .Select(f => new object[]
+            {
+                f.Id,
+                SalesTaxPeriods.NameOf(new SalesTaxPeriods.Period(f.PeriodStart, f.PeriodEnd, f.DueDate), f.Frequency),
+                f.PeriodStart,
+                f.PeriodEnd,
+                f.DueDate,
+                f.PaidDate,
+                f.Collected,
+                f.Refunded,
+                f.ClaimedBack,
+                f.Amount,
+                f.Currency,
+                f.PaymentMethod,
+                f.ConfirmationNumber
+            })
+            .ToList();
 
         return (headers, rows);
     }

@@ -303,6 +303,11 @@ public RevenuePageViewModel()
             App.RevenueModalsViewModel.FiltersApplied += OnFiltersApplied;
             App.RevenueModalsViewModel.FiltersCleared += OnFiltersCleared;
         }
+        if (App.ReturnsModalsViewModel != null)
+        {
+            App.ReturnsModalsViewModel.ReturnUndone += OnRevenueDeleted;
+            App.ReturnsModalsViewModel.ReturnRecorded += OnRevenueDeleted;
+        }
 
         // Subscribe to invoice events to refresh when invoices are generated from revenue
         if (App.InvoiceModalsViewModel != null)
@@ -337,6 +342,11 @@ public RevenuePageViewModel()
             App.RevenueModalsViewModel.RevenueDeleted -= OnRevenueDeleted;
             App.RevenueModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.RevenueModalsViewModel.FiltersCleared -= OnFiltersCleared;
+        }
+        if (App.ReturnsModalsViewModel != null)
+        {
+            App.ReturnsModalsViewModel.ReturnUndone -= OnRevenueDeleted;
+            App.ReturnsModalsViewModel.ReturnRecorded -= OnRevenueDeleted;
         }
         if (App.InvoiceModalsViewModel != null)
             App.InvoiceModalsViewModel.InvoiceSaved -= OnInvoiceSaved;
@@ -455,10 +465,7 @@ public RevenuePageViewModel()
 
         var lostDamagedIds = new HashSet<string>(
             companyData?.LostDamaged.Select(ld => ld.InventoryItemId ?? "") ?? []);
-        var returnedIds = new HashSet<string>(
-            companyData?.Returns
-                .Where(r => r.Status == ReturnStatus.Completed)
-                .Select(r => r.OriginalTransactionId) ?? []);
+        var returned = companyData == null ? [] : TransactionReturns.ReturnedById(companyData, _allRevenue);
 
         IEnumerable<Revenue> filtered = _allRevenue;
 
@@ -488,7 +495,7 @@ public RevenuePageViewModel()
         if (FilterStatus != "All")
         {
             filtered = filtered.Where(s =>
-                GetStatusDisplay(s, lostDamagedIds, returnedIds, RefundedForRevenue(s)) == FilterStatus);
+                GetStatusDisplay(s, lostDamagedIds, returned, RefundedForRevenue(s)) == FilterStatus);
         }
 
         if (!string.IsNullOrEmpty(FilterCustomerId))
@@ -544,7 +551,7 @@ public RevenuePageViewModel()
             var accountant = companyData?.GetAccountant(revenue.AccountantId ?? "");
             var refundedAmount = RefundedForRevenue(revenue);
             var netTotal = Math.Max(0, revenue.Total - refundedAmount);
-            var statusDisplay = revenue.IsPendingConversion ? "Pending" : GetStatusDisplay(revenue, lostDamagedIds, returnedIds, refundedAmount);
+            var statusDisplay = revenue.IsPendingConversion ? "Pending" : GetStatusDisplay(revenue, lostDamagedIds, returned, refundedAmount);
             var isFromPortal = !string.IsNullOrEmpty(revenue.InvoiceId) &&
                 onlinePaymentInvoiceIds.Contains(revenue.InvoiceId);
             var (productName, productMoreText) = Utilities.TransactionDisplay.ProductSummary(revenue);
@@ -634,10 +641,10 @@ public RevenuePageViewModel()
         Selection.MarkRows();
     }
 
-    private static string GetStatusDisplay(Revenue revenue, HashSet<string> lostDamagedIds, HashSet<string> returnedIds, decimal refundedAmount)
+    private static string GetStatusDisplay(Revenue revenue, HashSet<string> lostDamagedIds, Dictionary<string, bool> returned, decimal refundedAmount)
     {
         if (lostDamagedIds.Contains(revenue.Id)) return "Lost / Damaged";
-        if (returnedIds.Contains(revenue.Id)) return "Returned";
+        if (returned.TryGetValue(revenue.Id, out var all)) return all ? "Returned" : "Partial Return";
         if (refundedAmount > 0)
         {
             // Treat the revenue as fully refunded once the refund covers Total
@@ -774,6 +781,9 @@ public RevenuePageViewModel()
     }
 
     [RelayCommand]
+    private void MarkSalePaid(RevenueDisplayItem? item) => App.RevenueModalsViewModel?.MarkSalePaid(item);
+
+    [RelayCommand]
     private void MarkAsReturned(RevenueDisplayItem? item)
     {
         App.RevenueModalsViewModel?.OpenMarkAsReturnedModal(item);
@@ -788,7 +798,8 @@ public RevenuePageViewModel()
     [RelayCommand]
     private void UndoReturn(RevenueDisplayItem? item)
     {
-        App.RevenueModalsViewModel?.OpenUndoReturnedModal(item);
+        if (item != null)
+            App.ReturnsModalsViewModel?.OpenUndoLatestReturn(item.Id);
     }
 
     [RelayCommand]
@@ -1217,8 +1228,15 @@ public partial class RevenueDisplayItem : ObservableObject, ISelectableRow
 
     // Hide Lost/Returned controls for refunded rows, refund is its own
     // terminal state and shouldn't be intermixed with returns/loss tracking.
+    public bool HasReturn => IsReturned || IsPartialReturn;
     public bool CanMarkAsReturned => !IsReturned && !IsLostDamaged && !IsRefunded;
-    public bool CanMarkAsLostDamaged => !IsReturned && !IsLostDamaged && !IsRefunded;
+    public bool CanMarkAsLostDamaged => !HasReturn && !IsLostDamaged && !IsRefunded;
+
+    /// <summary>A sale with a return keeps its lines as they were, since the return points at them.</summary>
+    public bool CanEdit => !IsFromPortal && !HasReturn;
+
+    /// <summary>An unpaid sale with a return and no invoice, which can't be edited, is marked paid from its row.</summary>
+    public bool CanMarkPaid => HasReturn && !Paid && !HasInvoiceId;
 
     // Revenue rows generated by a portal payment must not be hand-edited or they'll drift from the server-of-record. Edit button is hidden when this is true.
     [ObservableProperty]
