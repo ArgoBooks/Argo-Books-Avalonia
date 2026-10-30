@@ -57,6 +57,12 @@ What it needs first, each made once:
 
 The cut follows Azure's transcript of the recording. Whole sentences listed in `RETAKES` are dropped. Inside a sentence, the recording is split at its pauses (it was gated, so they are near silence), each part is transcribed on its own, and a part that the next one starts over is dropped as a false start; the cut prints every part it drops and every sentence it keeps in more than one part. Each shot, highlight and label then starts on the word it belongs to. The shot list is `shot_list()`.
 
+## The Shorts
+
+- `catches_short.py` makes "the catch in each" from the recap of the roundup, in Evan's own voice. Run `roundup.py` first.
+- `pc_short.py` makes "Free accounting software for PC", narrated by an ElevenLabs voice. The key is `ELEVENLABS_API_KEY` in `.env.local` beside this README, which git ignores. Speech made on the ElevenLabs free plan cannot be used commercially, so run `python pc_short.py revoice` on a paid plan before publishing.
+- `render_thumbnail.js` saves a thumbnail's HTML as a PNG: `node render_thumbnail.js thumbnail.html 1280 720`.
+
 ## Credits
 
 The music and font need crediting. See `assets/CREDITS.txt`. The music's credit goes in the description of every video that uses it.

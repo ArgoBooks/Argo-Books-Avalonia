@@ -22,7 +22,7 @@ import numpy as np
 import make_video as mv
 
 HERE = Path(__file__).resolve().parent
-VIDEO_FOLDER = Path(r"C:\Users\evand\Desktop\Pictures\Argo\Argo Books\YouTube videos\Video 13 - Free accounting software roundup")
+VIDEO_FOLDER = Path(r"C:\Users\evand\Desktop\Pictures\Argo\Argo Books\Videos\Video 13 - Free accounting software roundup")
 WORK = HERE / "work" / "roundup"
 RATE = 48000
 
@@ -457,7 +457,7 @@ def keyed(keys, t):
     return keys[-1][1:]
 
 
-def page_frame(shot, t, pages, sprites):
+def page_frame(shot, t, pages, sprites, size=OUT):
     from PIL import Image, ImageDraw
     image, boxes = pages.get(shot["page"])
 
@@ -470,10 +470,10 @@ def page_frame(shot, t, pages, sprites):
     keys = [(k[0], k[1], *point(k[2])) for k in shot["keys"]]
     zoom, fx, fy = keyed(keys, t)
     w = image.width / zoom
-    h = w * OUT[1] / OUT[0]
+    h = w * size[1] / size[0]
     x = min(max(fx - w / 2, 0), image.width - w)
     y = min(max(fy - h / 2, 0), max(0, image.height - h))
-    ratio = OUT[0] / w
+    ratio = size[0] / w
 
     # The outlines are drawn on the page at its own size and shrunk along with it, so they stay fixed to the line they
     # mark; drawn on the shrunk frame they would snap to whole pixels while the page moved by fractions of one.
@@ -492,7 +492,7 @@ def page_frame(shot, t, pages, sprites):
             draw.rounded_rectangle((bx - pad - left, by - pad - top, bx + bw + pad - left, by + bh + pad - top), radius=14,
                                    fill=colour + (int(26 * alpha),), outline=colour + (int(230 * alpha),), width=9)
         region.alpha_composite(layer)
-    frame = region.resize(OUT, Image.LANCZOS, box=(x - left, y - top, x - left + w, y - top + h)).convert("RGBA")
+    frame = region.resize(size, Image.LANCZOS, box=(x - left, y - top, x - left + w, y - top + h)).convert("RGBA")
 
     if shot.get("cursor"):
         moves = [(at, point(target)) for at, target in shot["cursor"]]
@@ -521,8 +521,8 @@ def page_frame(shot, t, pages, sprites):
             alpha = min(ease((t - at) / 0.3), ease((until + 0.3 - t) / 0.3))
             note = notes_image(name)
             # Bottom right, where pricing pages keep the least: their plans and answers read from the left.
-            nx = OUT[0] - note.width - 30
-            ny = round(OUT[1] - note.height - 30 + 30 * (1 - alpha))
+            nx = size[0] - note.width - 30
+            ny = round(size[1] - note.height - 30 + 30 * (1 - alpha))
             faded = note.copy()
             faded.putalpha(note.getchannel("A").point(lambda a: int(a * alpha)))
             frame.alpha_composite(faded, (nx, ny))
@@ -621,7 +621,7 @@ def render_shot(job):
     return index
 
 
-OUTRO = Path(r"C:\Users\evand\Desktop\Pictures\Argo\Argo Books\YouTube videos\Assets\Outro.mp4")
+OUTRO = Path(r"C:\Users\evand\Desktop\Pictures\Argo\Argo Books\Videos\Assets\Outro.mp4")
 TAKES = WORK / "takes"
 RECEIPT_TAKES = HERE / "work" / "takes"
 
