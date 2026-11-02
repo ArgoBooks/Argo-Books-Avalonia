@@ -77,4 +77,129 @@ public class ReportsPageDateRangeTests : ModalViewModelTestBase
             Assert.Equal(before, (vm.Configuration.Filters.DatePresetName, vm.Configuration.Filters.StartDate, vm.Configuration.Filters.EndDate));
         });
     }
+
+    private static CustomMonthOption Month(ReportsPageViewModel vm, int month) =>
+        vm.CustomPeriodMonths.Single(m => m.Month == month);
+
+    private static string PeriodShownOnThePage(ReportsPageViewModel vm)
+    {
+        using var renderer = new ReportRenderer(vm.Configuration, null);
+        var text = typeof(ReportRenderer).GetMethod("GetDateRangeText", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        return (string)text.Invoke(renderer, ["yyyy-MM-dd"])!;
+    }
+
+    [Fact]
+    public void PickingAYear_MakesTheReportThatWholeYear()
+    {
+        InDesigner(vm =>
+        {
+            vm.SelectedDatePresetOption = Preset(vm, DatePresetNames.Custom);
+
+            vm.CustomPeriodYear = 2024;
+
+            Assert.Equal(DatePresetNames.Custom, vm.Configuration.Filters.DatePresetName);
+            Assert.Equal(new DateTime(2024, 1, 1), vm.Configuration.Filters.StartDate);
+            Assert.Equal(new DateTime(2024, 12, 31), vm.Configuration.Filters.EndDate);
+            Assert.Contains("2024-01-01", PeriodShownOnThePage(vm));
+            Assert.Contains("2024-12-31", PeriodShownOnThePage(vm));
+        });
+    }
+
+    [Fact]
+    public void PickingAMonth_NarrowsTheYearToThatMonth_AndTheWholeYearWidensItAgain()
+    {
+        InDesigner(vm =>
+        {
+            vm.SelectedDatePresetOption = Preset(vm, DatePresetNames.Custom);
+            vm.CustomPeriodYear = 2024;
+
+            vm.CustomPeriodMonth = Month(vm, 2);
+
+            Assert.Equal(new DateTime(2024, 2, 1), vm.Configuration.Filters.StartDate);
+            Assert.Equal(new DateTime(2024, 2, 29), vm.Configuration.Filters.EndDate);
+
+            vm.CustomPeriodMonth = vm.CustomPeriodMonths[0];
+
+            Assert.Equal(new DateTime(2024, 12, 31), vm.Configuration.Filters.EndDate);
+        });
+    }
+
+    [Fact]
+    public void PickingAMonthWithNoYear_MeansThisYear()
+    {
+        InDesigner(vm =>
+        {
+            vm.SelectedDatePresetOption = Preset(vm, DatePresetNames.Custom);
+
+            vm.CustomPeriodMonth = Month(vm, 1);
+
+            Assert.Equal(DateTime.Today.Year, vm.CustomPeriodYear);
+            Assert.Equal(new DateTime(DateTime.Today.Year, 1, 1), vm.Configuration.Filters.StartDate);
+        });
+    }
+
+    [Fact]
+    public void DatesTypedByHand_ShowAsTheYearOrMonthTheyMakeUp()
+    {
+        InDesigner(vm =>
+        {
+            vm.SelectedDatePresetOption = Preset(vm, DatePresetNames.Custom);
+
+            vm.CustomStartDate = new DateTimeOffset(new DateTime(2024, 3, 1));
+            vm.CustomEndDate = new DateTimeOffset(new DateTime(2024, 3, 31));
+
+            Assert.Equal(2024, vm.CustomPeriodYear);
+            Assert.Equal(3, vm.CustomPeriodMonth?.Month);
+
+            vm.CustomEndDate = new DateTimeOffset(new DateTime(2024, 3, 20));
+
+            Assert.Null(vm.CustomPeriodYear);
+            Assert.Null(vm.CustomPeriodMonth);
+            Assert.Equal(new DateTime(2024, 3, 20), vm.Configuration.Filters.EndDate);
+        });
+    }
+
+    [Fact]
+    public void ThePeriodOnThePage_FollowsEveryChangeOfDates()
+    {
+        InDesigner(vm =>
+        {
+            var lastYear = DateTime.Today.Year - 1;
+
+            vm.SelectedDatePresetOption = Preset(vm, DatePresetNames.LastYear);
+            Assert.Contains($"{lastYear}-01-01", PeriodShownOnThePage(vm));
+
+            vm.SelectedDatePresetOption = Preset(vm, DatePresetNames.Custom);
+            vm.CustomPeriodYear = 2021;
+            Assert.Contains("2021-01-01", PeriodShownOnThePage(vm));
+
+            vm.CustomPeriodMonth = Month(vm, 7);
+            Assert.Contains("2021-07-31", PeriodShownOnThePage(vm));
+
+            vm.SelectedDatePresetOption = Preset(vm, DatePresetNames.LastYear);
+            Assert.Contains($"{lastYear}-12-31", PeriodShownOnThePage(vm));
+        });
+    }
+
+    [Fact]
+    public void TheComparisonColumns_UseThePeriodOnThePage()
+    {
+        InDesigner(vm =>
+        {
+            vm.SelectedDatePresetOption = Preset(vm, DatePresetNames.Custom);
+            vm.CustomPeriodYear = 2024;
+            vm.CustomPeriodMonth = Month(vm, 3);
+            var data = new ArgoBooks.Core.Data.CompanyData();
+            data.Settings.Localization.Currency = "USD";
+            data.Revenues.Add(new ArgoBooks.Core.Models.Transactions.Revenue { Id = "R1", Date = new DateTime(2024, 3, 10), OriginalCurrency = "USD", Subtotal = 100m, Total = 100m, TotalUSD = 100m });
+            data.Revenues.Add(new ArgoBooks.Core.Models.Transactions.Revenue { Id = "R2", Date = new DateTime(2024, 4, 10), OriginalCurrency = "USD", Subtotal = 900m, Total = 900m, TotalUSD = 900m });
+            data.Revenues.Add(new ArgoBooks.Core.Models.Transactions.Revenue { Id = "R3", Date = new DateTime(2023, 3, 10), OriginalCurrency = "USD", Subtotal = 70m, Total = 70m, TotalUSD = 70m });
+
+            var report = new AccountingReportDataService(data, vm.Configuration.Filters)
+                .GetReportData(ArgoBooks.Core.Enums.AccountingReportType.IncomeStatement, ArgoBooks.Core.Enums.IncomeComparison.LastYear);
+
+            var revenue = report.Rows.Single(r => r.Label == "Total Revenue").Values;
+            Assert.Equal(["$100.00", "$70.00", "$30.00"], revenue);
+        });
+    }
 }

@@ -54,9 +54,25 @@ public class EnumDisplayNameConverterTests
     [InlineData(AccountingReportType.CashFlowStatement, "Cash Flow Statement")]
     [InlineData(AccountingReportType.GeneralLedger, "General Ledger")]
     [InlineData(AccountingReportType.TaxSummary, "Tax Summary")]
+    [InlineData(AccountingReportType.TrialBalance, "Trial Balance")]
+    [InlineData(AccountingReportType.InventoryValuation, "Inventory Valuation")]
+    [InlineData(AccountingReportType.OpenInvoices, "Open Invoices")]
+    [InlineData(AccountingReportType.UnpaidBills, "Unpaid Bills")]
+    [InlineData(AccountingReportType.SalesTaxLiability, "Sales Tax Liability")]
     public void Convert_AccountingReportType_ReturnsDisplayName(AccountingReportType type, string expected)
     {
         var result = _converter.Convert(type, typeof(string), null, null!);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(IncomeComparison.None, "No comparison")]
+    [InlineData(IncomeComparison.LastYear, "Compare with last year")]
+    [InlineData(IncomeComparison.ByMonth, "By month")]
+    public void Convert_IncomeComparison_ReturnsDisplayName(IncomeComparison comparison, string expected)
+    {
+        var result = _converter.Convert(comparison, typeof(string), null, null!);
 
         Assert.Equal(expected, result);
     }

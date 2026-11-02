@@ -560,7 +560,7 @@ public class ReportRenderer : IDisposable
             foreach (var element in accountingElements)
             {
                 var dataService = new AccountingReportDataService(_companyData, _config.Filters);
-                var tableData = dataService.GetReportData(element.ReportType);
+                var tableData = dataService.GetReportData(element.ReportType, element.Comparison);
                 plan.CachedTableData[element.Id] = tableData;
 
                 if (tableData.Rows.Count == 0)
@@ -3186,7 +3186,7 @@ public class ReportRenderer : IDisposable
     {
         // Backward-compatible wrapper for designer mode (no continuation plan)
         var dataService = new AccountingReportDataService(_companyData, _config.Filters);
-        var tableData = dataService.GetReportData(element.ReportType);
+        var tableData = dataService.GetReportData(element.ReportType, element.Comparison);
 
         RenderAccountingTableSlice(canvas, element, tableData,
             startRowIndex: 0, rowCount: tableData.Rows.Count, dataRowStartIndex: 0,
@@ -3232,8 +3232,7 @@ public class ReportRenderer : IDisposable
 
         // Calculate column widths from ratios (prefer element's custom ratios if set and matching column count)
         var availableWidth = rect.Width - (cellPadding * 2);
-        var effectiveRatios = (element.ColumnWidthRatios?.Count == tableData.ColumnWidthRatios.Count)
-            ? element.ColumnWidthRatios : tableData.ColumnWidthRatios;
+        var effectiveRatios = element.EffectiveColumnRatios(tableData);
         var columnWidths = new float[effectiveRatios.Count];
         for (int i = 0; i < effectiveRatios.Count; i++)
             columnWidths[i] = availableWidth * (float)effectiveRatios[i];
@@ -3774,9 +3773,28 @@ public class ReportRenderer : IDisposable
         if (string.IsNullOrEmpty(text)) return;
         canvas.Save();
         canvas.ClipRect(clipRect);
-        canvas.DrawText(text, x, y, align, font, paint);
+
+        // Right-aligned text loses its start when clipped, which would turn $1,189,180 into 189,180, so it is drawn smaller to fit.
+        var size = align == SKTextAlign.Right ? FittedFontSize(font.MeasureText(text), x - clipRect.Left, font.Size) : font.Size;
+        if (size < font.Size)
+        {
+            using var fitted = new SKFont(font.Typeface, size);
+            canvas.DrawText(text, x, y, align, fitted, paint);
+        }
+        else
+        {
+            canvas.DrawText(text, x, y, align, font, paint);
+        }
+
         canvas.Restore();
     }
+
+    /// <summary>
+    /// The font size that fits text into a width, down to 60% of <paramref name="fontSize"/>, below which a
+    /// long name in a narrow column would be unreadable anyway.
+    /// </summary>
+    internal static float FittedFontSize(float textWidth, float availableWidth, float fontSize) =>
+        textWidth <= availableWidth ? fontSize : Math.Max(fontSize * 0.6f, fontSize * availableWidth / textWidth);
 
     private static SKColor ParseColor(string colorString)
     {

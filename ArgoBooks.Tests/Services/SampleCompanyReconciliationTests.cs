@@ -66,13 +66,13 @@ public class SampleCompanyReconciliationTests
         return prior;
     }
 
-    private static async Task<AccountingTableData> Report(AccountingReportType type, ReportFilters? filters = null)
+    private static async Task<AccountingTableData> Report(AccountingReportType type, ReportFilters? filters = null, IncomeComparison comparison = IncomeComparison.None)
     {
         var (data, rates) = await Sample.Value;
         var prior = SetInstance(rates);
         try
         {
-            return new AccountingReportDataService(data, filters ?? new ReportFilters()).GetReportData(type);
+            return new AccountingReportDataService(data, filters ?? new ReportFilters()).GetReportData(type, comparison);
         }
         finally
         {
@@ -181,5 +181,72 @@ public class SampleCompanyReconciliationTests
         }
 
         Assert.True(checkedAny);
+    }
+
+    [Fact]
+    public async Task TrialBalance_Balances_AndAgreesWithTheBalanceSheet()
+    {
+        var trialBalance = await Report(AccountingReportType.TrialBalance);
+        var balanceSheet = await Report(AccountingReportType.BalanceSheet);
+
+        Assert.True(Amount(trialBalance, "TOTAL", 0) > 0);
+        Assert.Equal(Amount(trialBalance, "TOTAL", 0), Amount(trialBalance, "TOTAL", 1));
+        Assert.Equal(Amount(balanceSheet, "Cash (Estimated)"), Amount(trialBalance, "Cash (Estimated)", 0));
+    }
+
+    [Fact]
+    public async Task TrialBalance_ForPartOfTheYear_StillBalances()
+    {
+        var range = new ReportFilters { StartDate = DateTime.Today.AddMonths(-6), EndDate = DateTime.Today };
+
+        var trialBalance = await Report(AccountingReportType.TrialBalance, range);
+
+        Assert.Equal(Amount(trialBalance, "TOTAL", 0), Amount(trialBalance, "TOTAL", 1));
+    }
+
+    [Fact]
+    public async Task OpenInvoices_AddUpToAccountsReceivable()
+    {
+        Assert.Equal(
+            Amount(await Report(AccountingReportType.BalanceSheet), "Accounts Receivable"),
+            Amount(await Report(AccountingReportType.OpenInvoices), "TOTAL", 5));
+    }
+
+    [Fact]
+    public async Task UnpaidBills_AddUpToTheAgingReport()
+    {
+        Assert.Equal(
+            Amount(await Report(AccountingReportType.AccountsPayableAging), "TOTAL", 5),
+            Amount(await Report(AccountingReportType.UnpaidBills), "TOTAL", 4));
+    }
+
+    [Fact]
+    public async Task InventoryValuation_AddsUpToTheBalanceSheet()
+    {
+        Assert.Equal(
+            Amount(await Report(AccountingReportType.BalanceSheet), "Inventory"),
+            Amount(await Report(AccountingReportType.InventoryValuation), "TOTAL", 4));
+    }
+
+    [Fact]
+    public async Task SalesTaxLiability_AddsUpToSalesTaxPayable()
+    {
+        var balanceSheet = await Report(AccountingReportType.BalanceSheet);
+        var taxPayable = balanceSheet.Rows.Single(r => r.Label.EndsWith("Payable", StringComparison.Ordinal) && r.IndentLevel > 0 && !r.Label.StartsWith("Accounts", StringComparison.Ordinal));
+
+        Assert.Equal(ParseAmount(taxPayable.Values[0]), Amount(await Report(AccountingReportType.SalesTaxLiability), "TOTAL", 5));
+    }
+
+    [Fact]
+    public async Task IncomeStatement_Comparisons_KeepTheSameNetIncome()
+    {
+        var range = new ReportFilters { StartDate = DateTime.Today.AddMonths(-6), EndDate = DateTime.Today };
+        var plain = Amount(await Report(AccountingReportType.IncomeStatement, range), "NET INCOME");
+
+        var lastYear = await Report(AccountingReportType.IncomeStatement, range, IncomeComparison.LastYear);
+        var byMonth = await Report(AccountingReportType.IncomeStatement, range, IncomeComparison.ByMonth);
+
+        Assert.Equal(plain, Amount(lastYear, "NET INCOME"));
+        Assert.Equal(Math.Round(plain, MidpointRounding.AwayFromZero), ParseAmount(byMonth.Rows.Single(r => r.Label == "NET INCOME").Values[^1]));
     }
 }

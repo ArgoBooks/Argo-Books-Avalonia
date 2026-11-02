@@ -18,21 +18,28 @@ See [Calculations](Calculations.md) for the rules governing how the numbers in e
 
 **Accounting reports** count every sale in the date range, paid or not (the accrual basis), except the cash figures, which count only money actually received. There is no option to change this. Section 10 of [Calculations](Calculations.md) has the details. The accounting reports are:
 
-- Income Statement
+- Income Statement (one amount column, or set Comparison on the table to compare with last year or show each month)
 - Balance Sheet
 - Cash Flow Statement
 - General Ledger
+- Trial Balance
 - Accounts Receivable Aging
 - Accounts Payable Aging
+- Open Invoices
+- Unpaid Bills
 - Customer Statement
 - Tax Summary
+- Sales Tax Liability
 - Sales by Product
+- Inventory Valuation
 - Sales by Customer (one row per customer, or each sale and refund for one chosen customer)
 - Expenses by Supplier
 - Payroll Remittance
 - Payroll Summary
 - Rentals
 - Asset Register
+
+The date range is a preset, such as This Year or Last Quarter, or Custom. Custom takes any two dates, or a year and optionally one of its months, which fills them in. A year or month still under way ends today.
 
 ## Creating a report
 

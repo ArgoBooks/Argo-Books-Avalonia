@@ -229,11 +229,11 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// <summary>
     /// Dispatches to the appropriate report generation method based on report type.
     /// </summary>
-    public AccountingTableData GetReportData(AccountingReportType reportType)
+    public AccountingTableData GetReportData(AccountingReportType reportType, IncomeComparison comparison = IncomeComparison.None)
     {
         return reportType switch
         {
-            AccountingReportType.IncomeStatement => GetIncomeStatementData(),
+            AccountingReportType.IncomeStatement => GetIncomeStatementData(comparison),
             AccountingReportType.BalanceSheet => GetBalanceSheetData(),
             AccountingReportType.CashFlowStatement => GetCashFlowData(),
             AccountingReportType.GeneralLedger => GetGeneralLedgerData(),
@@ -248,6 +248,11 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             AccountingReportType.PayrollSummary => GetPayrollSummaryData(),
             AccountingReportType.Rentals => GetRentalsData(),
             AccountingReportType.AssetRegister => GetAssetRegisterData(),
+            AccountingReportType.TrialBalance => GetTrialBalanceData(),
+            AccountingReportType.InventoryValuation => GetInventoryValuationData(),
+            AccountingReportType.OpenInvoices => GetOpenInvoicesData(),
+            AccountingReportType.UnpaidBills => GetUnpaidBillsData(),
+            AccountingReportType.SalesTaxLiability => GetSalesTaxLiabilityData(),
             _ => new AccountingTableData { Title = "Unknown Report" }
         };
     }
@@ -374,7 +379,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// <summary>
     /// Generates Income Statement data showing revenue, expenses, and net income.
     /// </summary>
-    private AccountingTableData GetIncomeStatementData()
+    private AccountingTableData GetIncomeStatementData(IncomeComparison comparison)
     {
         var t = GetAccountingTerms();
         var data = new AccountingTableData
@@ -391,47 +396,76 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return data;
         }
 
-        var income = IncomeInRange();
-        var revenueByCategory = income.RevenueByCategory;
-        var expenseByCategory = income.ExpenseByCategory;
-        var refunds = income.Refunds;
-        var depreciation = income.Depreciation;
-        var gainOnDisposal = income.GainOnDisposal;
-        var totalRevenue = income.TotalRevenue;
-        var totalExpenses = income.TotalExpenses;
-        var costOfGoods = income.CostOfGoods;
-        var netIncome = income.NetIncome;
-        var assetsPending = income.AssetsPending || income.PayrollPending;
-        var costPending = income.CostPending;
+        var (columns, note) = IncomeColumns(comparison);
+        var showChange = comparison == IncomeComparison.LastYear && columns.Count == 2;
+        // Twelve months and a total only fit across a page without their cents.
+        var wholeAmounts = comparison == IncomeComparison.ByMonth && columns.Count > 1;
 
-        string AfterCost(decimal amount) => costPending ? PendingText : FormatCurrencyWithSign(amount);
-        string AssetBased(decimal amount) => assetsPending ? PendingText : FormatCurrencyWithSign(amount);
+        string Shown(decimal amount, bool signed)
+        {
+            if (wholeAmounts)
+            {
+                var whole = MoneyFormat.Format(Math.Abs(amount), CurrencyInfo.GetByCode(DisplayCode).Symbol, 0);
+                return amount < 0 ? $"({whole})" : whole;
+            }
+            return signed ? FormatCurrencyWithSign(amount) : FormatCurrency(amount);
+        }
+
+        List<string> Cells(Func<IncomeFigures, decimal> amount, Func<IncomeFigures, bool>? pending = null, bool signed = true)
+        {
+            var cells = columns.Select(c => pending?.Invoke(c.Figures) == true ? PendingText : Shown(amount(c.Figures), signed)).ToList();
+            if (showChange)
+            {
+                cells.Add(columns.Any(c => pending?.Invoke(c.Figures) == true)
+                    ? PendingText
+                    : FormatCurrencyWithSign(amount(columns[0].Figures) - amount(columns[1].Figures)));
+            }
+            return cells;
+        }
+
+        bool Any(Func<IncomeFigures, bool> test) => columns.Any(c => test(c.Figures));
+
+        static bool AssetBased(IncomeFigures income) => income.AssetsPending || income.PayrollPending;
+        static bool AfterCost(IncomeFigures income) => income.CostPending;
+        static bool Net(IncomeFigures income) => AssetBased(income) || income.CostPending;
+
+        List<string> headers = [.. columns.Select(c => c.Header)];
+        if (showChange)
+            headers.Add("Change");
+
+        if (headers.Count > 1)
+        {
+            // The total of a year of months is wider than any one month.
+            double[] weights = [.. headers.Select((_, i) => wholeAmounts && i == headers.Count - 1 ? 1.7 : 1)];
+            var labelWidth = Math.Max(0.2, 1 - weights.Sum() * 0.18);
+            data.ColumnWidthRatios = [labelWidth, .. weights.Select(w => (1 - labelWidth) * w / weights.Sum())];
+        }
 
         // Revenue section
         data.Rows.Add(new AccountingRow
         {
             Label = t.Revenue,
             RowType = AccountingRowType.SectionHeader,
-            Values = ["Amount"]
+            Values = headers
         });
 
-        foreach (var kvp in revenueByCategory.OrderBy(k => k.Key))
+        foreach (var category in columns.SelectMany(c => c.Figures.RevenueByCategory.Keys).Distinct().Order())
         {
             data.Rows.Add(new AccountingRow
             {
-                Label = kvp.Key,
-                Values = [FormatCurrency(kvp.Value)],
+                Label = category,
+                Values = Cells(i => i.RevenueByCategory.GetValueOrDefault(category), signed: false),
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
         }
 
-        if (refunds != 0)
+        if (Any(i => i.Refunds != 0))
         {
             data.Rows.Add(new AccountingRow
             {
                 Label = "Refunds",
-                Values = [FormatCurrencyWithSign(-refunds)],
+                Values = Cells(i => -i.Refunds),
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
@@ -440,16 +474,16 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = t.TotalRevenue,
-            Values = [FormatCurrencyWithSign(totalRevenue)],
+            Values = Cells(i => i.TotalRevenue),
             RowType = AccountingRowType.SubtotalRow
         });
 
-        if (costOfGoods != 0 || costPending)
+        if (Any(i => i.CostOfGoods != 0 || i.CostPending))
         {
             data.Rows.Add(new AccountingRow
             {
                 Label = "Cost of Goods Sold",
-                Values = [AfterCost(-costOfGoods)],
+                Values = Cells(i => -i.CostOfGoods, AfterCost),
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
@@ -457,7 +491,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             data.Rows.Add(new AccountingRow
             {
                 Label = "Gross Profit",
-                Values = [AfterCost(totalRevenue - costOfGoods)],
+                Values = Cells(i => i.TotalRevenue - i.CostOfGoods, AfterCost),
                 RowType = AccountingRowType.SubtotalRow
             });
         }
@@ -472,41 +506,41 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             Values = [""]
         });
 
-        foreach (var kvp in expenseByCategory.OrderBy(k => k.Key))
+        foreach (var category in columns.SelectMany(c => c.Figures.ExpenseByCategory.Keys).Distinct().Order())
         {
             data.Rows.Add(new AccountingRow
             {
-                Label = kvp.Key,
-                Values = [FormatCurrency(kvp.Value)],
+                Label = category,
+                Values = Cells(i => i.ExpenseByCategory.GetValueOrDefault(category), signed: false),
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
         }
 
-        if (income.Wages != 0 || income.EmployerContributions != 0 || income.PayrollPending)
+        if (Any(i => i.Wages != 0 || i.EmployerContributions != 0 || i.PayrollPending))
         {
             data.Rows.Add(new AccountingRow
             {
                 Label = "Wages and Salaries",
-                Values = [income.PayrollPending ? PendingText : FormatCurrency(income.Wages)],
+                Values = Cells(i => i.Wages, i => i.PayrollPending, signed: false),
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
             data.Rows.Add(new AccountingRow
             {
                 Label = "Employer Payroll Contributions",
-                Values = [income.PayrollPending ? PendingText : FormatCurrency(income.EmployerContributions)],
+                Values = Cells(i => i.EmployerContributions, i => i.PayrollPending, signed: false),
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
         }
 
-        if (depreciation != 0 || income.AssetsPending)
+        if (Any(i => i.Depreciation != 0 || i.AssetsPending))
         {
             data.Rows.Add(new AccountingRow
             {
                 Label = "Depreciation",
-                Values = [AssetBased(depreciation)],
+                Values = Cells(i => i.Depreciation, AssetBased),
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
@@ -515,17 +549,19 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = t.TotalOperatingExpenses,
-            Values = [AssetBased(totalExpenses)],
+            Values = Cells(i => i.TotalExpenses, AssetBased),
             RowType = AccountingRowType.SubtotalRow
         });
 
-        if (gainOnDisposal != 0)
+        if (Any(i => i.GainOnDisposal != 0))
         {
             data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
             data.Rows.Add(new AccountingRow
             {
-                Label = gainOnDisposal > 0 ? "Gain on Sale of Assets" : "Loss on Sale of Assets",
-                Values = [AssetBased(gainOnDisposal)],
+                Label = !Any(i => i.GainOnDisposal < 0) ? "Gain on Sale of Assets"
+                    : !Any(i => i.GainOnDisposal > 0) ? "Loss on Sale of Assets"
+                    : "Gain or Loss on Sale of Assets",
+                Values = Cells(i => i.GainOnDisposal, AssetBased),
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
@@ -539,14 +575,76 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = t.NetIncome,
-            Values = [assetsPending ? PendingText : AfterCost(netIncome)],
+            Values = Cells(i => i.NetIncome, Net),
             RowType = AccountingRowType.GrandTotalRow
         });
 
-        if (companyData.Assets.Count > 0)
-            data.Footnote = "Purchases recorded as fixed assets are not counted as expenses here. Their cost is counted as depreciation over the years they are used.";
+        var assetNote = companyData.Assets.Count > 0
+            ? "Purchases recorded as fixed assets are not counted as expenses here. Their cost is counted as depreciation over the years they are used."
+            : null;
+        if (assetNote != null || note != null)
+            data.Footnote = string.Join(" ", new[] { note, assetNote }.Where(n => n != null));
 
         return data;
+    }
+
+    private sealed record IncomeColumn(string Header, IncomeFigures Figures);
+
+    /// <summary>The columns of amounts an Income Statement shows, and a note about them when one is needed.</summary>
+    private (List<IncomeColumn> Columns, string? Note) IncomeColumns(IncomeComparison comparison)
+    {
+        var end = EndDateForValuation;
+
+        if (comparison == IncomeComparison.LastYear)
+        {
+            if (filters.StartDate is not { } start)
+                return ([new IncomeColumn("Amount", IncomeInRange())], "Choose a date range with a start date to compare it with last year.");
+
+            // A range ending on the last day of a month is compared with all of that month, so a February keeps its 29th.
+            var lastEnd = end.AddDays(1).Day == 1 ? end.AddDays(1).AddYears(-1).AddDays(-1) : end.AddYears(-1);
+            var lastStart = start.Date.AddYears(-1);
+            return ([new IncomeColumn("This Period", IncomeInRange()), new IncomeColumn("Last Year", IncomeBetween(lastStart, lastEnd))],
+                $"Last Year is {FormatStatementDate(lastStart)} to {FormatStatementDate(lastEnd)}.");
+        }
+
+        if (comparison == IncomeComparison.ByMonth)
+        {
+            var earliestShown = new DateTime(end.Year, end.Month, 1).AddMonths(-11);
+            var first = filters.StartDate?.Date ?? FirstRecordDate(end);
+            string? note = null;
+            if (first < earliestShown)
+            {
+                first = earliestShown;
+                note = "This shows the last 12 months of the date range.";
+            }
+            if (first > end)
+                first = end;
+
+            var format = first.Year == end.Year ? "MMM" : "MMM yy";
+            var columns = new List<IncomeColumn>();
+            for (var month = new DateTime(first.Year, first.Month, 1); month <= end; month = month.AddMonths(1))
+            {
+                var monthEnd = month.AddMonths(1).AddDays(-1);
+                columns.Add(new IncomeColumn(month.ToString(format),
+                    IncomeBetween(month < first ? first : month, monthEnd > end ? end : monthEnd)));
+            }
+            if (columns.Count > 1)
+                columns.Add(new IncomeColumn("Total", IncomeBetween(first, end)));
+            return (columns, note);
+        }
+
+        return ([new IncomeColumn("Amount", IncomeInRange())], null);
+    }
+
+    /// <summary>The Income Statement's figures for another date range, in this report's currency.</summary>
+    private IncomeFigures IncomeBetween(DateTime start, DateTime end) =>
+        new AccountingReportDataService(companyData, new ReportFilters { StartDate = start, EndDate = end }) { _displayCode = DisplayCode }.IncomeInRange();
+
+    private DateTime FirstRecordDate(DateTime fallback)
+    {
+        // A date before 1900 is one that was never set, as in CompanyData.GetEarliestDate.
+        var dates = companyData!.Revenues.Select(r => r.Date).Concat(companyData.Expenses.Select(e => e.Date)).Where(d => d.Year >= 1900).ToList();
+        return dates.Count > 0 ? dates.Min().Date : fallback;
     }
 
     /// <summary>Everything the Income Statement adds up for the report's range, in <see cref="DisplayCode"/>.</summary>
@@ -639,6 +737,259 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return data;
         }
 
+        var b = BalancesAtEnd();
+
+        data.Footnote = (b.OpeningDate is not { } openingDate
+                ? "Cash is estimated from recorded transactions, starting from zero. Enter your opening bank balance in Edit Company to start from it instead. "
+                : $"Cash is the opening bank balance on {DateFormats.Format(openingDate, companyData.Settings.Localization.DateFormat)} plus the money recorded in and out since. ")
+            + "Inventory valued at each item's current unit cost (cost "
+            + "history is not tracked) applied to stock levels "
+            + "reconstructed as of the report date. Retained earnings are the profit to date; owner's equity "
+            + "is the rest, such as what the business owned before these books.";
+
+        // Without the opening balance's rate the cash, and every total built on it, is unknown rather than zero.
+        string CashBased(decimal amount) => b.CashPending ? PendingText : FormatCurrencyWithSign(amount);
+        string AssetBased(decimal amount) => b.AssetsPending ? PendingText : FormatCurrencyWithSign(amount);
+        string TotalBased(decimal amount) => b.CashPending || b.AssetsPending || b.PayrollPending || b.SalesTaxPaidPending ? PendingText : FormatCurrencyWithSign(amount);
+        string EarningsBased(decimal amount) => b.EarningsPending ? PendingText : FormatCurrencyWithSign(amount);
+
+        // ASSETS
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "ASSETS",
+            RowType = AccountingRowType.SectionHeader,
+            Values = ["Amount"]
+        });
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Current Assets",
+            RowType = AccountingRowType.SectionHeader,
+            IndentLevel = 0,
+            Values = [""]
+        });
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Cash (Estimated)",
+            Values = [CashBased(b.Cash)],
+            IndentLevel = 1,
+            RowType = AccountingRowType.DataRow
+        });
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = t.AccountsReceivable,
+            Values = [FormatCurrency(b.AccountsReceivable)],
+            IndentLevel = 1,
+            RowType = AccountingRowType.DataRow
+        });
+
+        if (companyData.Inventory.Count > 0)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Inventory",
+                Values = [FormatCurrency(b.InventoryValue)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Total Current Assets",
+            Values = [CashBased(b.TotalCurrentAssets)],
+            IndentLevel = 0,
+            RowType = AccountingRowType.SubtotalRow
+        });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
+
+        if (b.HasFixedAssets)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Fixed Assets",
+                RowType = AccountingRowType.SectionHeader,
+                IndentLevel = 0,
+                Values = [""]
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Property and Equipment",
+                Values = [AssetBased(b.FixedAssetCost)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Less Accumulated Depreciation",
+                Values = [AssetBased(-b.AccumulatedDepreciation)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Total Fixed Assets",
+                Values = [AssetBased(b.NetFixedAssets)],
+                IndentLevel = 0,
+                RowType = AccountingRowType.SubtotalRow
+            });
+
+            data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
+
+            data.Footnote += " Fixed assets are shown at cost less the depreciation booked so far.";
+        }
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL ASSETS",
+            Values = [TotalBased(b.TotalAssets)],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
+
+        // LIABILITIES
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "LIABILITIES",
+            RowType = AccountingRowType.SectionHeader,
+            Values = [""]
+        });
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = t.AccountsPayable,
+            Values = [FormatCurrency(b.AccountsPayable)],
+            IndentLevel = 1,
+            RowType = AccountingRowType.DataRow
+        });
+
+        if (b.SalesTaxPayable != 0 || b.SalesTaxPaidPending)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = t.TaxPayableLabel,
+                Values = [b.SalesTaxPaidPending ? PendingText : FormatCurrencyWithSign(b.SalesTaxPayable)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        if (b.SecurityDeposits != 0)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Security Deposits",
+                Values = [FormatCurrency(b.SecurityDeposits)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        if (b.PayrollOwing != 0 || b.PayrollPending)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Payroll Remittances Owing",
+                Values = [b.PayrollPending ? PendingText : FormatCurrencyWithSign(b.PayrollOwing)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL LIABILITIES",
+            Values = [b.PayrollPending || b.SalesTaxPaidPending ? PendingText : FormatCurrencyWithSign(b.TotalLiabilities)],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
+
+        // EQUITY
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "EQUITY",
+            RowType = AccountingRowType.SectionHeader,
+            Values = [""]
+        });
+
+        if (b.OpeningDate != null)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Opening Balance",
+                Values = [CashBased(b.OpeningCash)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Owner's Equity",
+            Values = [b.EarningsPending ? PendingText : TotalBased(b.OwnersEquity)],
+            IndentLevel = 1,
+            RowType = AccountingRowType.DataRow
+        });
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "Retained Earnings",
+            Values = [EarningsBased(b.RetainedEarnings)],
+            IndentLevel = 1,
+            RowType = AccountingRowType.DataRow
+        });
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL EQUITY",
+            Values = [TotalBased(b.TotalEquity)],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
+
+        // TOTAL LIABILITIES & EQUITY
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = [""] });
+
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL LIABILITIES & EQUITY",
+            Values = [TotalBased(b.TotalLiabilities + b.TotalEquity)],
+            RowType = AccountingRowType.GrandTotalRow
+        });
+
+        return data;
+    }
+
+    /// <summary>What the Balance Sheet lists on the report's end date, in <see cref="DisplayCode"/>.</summary>
+    private sealed record BalanceFigures(
+        DateTime? OpeningDate, decimal OpeningCash, decimal Cash, bool CashPending,
+        decimal AccountsReceivable, decimal InventoryValue,
+        bool HasFixedAssets, decimal FixedAssetCost, decimal AccumulatedDepreciation, bool AssetsPending,
+        decimal AccountsPayable, decimal SalesTaxPayable, bool SalesTaxPaidPending,
+        decimal SecurityDeposits, decimal PayrollOwing, bool PayrollPending,
+        decimal RetainedEarnings, bool EarningsPending)
+    {
+        public decimal TotalCurrentAssets => Cash + AccountsReceivable + InventoryValue;
+        public decimal NetFixedAssets => FixedAssetCost - AccumulatedDepreciation;
+        public decimal TotalAssets => TotalCurrentAssets + NetFixedAssets;
+        public decimal TotalLiabilities => AccountsPayable + SalesTaxPayable + SecurityDeposits + PayrollOwing;
+        public decimal TotalEquity => TotalAssets - TotalLiabilities;
+
+        /// <summary>What is left after everything else: assets owned before these books, and money the owner put in or took out.</summary>
+        public decimal OwnersEquity => TotalEquity - OpeningCash - RetainedEarnings;
+    }
+
+    private BalanceFigures BalancesAtEnd()
+    {
         // An opening balance dated after the report has not happened yet as far as the report is concerned.
         var opening = companyData.Settings.OpeningBalance is { } ob && IsOnOrBeforeEndDate(ob.Date) ? ob : null;
         decimal? openingConverted = opening == null
@@ -649,14 +1000,6 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         // The opening balance already includes everything before its date, so only what moved on or after it is added.
         var cashFrom = opening?.Date.Date ?? DateTime.MinValue;
-
-        data.Footnote = (opening == null
-                ? "Cash is estimated from recorded transactions, starting from zero. Enter your opening bank balance in Edit Company to start from it instead. "
-                : $"Cash is the opening bank balance on {DateFormats.Format(opening.Date, companyData.Settings.Localization.DateFormat)} plus the money recorded in and out since. ")
-            + "Inventory valued at each item's current unit cost (cost "
-            + "history is not tracked) applied to stock levels "
-            + "reconstructed as of the report date. Retained earnings are the profit to date; owner's equity "
-            + "is the rest, such as what the business owned before these books.";
 
         // Cash = Revenue (Paid, no invoice) + Payments - Expenses, all filtered by date. Uses post-tax (total) amounts because cash includes tax collected/paid.
         var cashFromRevenue = companyData.Revenues
@@ -693,8 +1036,6 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             InventoryValuationService.TotalValueAsOf(companyData, EndDateForValuation),
             EndDateForValuation);
 
-        var totalCurrentAssets = cash + accountsReceivable + inventoryValue;
-
         // Fixed assets stay at what they cost, converted at their purchase date, less the depreciation booked so far.
         var heldAssets = companyData.Assets.Where(a => AssetDepreciation.IsHeldOn(a, EndDateForValuation)).ToList();
         decimal fixedAssetCost = 0m, accumulatedDepreciation = 0m;
@@ -713,10 +1054,6 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 assetsPending = true;
             }
         }
-        var netFixedAssets = fixedAssetCost - accumulatedDepreciation;
-
-        var totalAssets = totalCurrentAssets + netFixedAssets;
-
         // Accounts Payable = purchase orders placed but not received or cancelled, each converted at
         // the order date. A draft has not been sent to a supplier, so nothing is owed on it yet.
         var accountsPayable = companyData.PurchaseOrders
@@ -771,237 +1108,18 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 payrollPending = true;
         }
 
-        var totalLiabilities = accountsPayable + salesTaxPayable + securityDeposits + payrollOwing;
-
         // Retained earnings are the profit to date, as the Income Statement counts it from the first record to the end date.
         var earnings = new AccountingReportDataService(companyData, new ReportFilters { EndDate = filters.EndDate }).IncomeInRange();
         var retainedEarnings = earnings.NetIncome;
         var earningsPending = earnings.AssetsPending || earnings.PayrollPending || earnings.CostPending;
 
-        // Owner's equity is what is left: assets owned before these books, and money the owner put in or took out.
-        var totalEquity = totalAssets - totalLiabilities;
-        var ownersEquity = totalEquity - openingCash - retainedEarnings;
-
-        // Without the opening balance's rate the cash, and every total built on it, is unknown rather than zero.
-        string CashBased(decimal amount) => cashPending ? PendingText : FormatCurrencyWithSign(amount);
-        string AssetBased(decimal amount) => assetsPending ? PendingText : FormatCurrencyWithSign(amount);
-        string TotalBased(decimal amount) => cashPending || assetsPending || payrollPending || salesTaxPaidPending ? PendingText : FormatCurrencyWithSign(amount);
-        string EarningsBased(decimal amount) => earningsPending ? PendingText : FormatCurrencyWithSign(amount);
-
-        // ASSETS
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "ASSETS",
-            RowType = AccountingRowType.SectionHeader,
-            Values = ["Amount"]
-        });
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "Current Assets",
-            RowType = AccountingRowType.SectionHeader,
-            IndentLevel = 0,
-            Values = [""]
-        });
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "Cash (Estimated)",
-            Values = [CashBased(cash)],
-            IndentLevel = 1,
-            RowType = AccountingRowType.DataRow
-        });
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = t.AccountsReceivable,
-            Values = [FormatCurrency(accountsReceivable)],
-            IndentLevel = 1,
-            RowType = AccountingRowType.DataRow
-        });
-
-        if (companyData.Inventory.Count > 0)
-        {
-            data.Rows.Add(new AccountingRow
-            {
-                Label = "Inventory",
-                Values = [FormatCurrency(inventoryValue)],
-                IndentLevel = 1,
-                RowType = AccountingRowType.DataRow
-            });
-        }
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "Total Current Assets",
-            Values = [CashBased(totalCurrentAssets)],
-            IndentLevel = 0,
-            RowType = AccountingRowType.SubtotalRow
-        });
-
-        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
-
-        if (heldAssets.Count > 0)
-        {
-            data.Rows.Add(new AccountingRow
-            {
-                Label = "Fixed Assets",
-                RowType = AccountingRowType.SectionHeader,
-                IndentLevel = 0,
-                Values = [""]
-            });
-
-            data.Rows.Add(new AccountingRow
-            {
-                Label = "Property and Equipment",
-                Values = [AssetBased(fixedAssetCost)],
-                IndentLevel = 1,
-                RowType = AccountingRowType.DataRow
-            });
-
-            data.Rows.Add(new AccountingRow
-            {
-                Label = "Less Accumulated Depreciation",
-                Values = [AssetBased(-accumulatedDepreciation)],
-                IndentLevel = 1,
-                RowType = AccountingRowType.DataRow
-            });
-
-            data.Rows.Add(new AccountingRow
-            {
-                Label = "Total Fixed Assets",
-                Values = [AssetBased(netFixedAssets)],
-                IndentLevel = 0,
-                RowType = AccountingRowType.SubtotalRow
-            });
-
-            data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
-
-            data.Footnote += " Fixed assets are shown at cost less the depreciation booked so far.";
-        }
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "TOTAL ASSETS",
-            Values = [TotalBased(totalAssets)],
-            RowType = AccountingRowType.TotalRow
-        });
-
-        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
-
-        // LIABILITIES
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "LIABILITIES",
-            RowType = AccountingRowType.SectionHeader,
-            Values = [""]
-        });
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = t.AccountsPayable,
-            Values = [FormatCurrency(accountsPayable)],
-            IndentLevel = 1,
-            RowType = AccountingRowType.DataRow
-        });
-
-        if (salesTaxPayable != 0 || salesTaxPaidPending)
-        {
-            data.Rows.Add(new AccountingRow
-            {
-                Label = t.TaxPayableLabel,
-                Values = [salesTaxPaidPending ? PendingText : FormatCurrencyWithSign(salesTaxPayable)],
-                IndentLevel = 1,
-                RowType = AccountingRowType.DataRow
-            });
-        }
-
-        if (securityDeposits != 0)
-        {
-            data.Rows.Add(new AccountingRow
-            {
-                Label = "Security Deposits",
-                Values = [FormatCurrency(securityDeposits)],
-                IndentLevel = 1,
-                RowType = AccountingRowType.DataRow
-            });
-        }
-
-        if (payrollOwing != 0 || payrollPending)
-        {
-            data.Rows.Add(new AccountingRow
-            {
-                Label = "Payroll Remittances Owing",
-                Values = [payrollPending ? PendingText : FormatCurrencyWithSign(payrollOwing)],
-                IndentLevel = 1,
-                RowType = AccountingRowType.DataRow
-            });
-        }
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "TOTAL LIABILITIES",
-            Values = [payrollPending || salesTaxPaidPending ? PendingText : FormatCurrencyWithSign(totalLiabilities)],
-            RowType = AccountingRowType.TotalRow
-        });
-
-        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
-
-        // EQUITY
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "EQUITY",
-            RowType = AccountingRowType.SectionHeader,
-            Values = [""]
-        });
-
-        if (opening != null)
-        {
-            data.Rows.Add(new AccountingRow
-            {
-                Label = "Opening Balance",
-                Values = [CashBased(openingCash)],
-                IndentLevel = 1,
-                RowType = AccountingRowType.DataRow
-            });
-        }
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "Owner's Equity",
-            Values = [earningsPending ? PendingText : TotalBased(ownersEquity)],
-            IndentLevel = 1,
-            RowType = AccountingRowType.DataRow
-        });
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "Retained Earnings",
-            Values = [EarningsBased(retainedEarnings)],
-            IndentLevel = 1,
-            RowType = AccountingRowType.DataRow
-        });
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "TOTAL EQUITY",
-            Values = [TotalBased(totalEquity)],
-            RowType = AccountingRowType.TotalRow
-        });
-
-        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
-
-        // TOTAL LIABILITIES & EQUITY
-        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = [""] });
-
-        data.Rows.Add(new AccountingRow
-        {
-            Label = "TOTAL LIABILITIES & EQUITY",
-            Values = [TotalBased(totalLiabilities + totalEquity)],
-            RowType = AccountingRowType.GrandTotalRow
-        });
-
-        return data;
+        return new BalanceFigures(
+            opening?.Date, openingCash, cash, cashPending,
+            accountsReceivable, inventoryValue,
+            heldAssets.Count > 0, fixedAssetCost, accumulatedDepreciation, assetsPending,
+            accountsPayable, salesTaxPayable, salesTaxPaidPending,
+            securityDeposits, payrollOwing, payrollPending,
+            retainedEarnings, earningsPending);
     }
 
     private void AddEmptyBalanceSheet(AccountingTableData data, AccountingTerms t)
@@ -1637,6 +1755,401 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         string.IsNullOrEmpty(supplierId)
             ? "(Bills with no supplier)"
             : companyData?.GetSupplier(supplierId)?.Name ?? "(Supplier no longer on file)";
+
+    #endregion
+
+    #region Trial Balance
+
+    /// <summary>
+    /// Every account with its debit or credit balance: the Balance Sheet's accounts on the end date, and the
+    /// Income Statement's for the date range. The profit from before the range sits in Retained Earnings at
+    /// Start of Period. Owner's Equity is worked out last, as on the Balance Sheet, so the columns always agree.
+    /// </summary>
+    private AccountingTableData GetTrialBalanceData()
+    {
+        var t = GetAccountingTerms();
+        var data = new AccountingTableData
+        {
+            Title = "Trial Balance",
+            Subtitle = GetCurrencySubtitle(),
+            ColumnHeaders = ["Account", "Debit", "Credit"],
+            ColumnWidthRatios = [0.5, 0.25, 0.25]
+        };
+
+        decimal debits = 0m, credits = 0m;
+        var anyPending = false;
+
+        void Section(string title, params (string Label, decimal Amount, bool Pending)[] accounts)
+        {
+            var shown = accounts.Where(a => a.Pending || Math.Round(a.Amount, 2, MidpointRounding.AwayFromZero) != 0).ToList();
+            if (shown.Count == 0)
+                return;
+
+            data.Rows.Add(new AccountingRow { Label = title, RowType = AccountingRowType.SectionHeader, Values = ["", ""] });
+            foreach (var (label, amount, pending) in shown)
+            {
+                anyPending |= pending;
+                if (amount >= 0) debits += amount;
+                else credits -= amount;
+
+                // A positive balance is a debit and a negative one a credit, so an overdrawn bank account lands on the credit side.
+                var text = pending ? PendingText : FormatCurrency(Math.Abs(amount));
+                data.Rows.Add(new AccountingRow
+                {
+                    Label = label,
+                    IndentLevel = 1,
+                    Values = amount >= 0 ? [text, ""] : ["", text]
+                });
+            }
+        }
+
+        if (companyData != null)
+        {
+            var b = BalancesAtEnd();
+            var income = IncomeInRange();
+            var incomePending = income.AssetsPending || income.PayrollPending || income.CostPending;
+            var equityPending = b.CashPending || b.AssetsPending || b.PayrollPending || b.SalesTaxPaidPending || b.EarningsPending || incomePending;
+
+            Section("ASSETS",
+                ("Cash (Estimated)", b.Cash, b.CashPending),
+                (t.AccountsReceivable, b.AccountsReceivable, false),
+                ("Inventory", b.InventoryValue, false),
+                ("Property and Equipment", b.FixedAssetCost, b.AssetsPending),
+                ("Accumulated Depreciation", -b.AccumulatedDepreciation, b.AssetsPending));
+
+            Section("LIABILITIES",
+                (t.AccountsPayable, -b.AccountsPayable, false),
+                (t.TaxPayableLabel, -b.SalesTaxPayable, b.SalesTaxPaidPending),
+                ("Security Deposits", -b.SecurityDeposits, false),
+                ("Payroll Remittances Owing", -b.PayrollOwing, b.PayrollPending));
+
+            Section("EQUITY",
+                ("Opening Balance", -b.OpeningCash, b.CashPending),
+                ("Owner's Equity", -b.OwnersEquity, equityPending),
+                ("Retained Earnings at Start of Period", income.NetIncome - b.RetainedEarnings, b.EarningsPending || incomePending));
+
+            Section(t.Revenue,
+            [
+                .. income.RevenueByCategory.OrderBy(k => k.Key).Select(k => (k.Key, -k.Value, false)),
+                ("Refunds", income.Refunds, false)
+            ]);
+
+            Section(t.OperatingExpenses,
+            [
+                ("Cost of Goods Sold", income.CostOfGoods, income.CostPending),
+                .. income.ExpenseByCategory.OrderBy(k => k.Key).Select(k => (k.Key, k.Value, false)),
+                ("Wages and Salaries", income.Wages, income.PayrollPending),
+                ("Employer Payroll Contributions", income.EmployerContributions, income.PayrollPending),
+                ("Depreciation", income.Depreciation, income.AssetsPending),
+                (income.GainOnDisposal > 0 ? "Gain on Sale of Assets" : "Loss on Sale of Assets", -income.GainOnDisposal, income.AssetsPending)
+            ]);
+
+            data.Footnote = "Argo Books works these balances out from your records. Owner's Equity is the amount left over, so the two columns always agree and do not prove the records are complete.";
+        }
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL",
+            Values = anyPending ? [PendingText, PendingText] : [FormatCurrency(debits), FormatCurrency(credits)],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        return data;
+    }
+
+    #endregion
+
+    #region Inventory Valuation
+
+    /// <summary>
+    /// Each item in stock on the report's end date and what it is worth, adding up to the Balance Sheet's
+    /// Inventory. See docs/Calculations.md §10.
+    /// </summary>
+    private AccountingTableData GetInventoryValuationData()
+    {
+        var asOf = EndDateForValuation;
+        var data = new AccountingTableData
+        {
+            Title = "Inventory Valuation",
+            Subtitle = $"As of {FormatStatementDate(asOf)} · {GetCurrencySubtitle()}",
+            ColumnHeaders = ["Item", "SKU", "Location", "On Hand", "Unit Cost", "Value"],
+            ColumnWidthRatios = [0.3, 0.14, 0.18, 0.1, 0.14, 0.14],
+            Footnote = "Valued at each item's current unit cost, since cost history is not tracked."
+        };
+
+        var items = companyData == null
+            ? []
+            : InventoryValuationService.ItemsAsOf(companyData, asOf)
+                .Where(i => i.Quantity != 0)
+                .Select(i => (Name: companyData.GetProduct(i.Item.ProductId)?.Name ?? "(Product no longer on file)", Stock: i))
+                .OrderBy(i => i.Name)
+                .ToList();
+
+        foreach (var (name, stock) in items)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = name,
+                Values =
+                [
+                    stock.Item.Sku,
+                    companyData!.GetLocation(stock.Item.LocationId)?.Name ?? "",
+                    stock.Quantity.ToString("0.##"),
+                    FormatCurrency(ToDisplay(stock.Item.UnitCost, asOf)),
+                    FormatCurrencyWithSign(ToDisplay(stock.Value, asOf))
+                ],
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        if (items.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No stock on this date", Values = ["", "", "", "", ""] });
+
+        var total = companyData == null ? 0m : ToDisplay(InventoryValuationService.TotalValueAsOf(companyData, asOf), asOf);
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL",
+            Values = ["", "", "", "", FormatCurrencyWithSign(total)],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        return data;
+    }
+
+    #endregion
+
+    #region Open Invoices
+
+    /// <summary>
+    /// Each invoice still owed on the report's end date, oldest due first, adding up to the Balance Sheet's
+    /// Accounts Receivable and the total of the Accounts Receivable Aging report.
+    /// </summary>
+    private AccountingTableData GetOpenInvoicesData()
+    {
+        var t = GetAccountingTerms();
+        var asOf = EndDateForValuation;
+        var data = new AccountingTableData
+        {
+            Title = "Open Invoices",
+            Subtitle = $"As of {FormatStatementDate(asOf)} · {GetCurrencySubtitle()}",
+            ColumnHeaders = ["Invoice", t.CustomerColumn, "Issued", "Due", "Days Overdue", "Total", "Balance"],
+            ColumnWidthRatios = [0.15, 0.21, 0.13, 0.13, 0.1, 0.14, 0.14]
+        };
+
+        var open = companyData == null
+            ? []
+            : GetReceivablesAsOfEndDate().OrderBy(r => r.Invoice.DueDate).ThenBy(r => r.Invoice.IssueDate).ToList();
+
+        decimal totalInvoiced = 0m, totalOwed = 0m;
+        foreach (var (invoice, balanceUSD) in open)
+        {
+            // Converted at the issue date, as the Balance Sheet does (Calculations.md Rule 4).
+            var total = ToDisplay(invoice.EffectiveTotalUSD, invoice.IssueDate);
+            var balance = ToDisplay(balanceUSD, invoice.IssueDate);
+            totalInvoiced += total;
+            totalOwed += balance;
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = string.IsNullOrEmpty(invoice.InvoiceNumber) ? invoice.Id : invoice.InvoiceNumber,
+                Values =
+                [
+                    companyData!.GetCustomer(invoice.CustomerId)?.Name ?? "Unknown",
+                    FormatStatementDate(invoice.IssueDate),
+                    FormatStatementDate(invoice.DueDate),
+                    Math.Max(0, (asOf - invoice.DueDate.Date).Days).ToString(),
+                    FormatCurrency(total),
+                    FormatCurrency(balance)
+                ],
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        if (open.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No open invoices", Values = ["", "", "", "", "", ""] });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL",
+            Values = ["", "", "", "", FormatCurrency(totalInvoiced), FormatCurrency(totalOwed)],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        return data;
+    }
+
+    #endregion
+
+    #region Unpaid Bills
+
+    /// <summary>
+    /// Each bill still owed on the report's end date, oldest due first, adding up to the total of the
+    /// Accounts Payable Aging report.
+    /// </summary>
+    private AccountingTableData GetUnpaidBillsData()
+    {
+        var asOf = EndDateForValuation;
+        var data = new AccountingTableData
+        {
+            Title = "Unpaid Bills",
+            Subtitle = $"As of {FormatStatementDate(asOf)} · {GetCurrencySubtitle()}",
+            ColumnHeaders = ["Bill", "Supplier", "Bill Date", "Due", "Days Overdue", "Amount"],
+            ColumnWidthRatios = [0.17, 0.27, 0.14, 0.14, 0.12, 0.16],
+            Footnote = "Purchase orders not yet received are left out, because they have no due date until they arrive."
+        };
+
+        var bills = (companyData?.Expenses ?? [])
+            .Where(e => e.IsOwedOn(asOf))
+            .OrderBy(e => e.DueDate)
+            .ThenBy(e => e.Date)
+            .ToList();
+
+        var total = 0m;
+        foreach (var bill in bills)
+        {
+            // Converted at the bill's own date, as the Balance Sheet does (Calculations.md Rule 4).
+            var owed = ToDisplay(bill.EffectiveTotalUSD, bill.Date);
+            total += owed;
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = bill.Id,
+                Values =
+                [
+                    BillSupplierName(bill.SupplierId ?? ""),
+                    FormatStatementDate(bill.Date),
+                    FormatStatementDate(bill.DueDate!.Value),
+                    Math.Max(0, (asOf - bill.DueDate.Value.Date).Days).ToString(),
+                    FormatCurrency(owed)
+                ],
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        if (bills.Count == 0)
+            data.Rows.Add(new AccountingRow { Label = "No unpaid bills", Values = ["", "", "", "", ""] });
+
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL",
+            Values = ["", "", "", "", FormatCurrency(total)],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        return data;
+    }
+
+    #endregion
+
+    #region Sales Tax Liability
+
+    /// <summary>
+    /// What each filing period owes and what its return paid, ending in what is still owed on the end date.
+    /// Periods before the date range are brought forward as one line, so the total is always the Balance
+    /// Sheet's Sales Tax Payable. See docs/Calculations.md §17.
+    /// </summary>
+    private AccountingTableData GetSalesTaxLiabilityData()
+    {
+        var data = new AccountingTableData
+        {
+            Title = GetAccountingTerms().TaxPayableLabel.Replace(" Payable", " Liability"),
+            Subtitle = GetCurrencySubtitle(),
+            ColumnHeaders = ["Period", "Due", "Collected", "Claimed Back", "Owed", "Paid", "Balance"],
+            ColumnWidthRatios = [0.2, 0.14, 0.14, 0.14, 0.13, 0.12, 0.13]
+        };
+
+        var periods = new List<(string Name, DateTime Due, decimal Collected, decimal ClaimedBack, decimal Owed, decimal? Paid)>();
+        decimal broughtForward = 0m;
+        var broughtForwardPending = false;
+
+        if (companyData != null)
+        {
+            var end = EndDateForValuation;
+            var chosen = companyData.Settings.Company.SalesTaxFrequency;
+            var frequency = chosen ?? SalesTaxFrequency.Quarterly;
+            var waitingForRate = false;
+
+            // A return paid after the end date has not happened yet as far as the report is concerned.
+            var filings = companyData.SalesTaxFilings.Where(f => f.PaidDate.Date <= end).ToList();
+
+            foreach (var row in SalesTaxPeriods.RowsBetween(companyData, frequency, FirstRecordDate(end), end, filings).OrderBy(r => r.Period.Start))
+            {
+                var period = row.Filing == null && row.Period.End > end ? row.Period with { End = end } : row.Period;
+                // A filed period reports whole cents and an open one keeps its fractions, as the Balance Sheet counts them.
+                var amounts = SalesTaxPeriods.For(companyData, period, ToDisplay, toCents: row.Filing != null);
+                var paid = row.Filing is { } filing
+                    ? DisplayCurrency.FromNative(filing.Amount, filing.Currency, DisplayCode, filing.PaidDate.Date)
+                    : 0m;
+                waitingForRate |= SalesTaxPeriods.IsWaitingForRate(companyData, period);
+
+                if (filters.StartDate is { } start && period.End.Date < start.Date)
+                {
+                    broughtForward += amounts.Net - (paid ?? 0m);
+                    broughtForwardPending |= paid == null;
+                    continue;
+                }
+
+                periods.Add((SalesTaxPeriods.NameOf(period, row.Frequency), period.DueDate, amounts.Collected - amounts.Refunded,
+                    amounts.ClaimedBack, amounts.Net, paid));
+            }
+
+            var notes = new[]
+            {
+                chosen == null ? "Shown by quarter. Choose how often you file on the Sales Tax page to match your returns." : null,
+                waitingForRate ? "Some transactions are waiting for an exchange rate and are not counted until it arrives." : null
+            };
+            if (notes.Any(n => n != null))
+                data.Footnote = string.Join(" ", notes.Where(n => n != null));
+        }
+
+        if (broughtForward != 0 || broughtForwardPending)
+            data.Rows.Add(new AccountingRow { Label = "Brought forward", Values = ["", "", "", "", "", broughtForwardPending ? PendingText : FormatCurrencyWithSign(broughtForward)] });
+
+        foreach (var period in periods)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = period.Name,
+                Values =
+                [
+                    FormatStatementDate(period.Due),
+                    FormatCurrencyWithSign(period.Collected),
+                    FormatCurrencyWithSign(period.ClaimedBack),
+                    FormatCurrencyWithSign(period.Owed),
+                    period.Paid is { } paid ? FormatCurrencyWithSign(paid) : PendingText,
+                    period.Paid is { } left ? FormatCurrencyWithSign(period.Owed - left) : PendingText
+                ],
+                RowType = AccountingRowType.DataRow
+            });
+        }
+
+        if (periods.Count == 0 && broughtForward == 0 && !broughtForwardPending)
+            data.Rows.Add(new AccountingRow { Label = "No sales tax in this period", Values = ["", "", "", "", "", ""] });
+
+        var pendingTotal = broughtForwardPending || periods.Any(p => p.Paid == null);
+        string Total(decimal amount) => pendingTotal ? PendingText : FormatCurrencyWithSign(amount);
+        data.Rows.Add(new AccountingRow { RowType = AccountingRowType.SeparatorLine, Values = ["", "", "", "", "", ""] });
+        data.Rows.Add(new AccountingRow
+        {
+            Label = "TOTAL",
+            Values =
+            [
+                "",
+                Total(periods.Sum(p => p.Collected)),
+                Total(periods.Sum(p => p.ClaimedBack)),
+                Total(periods.Sum(p => p.Owed)),
+                Total(periods.Sum(p => p.Paid ?? 0m)),
+                Total(broughtForward + periods.Sum(p => p.Owed - (p.Paid ?? 0m)))
+            ],
+            RowType = AccountingRowType.TotalRow
+        });
+
+        return data;
+    }
 
     #endregion
 

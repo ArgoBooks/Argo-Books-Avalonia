@@ -1088,6 +1088,21 @@ public class AccountingTableReportElement : ReportElementBase
         set => SetField(ref field, value);
     } = AccountingReportType.IncomeStatement;
 
+    /// <summary>
+    /// The widths the table is drawn with: the ones the user dragged, unless the table has since changed
+    /// its number of columns, as turning on an Income Statement comparison does.
+    /// </summary>
+    public List<double> EffectiveColumnRatios(AccountingTableData table) =>
+        ColumnWidthRatios?.Count == table.ColumnWidthRatios.Count ? ColumnWidthRatios : table.ColumnWidthRatios;
+
+    /// <summary>What an Income Statement shows beside the report's date range. Other reports ignore it.</summary>
+    [JsonPropertyName("comparison")]
+    public IncomeComparison Comparison
+    {
+        get;
+        set => SetField(ref field, value);
+    } = IncomeComparison.None;
+
     [JsonPropertyName("fontSize")]
     public double FontSize
     {
@@ -1270,6 +1285,7 @@ public class AccountingTableReportElement : ReportElementBase
             PageNumber = PageNumber,
             IsVisible = IsVisible,
             ReportType = ReportType,
+            Comparison = Comparison,
             FontSize = FontSize,
             FontFamily = FontFamily,
             HeaderFontSize = HeaderFontSize,

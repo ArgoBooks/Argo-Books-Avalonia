@@ -106,8 +106,13 @@ public static class SalesTaxPeriods
         var from = dates.Count > 0 ? dates.Min() : today;
         if (from < today.AddYears(-2)) from = today.AddYears(-2);
 
-        var filings = data.SalesTaxFilings;
-        return Between(from, today, frequency, data.Settings.Company.Country, YearStartMonth(data))
+        return RowsBetween(data, frequency, from, today, data.SalesTaxFilings);
+    }
+
+    /// <summary>Each of <paramref name="filings"/>, and the periods at <paramref name="frequency"/> between two dates that none of them covers, newest first.</summary>
+    public static List<Row> RowsBetween(CompanyData data, SalesTaxFrequency frequency, DateTime from, DateTime to, List<SalesTaxFiling> filings)
+    {
+        return Between(from, to, frequency, data.Settings.Company.Country, YearStartMonth(data))
             .SelectMany(p => Unfiled(p, filings))
             .Select(p => new Row(p, frequency, null))
             .Concat(filings.Select(f => new Row(new Period(f.PeriodStart, f.PeriodEnd, f.DueDate), f.Frequency, f)))

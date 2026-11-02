@@ -716,6 +716,26 @@
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <Grid ColumnDefinitions="*,8,*">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="{loc:Loc 'Year'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                <ComboBox ItemsSource="{Binding CustomPeriodYears}"
+                                                          SelectedItem="{Binding CustomPeriodYear}"
+                                                          HorizontalAlignment="Stretch" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Spacing="4">
+                                                <TextBlock Text="{loc:Loc 'Month'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                <ComboBox ItemsSource="{Binding CustomPeriodMonths}"
+                                                          SelectedItem="{Binding CustomPeriodMonth}"
+                                                          HorizontalAlignment="Stretch">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate DataType="vm:CustomMonthOption">
+                                                            <TextBlock Text="{Binding Name}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Grid>
                                         <StackPanel Spacing="8">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="{loc:Loc 'Start Date'}"
@@ -1698,6 +1718,19 @@
                                     </ComboBox>
                                 </StackPanel>
 
+                                <StackPanel Spacing="4" IsVisible="{Binding ShowIncomeComparison}">
+                                    <TextBlock Text="{loc:Loc 'Comparison'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    <ComboBox ItemsSource="{Binding IncomeComparisons}"
+                                              SelectedItem="{Binding SelectedAccountingTableElement.Comparison, FallbackValue={x:Null}}"
+                                              HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Converter={StaticResource EnumDisplayNameConverter}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+
                                 <CheckBox Content="{loc:Loc 'Show Grid Lines'}" IsChecked="{Binding SelectedAccountingTableElement.ShowGridLines, FallbackValue=False}" />
                                 <CheckBox Content="{loc:Loc 'Alternate Row Colors'}" IsChecked="{Binding SelectedAccountingTableElement.AlternateRowColors, FallbackValue=False}" />
 
@@ -1806,6 +1839,26 @@
                                             Margin="0,4,0,0"
                                             IsVisible="{Binding IsCustomDateRange}">
                                         <StackPanel Spacing="8">
+                                            <Grid ColumnDefinitions="*,8,*">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="{loc:Loc 'Year'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    <ComboBox ItemsSource="{Binding CustomPeriodYears}"
+                                                              SelectedItem="{Binding CustomPeriodYear}"
+                                                              HorizontalAlignment="Stretch" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Spacing="4">
+                                                    <TextBlock Text="{loc:Loc 'Month'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    <ComboBox ItemsSource="{Binding CustomPeriodMonths}"
+                                                              SelectedItem="{Binding CustomPeriodMonth}"
+                                                              HorizontalAlignment="Stretch">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate DataType="vm:CustomMonthOption">
+                                                                <TextBlock Text="{Binding Name}" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                            </Grid>
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="{loc:Loc 'Start Date'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                                 <DatePicker SelectedDate="{Binding CustomStartDate}"

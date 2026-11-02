@@ -37,6 +37,11 @@ public static class ReportTemplateFactory
         public const string PayrollSummary = "Payroll Summary";
         public const string Rentals = "Rentals";
         public const string AssetRegister = "Asset Register";
+        public const string TrialBalance = "Trial Balance";
+        public const string InventoryValuation = "Inventory Valuation";
+        public const string OpenInvoices = "Open Invoices";
+        public const string UnpaidBills = "Unpaid Bills";
+        public const string SalesTaxLiability = "Sales Tax Liability";
     }
 
     /// <summary>
@@ -70,7 +75,12 @@ public static class ReportTemplateFactory
                templateName == TemplateNames.ExpensesBySupplier ||
                templateName == TemplateNames.PayrollSummary ||
                templateName == TemplateNames.Rentals ||
-               templateName == TemplateNames.AssetRegister;
+               templateName == TemplateNames.AssetRegister ||
+               templateName == TemplateNames.TrialBalance ||
+               templateName == TemplateNames.InventoryValuation ||
+               templateName == TemplateNames.OpenInvoices ||
+               templateName == TemplateNames.UnpaidBills ||
+               templateName == TemplateNames.SalesTaxLiability;
     }
 
     /// <summary>
@@ -103,6 +113,11 @@ public static class ReportTemplateFactory
             TemplateNames.PayrollSummary => CreateAccountingTemplate(AccountingReportType.PayrollSummary, "Payroll Summary", DatePresetNames.YearToDate),
             TemplateNames.Rentals => CreateAccountingTemplate(AccountingReportType.Rentals, "Rentals", DatePresetNames.ThisMonth),
             TemplateNames.AssetRegister => CreateAccountingTemplate(AccountingReportType.AssetRegister, "Asset Register", DatePresetNames.YearToDate),
+            TemplateNames.TrialBalance => CreateAccountingTemplate(AccountingReportType.TrialBalance, "Trial Balance", DatePresetNames.YearToDate),
+            TemplateNames.InventoryValuation => CreateAccountingTemplate(AccountingReportType.InventoryValuation, "Inventory Valuation", DatePresetNames.AllTime),
+            TemplateNames.OpenInvoices => CreateAccountingTemplate(AccountingReportType.OpenInvoices, "Open Invoices", DatePresetNames.AllTime),
+            TemplateNames.UnpaidBills => CreateAccountingTemplate(AccountingReportType.UnpaidBills, "Unpaid Bills", DatePresetNames.AllTime),
+            TemplateNames.SalesTaxLiability => CreateAccountingTemplate(AccountingReportType.SalesTaxLiability, "Sales Tax Liability", DatePresetNames.YearToDate),
             _ => new ReportConfiguration()
         };
     }
@@ -810,9 +825,10 @@ public static class ReportTemplateFactory
 
         var context = new LayoutContext(config);
 
-        // AR and AP Aging and the Customer Statement give their own dates in the table, and the Balance Sheet gets an "As of" date.
+        // These reports give their own dates in the table, and the Balance Sheet gets an "As of" date.
         var datesInTable = reportType is AccountingReportType.AccountsReceivableAging or AccountingReportType.AccountsPayableAging
-            or AccountingReportType.CustomerStatement;
+            or AccountingReportType.CustomerStatement or AccountingReportType.InventoryValuation
+            or AccountingReportType.OpenInvoices or AccountingReportType.UnpaidBills;
 
         if (!datesInTable)
         {

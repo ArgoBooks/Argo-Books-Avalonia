@@ -143,4 +143,42 @@ public class UsCompanyReconciliationTests
             Amount(Report(AccountingReportType.IncomeStatement), "Total Revenue"),
             Amount(Report(AccountingReportType.SalesByCustomer), "Total", 2));
     }
+
+    [Fact]
+    public void TrialBalance_Balances_AndAgreesWithTheBalanceSheet()
+    {
+        var trialBalance = Report(AccountingReportType.TrialBalance);
+        var balanceSheet = Report(AccountingReportType.BalanceSheet);
+
+        Assert.Equal(Amount(trialBalance, "TOTAL", 0), Amount(trialBalance, "TOTAL", 1));
+        Assert.Equal(Amount(balanceSheet, "Cash (Estimated)"), Amount(trialBalance, "Cash (Estimated)", 0));
+        Assert.Equal(Amount(balanceSheet, "Accounts Receivable"), Amount(trialBalance, "Accounts Receivable", 0));
+        Assert.Equal(Amount(balanceSheet, "Sales Tax Payable"), Amount(trialBalance, "Sales Tax Payable", 1));
+    }
+
+    [Fact]
+    public void OpenInvoices_AddUpToAccountsReceivable()
+    {
+        Assert.Equal(
+            Amount(Report(AccountingReportType.BalanceSheet), "Accounts Receivable"),
+            Amount(Report(AccountingReportType.OpenInvoices), "TOTAL", 5));
+    }
+
+    [Fact]
+    public void SalesTaxLiability_AddsUpToSalesTaxPayable()
+    {
+        Assert.Equal(
+            Amount(Report(AccountingReportType.BalanceSheet), "Sales Tax Payable"),
+            Amount(Report(AccountingReportType.SalesTaxLiability), "TOTAL", 5));
+    }
+
+    [Fact]
+    public void IncomeStatement_ByMonthTotal_IsTheIncomeStatement()
+    {
+        var byMonth = new AccountingReportDataService(UsCompany(), ToEndOf2024)
+            .GetReportData(AccountingReportType.IncomeStatement, IncomeComparison.ByMonth);
+
+        var netIncome = byMonth.Rows.Single(r => r.Label == "NET INCOME");
+        Assert.Equal(Amount(Report(AccountingReportType.IncomeStatement), "NET INCOME"), ParseAmount(netIncome.Values[^1]));
+    }
 }
