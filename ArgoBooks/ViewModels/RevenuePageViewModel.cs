@@ -573,7 +573,7 @@ public RevenuePageViewModel()
                 Date = revenue.Date,
                 Total = netTotal,
                 TotalUSD = revenue.EffectiveTotalUSD,
-                AmountUSD = revenue.Amount > 0 ? revenue.EffectiveTotalUSD * (revenue.Amount / revenue.Total) : 0,
+                AmountUSD = revenue.Amount > 0 && revenue.Total > 0 ? revenue.EffectiveTotalUSD * (revenue.Amount / revenue.Total) : 0,
                 TaxAmountUSD = revenue.TaxAmountUSD > 0 ? revenue.TaxAmountUSD : revenue.TaxAmount,
                 ShippingCostUSD = revenue.EffectiveShippingCostUSD,
                 DiscountUSD = revenue.DiscountUSD > 0 ? revenue.DiscountUSD : revenue.Discount,

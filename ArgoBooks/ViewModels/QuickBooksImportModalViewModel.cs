@@ -65,6 +65,20 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
         && (path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
             || ReportExtensions.Any(e => path.EndsWith(e, StringComparison.OrdinalIgnoreCase)));
 
+    /// <summary>
+    /// Lists first, so transactions find their customers and suppliers instead of creating them, and
+    /// open invoices last, so they find the sales they belong to. Choosing a folder gives alphabetical order.
+    /// </summary>
+    public static List<string> ImportOrder(IEnumerable<string> paths) =>
+        paths.OrderBy(path =>
+        {
+            var name = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+            if (name.Contains("invoice")) return 2;
+            string[] transactions = ["detail", "transaction", "profit", "sales", "expense"];
+            string[] lists = ["customer", "vendor", "supplier", "employee", "item", "product", "list"];
+            return lists.Any(name.Contains) && !transactions.Any(name.Contains) ? 0 : 1;
+        }).ToList();
+
     /// <summary>Deletes the reports unpacked from zips. Call once the import has finished with them.</summary>
     public void DiscardUnpacked()
     {
@@ -128,6 +142,13 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
         Files.Add(new QuickBooksFileRow(Path.GetFileName(path), Describe(path), path));
     }
 
+    /// <summary>
+    /// QuickBooks puts these in its export zip unless they are switched off. They repeat the same
+    /// transactions by account, so importing them beside the detail reports would count everything again.
+    /// </summary>
+    public static bool IsAccountingSummary(string fileName) =>
+        Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant() is "balance_sheet" or "general_ledger" or "journal" or "profit_and_loss" or "trial_balance";
+
     private void AddZip(string zipPath)
     {
         if (!_zips.Add(Path.GetFullPath(zipPath))) return;
@@ -143,7 +164,7 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
             {
                 // Name only, so an entry cannot write outside the folder.
                 var name = Path.GetFileName(entry.FullName);
-                if (!ReportExtensions.Any(e => name.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
+                if (!ReportExtensions.Any(e => name.EndsWith(e, StringComparison.OrdinalIgnoreCase)) || IsAccountingSummary(name))
                     continue;
 
                 // Two folders in the zip can hold a report of the same name.

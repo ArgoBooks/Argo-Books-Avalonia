@@ -3023,6 +3023,9 @@ public partial class App : Application
             return;
         }
 
+        // The rescue below needs the report's own headings and subtotals, which the layout step takes out.
+        var unflattenedPath = filePath;
+
         // AI layout interpretation rewrites a messy sheet into clean single-header tables before analysis, where the local LayoutGate decides whether it is needed.
         if (!isCsv)
         {
@@ -3066,7 +3069,7 @@ public partial class App : Application
             if (analysis == null || analysis.Sheets.Count == 0 || analysis.Sheets.All(s => !s.IsIncluded))
             {
                 await TryRescueImportAsync(
-                    filePath, isCsv, companyData, analysisService, importService, originalFileName, usageService);
+                    unflattenedPath, isCsv, companyData, analysisService, importService, originalFileName, usageService);
                 return;
             }
 

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.AI;
 using ArgoBooks.Core.Models.Telemetry;
@@ -1304,6 +1305,42 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
         return buckets;
     }
 
+    // Drops a marker the model put on a dated row, because a heading or subtotal has no date and BucketMixedRows would throw that transaction away.
+    internal static List<MixedRowMarker> WithoutTransactionRows(IReadOnlyList<MixedRowMarker> markers, List<List<string>> rows) =>
+        markers.Where(m => m.RowIndex < 0 || m.RowIndex >= rows.Count || !StartsWithDate(rows[m.RowIndex])).ToList();
+
+    // A report that lists dated transactions between its headings has records to import, whatever the model called it; a true summary has no dated rows.
+    internal static bool IsDetailReport(RescueClassification classification, List<List<string>> rows) =>
+        classification.Reason == ImportRescueRejectionReason.SummaryOrReport && rows.Count(StartsWithDate) * 2 >= rows.Count;
+
+    // A report writes every date the same way, so a date like 01/03/2026 is settled by the ones that can only be read one way, before the model has to guess.
+    internal static List<List<string>> WithUnambiguousDates(List<List<string>> rows)
+    {
+        var dates = rows.Select(r => r.FindIndex(c => !string.IsNullOrWhiteSpace(c)))
+            .Select((column, row) => (row, column, match: column < 0 ? Match.Empty : SlashDate.Match(rows[row][column])))
+            .Where(d => d.match.Success)
+            .ToList();
+        var dayFirst = dates.Any(d => int.Parse(d.match.Groups[1].Value) > 12);
+        var monthFirst = dates.Any(d => int.Parse(d.match.Groups[2].Value) > 12);
+        if (dayFirst == monthFirst) return rows;
+
+        var written = rows.Select(r => r.ToList()).ToList();
+        foreach (var (row, column, match) in dates)
+        {
+            var (month, day) = monthFirst ? (match.Groups[1].Value, match.Groups[2].Value) : (match.Groups[2].Value, match.Groups[1].Value);
+            written[row][column] = $"{match.Groups[3].Value}-{month.PadLeft(2, '0')}-{day.PadLeft(2, '0')}";
+        }
+        return written;
+    }
+
+    private static readonly Regex SlashDate = new(@"^\s*(\d{1,2})/(\d{1,2})/(\d{4})\s*$", RegexOptions.Compiled);
+
+    private static bool StartsWithDate(List<string> row)
+    {
+        var first = row.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
+        return first != null && DateTime.TryParse(first, CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
+    }
+
     private async Task<List<MixedRowMarker>> OutlineMixedReportAsync(
         List<List<string>> rows, CancellationToken cancellationToken)
     {
@@ -1343,11 +1380,13 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
         CancellationToken cancellationToken)
     {
         var markers = await OutlineMixedReportAsync(rows, cancellationToken);
-        var buckets = BucketMixedRows(rows.Count, markers);
+        var buckets = BucketMixedRows(rows.Count, WithoutTransactionRows(markers, rows));
+        rows = WithUnambiguousDates(rows);
         if (buckets.Count == 0)
             return [];
 
         var results = new List<LlmProcessedData>();
+        var idsSeen = new Dictionary<string, int>();
         foreach (var ((type, category), rowIndices) in buckets)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1367,11 +1406,28 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
                     FailedRows = chunk.FailedRows
                 };
                 foreach (var entity in chunk.Entities)
-                    withCategory.Entities.Add(InjectCategoryName(entity, category));
+                    withCategory.Entities.Add(WithUniqueId(InjectCategoryName(entity, category), idsSeen));
                 results.Add(withCategory);
             }
         }
         return results;
+    }
+
+    // An invoice with two lines is two rows with one number, and the second would overwrite the first if they shared an id.
+    internal static JsonElement WithUniqueId(JsonElement entity, Dictionary<string, int> idsSeen)
+    {
+        if (entity.ValueKind != JsonValueKind.Object || !entity.TryGetProperty("id", out var idElement) || idElement.ValueKind != JsonValueKind.String)
+            return entity;
+
+        var id = idElement.GetString() ?? "";
+        var seen = idsSeen.GetValueOrDefault(id) + 1;
+        idsSeen[id] = seen;
+        if (id.Length == 0 || seen == 1)
+            return entity;
+
+        var node = JsonNode.Parse(entity.GetRawText())!.AsObject();
+        node["id"] = $"{id}-{seen}";
+        return JsonSerializer.SerializeToElement(node);
     }
 
     // Returns a copy of the entity JSON with categoryName set (rescue mixed-report grouping).
@@ -1440,7 +1496,7 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
 
             var classification = await ClassifyOrRejectAsync(headers, rows, name, cancellationToken);
 
-            if (classification.IsMixedIncomeExpense)
+            if (classification.IsMixedIncomeExpense || IsDetailReport(classification, rows))
             {
                 var mixed = await ExtractMixedAsync(headers, rows, progress, cancellationToken);
                 var mixedCount = mixed.Sum(p => p.Entities.Count);

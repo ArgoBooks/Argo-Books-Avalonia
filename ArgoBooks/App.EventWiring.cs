@@ -1681,7 +1681,7 @@ public partial class App
                 return;
             }
 
-            var paths = quickBooks.Files.Select(f => f.Path).ToList();
+            var paths = QuickBooksImportModalViewModel.ImportOrder(quickBooks.Files.Select(f => f.Path));
             quickBooks.CloseCommand.Execute(null);
 
             if (paths.Count == 0)
@@ -1693,18 +1693,22 @@ public partial class App
             // they are analysed and reviewed separately rather than merged beforehand.
             await BackUpBeforeRiskyChangeAsync();
             _importBatchBackedUp = true;
+            var flattened = Path.Combine(Path.GetTempPath(), "ArgoBooks-quickbooks-" + Guid.NewGuid().ToString("N"));
             try
             {
                 foreach (var path in paths)
                 {
                     var isCsv = SpreadsheetFiles.IsDelimitedText(path);
-                    await PerformAiImportAsync(path, CompanyManager.CompanyData, isCsv);
+                    var report = QuickBooksReportFlattener.FlattenOpenInvoices(path, flattened) ?? path;
+                    await PerformAiImportAsync(report, CompanyManager.CompanyData, isCsv);
                 }
             }
             finally
             {
                 _importBatchBackedUp = false;
                 quickBooks.DiscardUnpacked();
+                if (Directory.Exists(flattened))
+                    Directory.Delete(flattened, recursive: true);
             }
         };
     }

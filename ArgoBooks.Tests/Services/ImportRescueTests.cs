@@ -423,14 +423,14 @@ public class ImportRescueTests
     [Fact]
     public async Task RescueAsync_MixedReport_ExtractsRevenueAndExpenses()
     {
-        // Outline: mark an Income section + category near the top and an Expenses section + category
-        // partway down, using row indices that fall inside the fixture's data range.
+        // Outline: the fixture's own Income heading and category near the top, and its Expenses
+        // heading and first category further down.
         var outline = """
         {"markers":[
           {"row":0,"kind":"IncomeSection","text":"Income"},
           {"row":1,"kind":"Category","text":"Design income"},
-          {"row":60,"kind":"ExpenseSection","text":"Expenses"},
-          {"row":61,"kind":"Category","text":"Advertising"}
+          {"row":113,"kind":"ExpenseSection","text":"Expenses"},
+          {"row":114,"kind":"Category","text":"Advertising"}
         ]}
         """;
         var mock = new MixedMockGeminiService(outline);

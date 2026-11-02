@@ -190,7 +190,9 @@ public class SpreadsheetImportService
 
         public static ReferenceResolutionContext Build(CompanyData data) => new()
         {
-            CustomerIndex = ReferenceResolver.BuildIndex(data.Customers.Select(c => (c.Id, c.Name))),
+            // A business customer is often filed under its contact, with the business the name other records use.
+            CustomerIndex = ReferenceResolver.BuildIndex(data.Customers.Select(c => (c.Id, c.Name))
+                .Concat(data.Customers.Where(c => !string.IsNullOrWhiteSpace(c.CompanyName)).Select(c => (c.Id, c.CompanyName!)))),
             SupplierIndex = ReferenceResolver.BuildIndex(data.Suppliers.Select(s => (s.Id, s.Name)))
         };
     }
@@ -1288,6 +1290,9 @@ public class SpreadsheetImportService
             // invoice has its reference cleared.
             if (invoice == null)
             {
+                // The invoice may come in a later file of the same migration, and this number finds the sale then.
+                if (string.IsNullOrEmpty(revenue.ReferenceNumber))
+                    revenue.ReferenceNumber = revenue.InvoiceId ?? string.Empty;
                 revenue.InvoiceId = null;
                 if (!revenue.IsKeptDeposit && takesLines)
                     SetSingleLine(data, revenue, isNew ? null : revenue.LineItems, LineFields.All, isPurchase: false);
@@ -1329,6 +1334,14 @@ public class SpreadsheetImportService
     private static void AddAutoRevenueForInvoice(CompanyData data, Invoice invoice)
     {
         var isPaid = invoice.Status == InvoiceStatus.Paid || invoice.Balance <= 0;
+
+        // A sale that named this invoice before the invoice arrived is already its revenue, so it is linked rather than counted a second time.
+        foreach (var sale in data.Revenues.Where(r => r.InvoiceId == null && r.CustomerId == invoice.CustomerId
+                     && r.ReferenceNumber.Length > 0 && (r.ReferenceNumber == invoice.Id || r.ReferenceNumber == invoice.InvoiceNumber)))
+        {
+            sale.InvoiceId = invoice.Id;
+            sale.PaymentStatus = isPaid ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid;
+        }
 
         // A kept deposit is linked to the invoice too, but it is not the invoice's revenue.
         var existing = data.Revenues.Where(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit).ToList();
@@ -1644,6 +1657,14 @@ public class SpreadsheetImportService
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
                     invoice = Merge(invoice, existing);
 
+                    // An open invoices report gives only what is still owed, so that stands as the invoice's total, and an invoice someone owes has been sent.
+                    var onlyWhatIsOwed = invoice.Total == 0 && given.Contains("balance") && !given.Contains("total");
+                    if (onlyWhatIsOwed)
+                    {
+                        invoice.Total = invoice.Balance;
+                        invoice.Subtotal = invoice.Balance;
+                    }
+
                     // The currency first: the invoice's payments are matched to it by currency.
                     var priced = Changes(existing, InvoicePriceFields);
                     if (priced)
@@ -1655,7 +1676,7 @@ public class SpreadsheetImportService
                         given.Contains("balance") ? invoice.Balance : null,
                         recompute: Changes(existing, ["amountPaid", "total"]), givenStatus, data.Payments);
                     if (Changes(existing, ["status", "amountPaid", "balance", "total"]))
-                        SetImportedStatus(invoice, givenStatus ?? existing?.Status ?? InvoiceStatus.Draft,
+                        SetImportedStatus(invoice, givenStatus ?? existing?.Status ?? (onlyWhatIsOwed ? InvoiceStatus.Sent : InvoiceStatus.Draft),
                             amountsSet: Changes(existing, ["amountPaid", "balance", "total"]));
 
                     // Convert Total/Balance at the exact issue date, deferring (pending + enqueue)
@@ -1686,6 +1707,7 @@ public class SpreadsheetImportService
                     expense = Merge(expense, existing, expenseAmountDerived ? ["amount"] : []);
                     if (expenseAmountDerived || expense.Amount == 0)
                         expense.Amount = DerivedAmount(expense);
+                    FillMissingTotal(expense);
 
                     // Convert each amount to USD at the transaction's EXACT date, from the row's own currency or else the record's or the company's. Future-dated/unpriceable rows become pending.
                     if (Changes(existing, TransactionPriceFields))
@@ -1715,6 +1737,7 @@ public class SpreadsheetImportService
                     revenueAmountDerived |= revenue.Amount == 0;
                     if (revenueAmountDerived)
                         revenue.Amount = DerivedAmount(revenue);
+                    FillMissingTotal(revenue);
 
                     // PaymentStatus is already normalized by the enum's JSON converter (legacy typos → Paid fallback), no separate call.
                     if (Changes(existing, TransactionPriceFields))
@@ -2829,7 +2852,7 @@ public class SpreadsheetImportService
                 break;
 
             case "Customers":
-                if (data.Customers.All(c => c.Id != id))
+                if (data.Customers.All(c => c.Id != id) && FindCustomerId(data, id) == id)
                 {
                     data.Customers.Add(new Customer
                     {
@@ -3455,7 +3478,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // Two columns, either of which can identify the invoice. This app's own export carries both; a sheet from elsewhere usually has only the number.
             var invoiceId = GetString(row, headers, "ID");
             var invoiceNumber = GetString(row, headers, "Invoice #");
-            var customerId = GetString(row, headers, "Customer ID");
+            var customerId = FindCustomerId(data, GetString(row, headers, "Customer ID"));
             var issueDate = GetDateTime(row, headers, "Issue Date");
             var total = GetDecimal(row, headers, "Total");
 
@@ -3505,6 +3528,14 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 invoice.TaxAmount = GetDecimal(row, headers, "Tax");
             if (Set("Total"))
                 invoice.Total = total;
+            // An open invoices report gives only what is still owed, so that stands as the invoice's total, and an invoice someone owes has been sent.
+            var owed = SpreadsheetRowReader.GetNullableDecimal(row, headers, "Balance") ?? 0m;
+            var onlyWhatIsOwed = total == 0 && owed > 0 && !headers.Contains("Total");
+            if (onlyWhatIsOwed)
+            {
+                invoice.Total = owed;
+                invoice.Subtotal = owed;
+            }
             // Per-row currency detected from the amount cells, else the record's own when updating,
             // else the company currency. Set before the amounts, whose payments match it by currency.
             var priced = Set(InvoicePriceColumns);
@@ -3523,7 +3554,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 recompute: Set("Paid", "Total"), givenStatus, data.Payments);
             // A blank or unrecognised status keeps an existing invoice's own; a new one's is left to its amounts.
             if (Set("Status", "Paid", "Balance", "Total"))
-                SetImportedStatus(invoice, givenStatus ?? existing?.Status ?? InvoiceStatus.Draft,
+                SetImportedStatus(invoice, givenStatus ?? existing?.Status ?? (onlyWhatIsOwed ? InvoiceStatus.Sent : InvoiceStatus.Draft),
                     amountsSet: Set("Paid", "Balance", "Total"));
 
             // Converted once its amounts are set. Left as it is when nothing it is priced from changed.
@@ -4313,6 +4344,13 @@ Respond with ONLY a JSON array, one entry per product in the same order:
         return customerId;
     }
 
+    /// <summary>The id of the customer a sheet names, or the reference as it was when nobody matches it.</summary>
+    private static string FindCustomerId(CompanyData data, string reference)
+    {
+        if (string.IsNullOrEmpty(reference) || data.Customers.Any(c => c.Id == reference)) return reference;
+        return ReferenceResolver.Resolve(reference, ReferenceResolutionContext.Build(data).CustomerIndex).MatchedId ?? reference;
+    }
+
     /// <summary>
     /// Resolves a supplier reference. See <see cref="EnsureCustomerExists"/> for the resolution rules.
     /// </summary>
@@ -4493,6 +4531,22 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     /// its lines' subtotal instead, as the app saves it: one row gives their total quantity and
     /// average price (as the export writes them), whose product isn't the lines' sum.
     /// </summary>
+    /// <summary>
+    /// The AI gives some rows only a price and others only a total, and every report and page reads
+    /// both, so the side that is missing is worked out from the other.
+    /// </summary>
+    private static void FillMissingTotal(Transaction txn)
+    {
+        if (txn.Total == 0 && txn.Amount != 0)
+            txn.Total = txn.Amount + txn.TaxAmount + txn.ShippingCost + txn.Fee - txn.Discount;
+        else if (txn.Amount == 0 && txn.Total != 0)
+        {
+            txn.Amount = txn.Total - txn.TaxAmount - txn.ShippingCost - txn.Fee + txn.Discount;
+            if (txn.UnitPrice == 0 && txn.Quantity != 0)
+                txn.UnitPrice = txn.Amount / txn.Quantity;
+        }
+    }
+
     private static decimal DerivedAmount(Transaction txn) =>
         txn.LineItems is { Count: > 1 } lines ? InvoiceMath.Subtotal(lines) : txn.Quantity * txn.UnitPrice;
 
