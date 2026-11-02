@@ -377,31 +377,30 @@ class Painter:
 
     # Frames ----------------------------------------------------------------------------------------------------------
 
-    def app_frame(self, pixels, part, i, take_frame):
-        zoom, *focus = camera(part[self.cut], self.take["marks"], take_frame / FPS)
+    def app_frame(self, pixels, part, i, take_frame, clock=None):
+        zoom, *focus = camera(part[self.cut], self.take["marks"], take_frame / FPS if clock is None else clock)
         frame_info = self.take["frames"][min(take_frame, len(self.take["frames"]) - 1)]
         x, y, w, h = self.crop_for(zoom, focus)
         vx, vy, vw, vh = self.view()
-        source = Image.frombuffer("RGB", SOURCE, pixels, "raw", "RGB", 0, 1)
-        shown = source.resize((vw, vh), Image.LANCZOS, box=(x, y, x + w, y + h)).convert("RGBA")
-        ratio = vw / w
-        cx, cy = (frame_info[0] - x) * ratio, (frame_info[1] - y) * ratio
+        # The cursor is drawn on the full-size take, because placing it after the camera rounds it to whole pixels and it shakes while the camera moves.
+        source = Image.frombuffer("RGB", SOURCE, pixels, "raw", "RGB", 0, 1).copy()
+        cx, cy = frame_info[0], frame_info[1]
         t = take_frame / FPS
         for click in self.clicks:
             age = t - click
             if 0 <= age < 0.4:
-                radius = (14 + 46 * age / 0.4) * ratio
+                radius = 14 + 46 * age / 0.4
                 alpha = int(150 * (1 - age / 0.4))
-                ring = Image.new("RGBA", shown.size, (0, 0, 0, 0))
-                ImageDraw.Draw(ring).ellipse((cx - radius, cy - radius, cx + radius, cy + radius),
-                                             outline=BLUE + (alpha,), width=max(2, round(5 * ratio)))
-                shown.alpha_composite(ring)
+                size = round(2 * radius) + 12
+                ring = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+                ImageDraw.Draw(ring).ellipse((6, 6, size - 6, size - 6), outline=BLUE + (alpha,), width=5)
+                source.paste(ring.convert("RGB"), (round(cx - size / 2), round(cy - size / 2)), ring)
         if frame_info[3] == "file":
-            card = self.carry.resize((round(self.carry.width * ratio), round(self.carry.height * ratio)), Image.LANCZOS)
             # The cursor holds the receipt near the middle of its top, as a desktop shows a file being dragged.
-            shown.alpha_composite(card, (round(cx - card.width * 0.45), round(cy - card.height * 0.28)))
-        sprite, pad = self.sprite(44 * ratio * (0.9 if frame_info[2] else 1.0))
-        shown.alpha_composite(sprite, (round(cx - pad), round(cy - pad)))
+            source.paste(self.carry.convert("RGB"), (round(cx - self.carry.width * 0.45), round(cy - self.carry.height * 0.28)), self.carry)
+        sprite, pad = self.sprite(44 * (0.9 if frame_info[2] else 1.0))
+        source.paste(sprite.convert("RGB"), (round(cx - pad), round(cy - pad)), sprite)
+        shown = source.resize((vw, vh), Image.LANCZOS, box=(x, y, x + w, y + h)).convert("RGBA")
 
         if self.cut == "wide":
             return shown

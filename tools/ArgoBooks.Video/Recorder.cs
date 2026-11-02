@@ -153,12 +153,17 @@ internal sealed class Recorder
     /// Drags a file in from off screen and drops it at the target, as if from the desktop. The edit
     /// draws the file's picture under the cursor while it is carried.
     /// </summary>
-    public async Task DragFileAsync(string path, Point from, Point to, double seconds)
+    public Task DragFileAsync(string path, Point from, Point to, double seconds) => DragFilesAsync([path], from, to, seconds);
+
+    public async Task DragFilesAsync(string[] paths, Point from, Point to, double seconds)
     {
-        var item = new DataTransferItem();
-        item.SetFile(await LocalFile.OpenAsync(_window, path));
         var data = new DataTransfer();
-        data.Add(item);
+        foreach (var path in paths)
+        {
+            var item = new DataTransferItem();
+            item.SetFile(await LocalFile.OpenAsync(_window, path));
+            data.Add(item);
+        }
 
         var inside = false;
         _cursor = from;

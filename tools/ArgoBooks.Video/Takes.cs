@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Text.Json.Nodes;
+using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Services;
+using ArgoBooks.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -33,6 +35,16 @@ internal static class Takes
             if (options.Take == "welcome")
             {
                 await WelcomeAsync(window, options);
+                return;
+            }
+            if (options.Take == "quickbooks")
+            {
+                await QuickBooksAsync(window, options);
+                return;
+            }
+            if (options.Take == "qbcheck")
+            {
+                await QuickBooksCheckAsync(window, options);
                 return;
             }
             await OpenSampleCompanyAsync(window);
@@ -163,6 +175,296 @@ internal static class Takes
         await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Amount")) + new Point(0, 330), 1.4);
         await rec.HoldAsync(2.0);
         rec.Mark("end");
+        await rec.FinishAsync();
+    }
+
+    /// <summary>
+    /// A new, empty company, then the real QuickBooks import of the exports from make_qb_exports.py, dropped in together.
+    /// Every report is analysed, reviewed and imported, and the books are then read back from the app's own pages.
+    /// </summary>
+    private static async Task QuickBooksAsync(Window window, TakeOptions options)
+    {
+        var exports = options.Statement ?? throw new ArgumentException("The quickbooks take needs the exports folder");
+        var company = Path.Combine(options.OutFolder, "Cedar Ridge IT.argo");
+        File.Delete(company);
+        AppHooks.AnswerFilePickers(window, company);
+
+        var rec = new Recorder(window, Path.Combine(options.OutFolder, "quickbooks.mkv"), new Point(1100, 560));
+        await rec.WarmUpAsync(2);
+        rec.Mark("welcome");
+        await rec.HoldAsync(1.0);
+
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Create New Company")), 0.9);
+        rec.Mark("click_create");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Company Information"), 10, "the new company form");
+        await rec.HoldAsync(0.5);
+        rec.Mark("wizard");
+
+        var wizard = AppHooks.Shell("CreateCompanyViewModel");
+        var name = window.GetVisualDescendants().OfType<TextBox>().First(t => t.PlaceholderText == "Enter company name");
+        await rec.MoveToAsync(Ui.LeftOf(window, name), 0.8);
+        await rec.ClickAsync();
+        await rec.TypeAsync("Cedar Ridge IT");
+        await rec.HoldAsync(0.3);
+        AppHooks.SetProperty(wizard, "Country", "Canada");
+        await rec.HoldAsync(0.3);
+        AppHooks.SetProperty(wizard, "ProvinceState", "Ontario");
+        await rec.HoldAsync(0.3);
+
+        var balance = window.GetVisualDescendants().OfType<TextBox>().First(t => t.PlaceholderText == "Optional");
+        await rec.MoveToAsync(Ui.LeftOf(window, balance), 0.8);
+        rec.Mark("balance");
+        await rec.ClickAsync();
+        await rec.TypeAsync("18250.00");
+        await rec.HoldAsync(1.6);
+
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.8);
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Create Company"), 10, "the second step");
+        await rec.HoldAsync(0.8);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Create Company")), 0.8);
+        rec.Mark("click_finish");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => App.NavigationService?.CurrentPageName == PageNames.Dashboard && !Ui.Shows(window, "Create Company"), 30, "the new company");
+        await rec.HoldAsync(1.5);
+        Ui.Dump(window, "empty dashboard");
+        rec.Mark("empty");
+        await rec.HoldAsync(2.5);
+
+        await rec.MoveToAsync(new Point(286, 59), 0.9);
+        rec.Mark("click_file");
+        await rec.ClickAsync();
+        await rec.HoldAsync(0.7);
+        Ui.Dump(window, "file menu");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Import")), 0.7);
+        await rec.HoldAsync(0.2);
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Bring your lists and transactions across"), 10, "the import choices");
+        await rec.HoldAsync(0.9);
+        rec.Mark("choices");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "QuickBooks")), 0.9);
+        await rec.HoldAsync(0.5);
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Import from QuickBooks"), 10, "the QuickBooks steps");
+        rec.Mark("online_steps");
+        await rec.HoldAsync(2.0);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "QuickBooks Desktop")), 0.8);
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Save them somewhere together"), 10, "the Desktop steps");
+        rec.Mark("desktop_steps");
+        await rec.HoldAsync(5.0);
+
+        var drop = Ui.Text(window, "Drop your QuickBooks exports here");
+        var from = Ui.CentreOf(window, drop) + new Point(620, 300);
+        var into = Ui.CentreOf(window, drop);
+        rec.Mark("drag");
+        await rec.MoveToAsync(from, 0.8);
+        await rec.DragFilesAsync(ExportOrder.Select(f => Path.Combine(exports, f)).ToArray(), from, into, 1.5);
+        await rec.WaitForAsync(() => Ui.Shows(window, "5 files ready"), 10, "the dropped files");
+        rec.Mark("dropped");
+        await rec.HoldAsync(3.5);
+        Ui.Dump(window, "dropped");
+
+        var mapping = AppHooks.Shell("ImportMappingDialogViewModel");
+        var result = AppHooks.Shell("ImportResultDialogViewModel");
+        var validation = AppHooks.Shell("ImportValidationDialogViewModel");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Continue")), 0.8);
+        rec.Mark("click_continue");
+        await rec.ClickAsync();
+
+        foreach (var (file, n) in ExportOrder.Select((f, i) => (f, i + 1)))
+        {
+            rec.Mark($"analysing_{n}");
+            // A report that is not a plain table goes straight to its result, with no review of columns to show.
+            await rec.WaitForAsync(() => AppHooks.IsOpen(mapping) || AppHooks.IsOpen(result), 400, $"the review of {file}");
+            if (AppHooks.IsOpen(mapping))
+            {
+                rec.Mark($"review_{n}");
+                await rec.HoldAsync(1.5);
+                var accept = (string)mapping.GetType().GetProperty("AcceptButtonText")!.GetValue(mapping)!;
+                await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, accept)), 0.8);
+                await rec.HoldAsync(1.0);
+                await rec.ClickAsync();
+                await rec.WaitForAsync(() => AppHooks.IsOpen(result) || AppHooks.IsOpen(validation), 400, $"the result of {file}");
+            }
+            if (AppHooks.IsOpen(validation))
+            {
+                rec.Mark($"validation_{n}");
+                await rec.HoldAsync(1.5);
+                Ui.Dump(window, $"validation of {file}");
+                throw new InvalidOperationException("The importer asked about missing records; script this dialog from what the dump shows");
+            }
+            rec.Mark($"result_{n}");
+            await rec.HoldAsync(1.5);
+            Ui.Dump(window, $"result of {file}");
+            AppHooks.Audit(file);
+            await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "OK")), 0.7);
+            await rec.ClickAsync();
+            await rec.WaitForAsync(() => !AppHooks.IsOpen(result), 10, "the result to close");
+            await rec.HoldAsync(0.3);
+        }
+        rec.Mark("imported");
+        await AppHooks.FinishConversionsAsync();
+        await rec.WaitForAsync(() => !App.PendingConversionService!.HasPendingConversions, 120, "the currency conversions");
+        await rec.HoldAsync(0.5);
+        AppHooks.Audit("after conversions");
+        await rec.MoveToAsync(new Point(488, 59), 0.9);
+        rec.Mark("click_save");
+        await rec.ClickAsync();
+        await rec.HoldAsync(1.0);
+
+        foreach (var (label, page) in new[]
+                 {
+                     ("Dashboard", PageNames.Dashboard), ("Revenue", PageNames.Revenue), ("Expenses", PageNames.Expenses),
+                     ("Invoices", PageNames.Invoices), ("Customers", "Customers"), ("Suppliers", "Suppliers"), ("Reports", "Reports"),
+                 })
+        {
+            // The sidebar's lower items are below the window, so those pages are opened directly and the edit cuts to them.
+            var item = window.GetVisualDescendants().OfType<TextBlock>()
+                .FirstOrDefault(t => Ui.TextOf(t) == label && t.IsEffectivelyVisible && Ui.CentreOf(window, t) is { X: < 300, Y: < 860 });
+            if (item != null)
+            {
+                await rec.MoveToAsync(Ui.LeftOf(window, item), 0.9);
+                await rec.ClickAsync();
+            }
+            else
+                App.NavigationService!.NavigateTo(page);
+            await rec.WaitForAsync(() => App.NavigationService?.CurrentPageName == page, 10, $"the {label} page");
+            await rec.HoldAsync(1.2);
+            rec.Mark("page_" + label.ToLowerInvariant());
+            Ui.Dump(window, label);
+            await rec.HoldAsync(4.0);
+        }
+        var reports = window.GetVisualDescendants().OfType<Control>().Select(c => c.DataContext).OfType<ReportsPageViewModel>().First();
+        reports.SelectTemplateCommand.Execute(ReportTemplateFactory.TemplateNames.IncomeStatement);
+        await rec.HoldAsync(0.8);
+        reports.SelectedDatePreset = DatePresetNames.YearToDate;
+        await rec.HoldAsync(1.0);
+        rec.Mark("statement_choice");
+        Ui.Dump(window, "statement choice");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.9);
+        await rec.ClickAsync();
+        await rec.HoldAsync(2.0);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.9);
+        await rec.ClickAsync();
+        await rec.HoldAsync(5.0);
+        rec.Mark("statement");
+        Ui.Dump(window, "statement");
+        await rec.HoldAsync(4.0);
+        window.CaptureRenderedFrame()?.Save(Path.Combine(options.OutFolder, "statement.png"));
+        rec.Mark("end");
+        await rec.FinishAsync();
+    }
+
+    // Alphabetical, as choosing a whole folder gives them.
+    private static readonly string[] ExportOrder =
+        ["Customer Contact List.xlsx", "Item Listing.xlsx", "Open Invoices.xlsx", "Profit and Loss Detail.xlsx", "Vendor Contact List.xlsx"];
+
+    /// <summary>
+    /// Imports every file in the folder through the QuickBooks screen, however many there are and whatever each one asks,
+    /// printing what the company holds after each, for checking real exports against their own totals.
+    /// </summary>
+    private static async Task QuickBooksCheckAsync(Window window, TakeOptions options)
+    {
+        var folder = options.Statement ?? throw new ArgumentException("The check needs the exports folder");
+        var company = Path.Combine(options.OutFolder, "Check.argo");
+        File.Delete(company);
+        AppHooks.AnswerFilePickers(window, company);
+        var rec = new Recorder(window, Path.Combine(options.OutFolder, "qbcheck.mkv"), new Point(1100, 560));
+        await rec.WarmUpAsync(1);
+
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Create New Company")), 0.2);
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Company Information"), 10, "the new company form");
+        var wizard = AppHooks.Shell("CreateCompanyViewModel");
+        AppHooks.SetProperty(wizard, "CompanyName", "Check");
+        AppHooks.SetProperty(wizard, "Country", "Canada");
+        await rec.HoldAsync(0.5);
+        AppHooks.SetProperty(wizard, "ProvinceState", "Ontario");
+        await rec.HoldAsync(0.5);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.2);
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Create Company"), 10, "the second step");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Create Company")), 0.2);
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => App.NavigationService?.CurrentPageName == PageNames.Dashboard && !Ui.Shows(window, "Create Company"), 30, "the new company");
+        await rec.HoldAsync(1.0);
+
+        await rec.MoveToAsync(new Point(286, 59), 0.2);
+        await rec.ClickAsync();
+        await rec.HoldAsync(0.5);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Import")), 0.2);
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Bring your lists and transactions across"), 10, "the import choices");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "QuickBooks")), 0.2);
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Import from QuickBooks"), 10, "the QuickBooks steps");
+
+        var drop = Ui.Text(window, "Drop your QuickBooks exports here");
+        var into = Ui.CentreOf(window, drop);
+        await rec.DragFilesAsync(Directory.GetFiles(folder).OrderBy(f => f).ToArray(), into + new Point(300, 100), into, 0.3);
+        await rec.HoldAsync(1.5);
+        Ui.Dump(window, "dropped");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Continue")), 0.2);
+        await rec.ClickAsync();
+
+        var mapping = AppHooks.Shell("ImportMappingDialogViewModel");
+        var result = AppHooks.Shell("ImportResultDialogViewModel");
+        var validation = AppHooks.Shell("ImportValidationDialogViewModel");
+        var quiet = 0.0;
+        string[] busy = ["Analyzing spreadsheet structure...", "AI processing...", "Importing data...", "Processing..."];
+        while (quiet < 45)
+        {
+            await rec.HoldAsync(0.5);
+            quiet += 0.5;
+            if (busy.Any(b => Ui.Shows(window, b)) || (App.CompanyManager?.CompanyData != null && window.GetVisualDescendants().OfType<ProgressBar>().Any(b => b.IsEffectivelyVisible)))
+                quiet = 0;
+            if (AppHooks.IsOpen(mapping))
+            {
+                quiet = 0;
+                Ui.Dump(window, "review");
+                var accept = (string)mapping.GetType().GetProperty("AcceptButtonText")!.GetValue(mapping)!;
+                await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, accept)), 0.1);
+                await rec.ClickAsync();
+                await rec.HoldAsync(1.0);
+            }
+            else if (AppHooks.IsOpen(validation))
+            {
+                quiet = 0;
+                Ui.Dump(window, "validation");
+                throw new InvalidOperationException("The importer asked about something; script this from the dump");
+            }
+            else if (Ui.Shows(window, "OK"))
+            {
+                quiet = 0;
+                Ui.Dump(window, AppHooks.IsOpen(result) ? "result" : "message");
+                AppHooks.Audit("after a file");
+                await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "OK")), 0.1);
+                await rec.ClickAsync();
+                await rec.HoldAsync(1.0);
+            }
+        }
+
+        await AppHooks.FinishConversionsAsync();
+        await rec.WaitForAsync(() => !App.PendingConversionService!.HasPendingConversions, 120, "the currency conversions");
+        await rec.HoldAsync(0.5);
+        AppHooks.Audit("finished");
+        App.NavigationService!.NavigateTo("Reports");
+        await rec.WaitForAsync(() => App.NavigationService?.CurrentPageName == "Reports", 10, "the Reports page");
+        await rec.HoldAsync(1.5);
+        var reports = window.GetVisualDescendants().OfType<Control>().Select(c => c.DataContext).OfType<ReportsPageViewModel>().First();
+        reports.SelectTemplateCommand.Execute(ReportTemplateFactory.TemplateNames.IncomeStatement);
+        await rec.HoldAsync(0.6);
+        reports.SelectedDatePreset = DatePresetNames.YearToDate;
+        await rec.HoldAsync(0.8);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.1);
+        await rec.ClickAsync();
+        await rec.HoldAsync(1.5);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.1);
+        await rec.ClickAsync();
+        await rec.HoldAsync(4.0);
+        window.CaptureRenderedFrame()?.Save(Path.Combine(options.OutFolder, "statement.png"));
         await rec.FinishAsync();
     }
 

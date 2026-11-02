@@ -36,6 +36,17 @@ internal static class Ui
         visual.TranslatePoint(new Point(visual.Bounds.Width * inset, visual.Bounds.Height / 2), window)
         ?? throw new InvalidOperationException("Not on screen");
 
+    /// <summary>Prints every piece of text on screen with its position, so a take can be scripted from what the app really shows.</summary>
+    public static void Dump(Window window, string title)
+    {
+        Console.WriteLine($"--- {title}");
+        foreach (var block in window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible && t.Bounds.Width > 0 && TextOf(t).Length > 0 && OnScreen(window, t)))
+        {
+            var at = CentreOf(window, block);
+            Console.WriteLine($"{at.X,5:0} {at.Y,5:0}  {TextOf(block)}");
+        }
+    }
+
     private static bool OnScreen(Window window, Visual visual)
     {
         var centre = visual.TranslatePoint(new Point(visual.Bounds.Width / 2, visual.Bounds.Height / 2), window);
@@ -95,6 +106,37 @@ internal static class AppHooks
     public static void CancelImportPrompt(object prompt) =>
         ((System.Windows.Input.ICommand)prompt.GetType().GetProperty("CancelCommand", Any)!.GetValue(prompt)!).Execute(null);
 
+    /// <summary>Prints what the open company really holds, so an import can be checked against the totals of its files.</summary>
+    public static void Audit(string title)
+    {
+        var data = App.CompanyManager!.CompanyData!;
+        Console.WriteLine($"=== {title}: {data.Customers.Count} customers, {data.Suppliers.Count} suppliers, {data.Products.Count} products, " +
+                          $"{data.Revenues.Count} revenues {data.Revenues.Sum(r => r.Total):0.00}, {data.Expenses.Count} expenses {data.Expenses.Sum(e => e.Total):0.00}, " +
+                          $"{data.Invoices.Count} invoices {data.Invoices.Sum(i => i.Total):0.00}, owed {data.Invoices.Sum(i => i.Balance):0.00}");
+    }
+
+    /// <summary>Runs the app's background currency conversion now, rather than on its timer.</summary>
+    public static Task FinishConversionsAsync() =>
+        (Task)typeof(App).GetMethod("TryProcessPendingConversionsAsync", Any)!.Invoke(null, null)!;
+
+    /// <summary>A view model the app shell owns, by the name of its property.</summary>
+    public static object Shell(string property)
+    {
+        var shell = typeof(App).GetField("_appShellViewModel", Any)!.GetValue(null)!;
+        return shell.GetType().GetProperty(property, Any)!.GetValue(shell)!;
+    }
+
+    public static bool IsOpen(object dialog) => (bool)dialog.GetType().GetProperty("IsOpen", Any)!.GetValue(dialog)!;
+
+    public static void SetProperty(object target, string property, object value) => Set(target, property, value);
+
+    /// <summary>Gives the window a file picker that answers at once, since a window with no desktop has none.</summary>
+    public static void AnswerFilePickers(Window window, string saveAs)
+    {
+        var field = typeof(TopLevel).GetFields(Any).First(f => f.FieldType == typeof(IStorageProvider));
+        field.SetValue(window, AnsweringStorage.Over(window.StorageProvider, saveAs));
+    }
+
     private static void Set(object target, string property, object value) =>
         target.GetType().GetProperty(property, Any)!.SetValue(target, value);
 }
@@ -141,11 +183,43 @@ internal static class LocalFile
         path = Path.GetFullPath(path);
         if (await window.StorageProvider.TryGetFileFromPathAsync(path) is { } file)
             return file;
-        // Without a desktop the window's storage provider finds nothing, so Avalonia's own file class is built directly.
+        return Wrap(path);
+    }
+
+    /// <summary>Without a desktop the window's storage provider finds nothing, so Avalonia's own file class is built directly.</summary>
+    public static IStorageFile Wrap(string path)
+    {
         var type = AppDomain.CurrentDomain.GetAssemblies()
             .Select(a => a.GetType("Avalonia.Platform.Storage.FileIO.BclStorageFile"))
             .First(t => t != null)!;
         return (IStorageFile)Activator.CreateInstance(type, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
             null, [new FileInfo(path)], null)!;
+    }
+}
+
+/// <summary>
+/// A file picker that picks by itself: saving always goes to the one path it was given. It is a proxy because Avalonia
+/// does not let outside code implement the interface directly.
+/// </summary>
+internal class AnsweringStorage : DispatchProxy
+{
+    private IStorageProvider _inner = null!;
+    private string _saveAs = "";
+
+    public static IStorageProvider Over(IStorageProvider inner, string saveAs)
+    {
+        var proxy = Create<IStorageProvider, AnsweringStorage>();
+        var self = (AnsweringStorage)(object)proxy;
+        self._inner = inner;
+        self._saveAs = saveAs;
+        return proxy;
+    }
+
+    protected override object? Invoke(MethodInfo? method, object?[]? args)
+    {
+        if (method!.Name != nameof(IStorageProvider.SaveFilePickerAsync))
+            return method.Invoke(_inner, args);
+        File.WriteAllBytes(_saveAs, []);
+        return Task.FromResult<IStorageFile?>(LocalFile.Wrap(_saveAs));
     }
 }

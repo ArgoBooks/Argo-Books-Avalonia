@@ -57,10 +57,27 @@ What it needs first, each made once:
 
 The cut follows Azure's transcript of the recording. Whole sentences listed in `RETAKES` are dropped. Inside a sentence, the recording is split at its pauses (it was gated, so they are near silence), each part is transcribed on its own, and a part that the next one starts over is dropped as a false start; the cut prints every part it drops and every sentence it keeps in more than one part. Each shot, highlight and label then starts on the word it belongs to. The shot list is `shot_list()`.
 
+## The QuickBooks migration (YouTube video 14)
+
+`quickbooks_video.py` makes "How to Export Your QuickBooks Data and Switch to Free Software": a new company, the real QuickBooks import, and the app's Income Statement checked against the reports it read. Its files go to `work/qb/`, and the video to `work/videos/`.
+
+```
+python make_qb_exports.py work/qb/exports     writes the example reports, and prints their totals
+python quickbooks_video.py voice              fetches and measures the voice
+python quickbooks_video.py frame 12 95        saves single frames to work/qb/check/
+python quickbooks_video.py                    renders the video
+```
+
+The take is recorded with `dotnet bin/Release/net10.0/ArgoBooks.Video.dll quickbooks work/qb/takes work/receipt.jpg work/scan-cache work/qb/exports`. It imports five files through the production server, so each recording uses five of this computer's monthly spreadsheet imports. It prints what the company holds after each file, which must match the totals `make_qb_exports.py` printed. The numbers on the cards are typed into `shot_list()`, so a change to the example reports means recording again and updating them.
+
+To test real exports, put them in a folder and run `dotnet bin/Release/net10.0/ArgoBooks.Video.dll qbcheck work/qb/check work/receipt.jpg work/scan-cache <folder>`. It imports every file through the QuickBooks screen and prints what the company holds after each one. The clips of QuickBooks itself are screen recordings from Intuit's public test drive, kept in `work/qb/clips/`.
+
 ## The Shorts
 
 - `catches_short.py` makes "the catch in each" from the recap of the roundup, in Evan's own voice. Run `roundup.py` first.
 - `pc_short.py` makes "Free accounting software for PC", narrated by an ElevenLabs voice. The key is `ELEVENLABS_API_KEY` in `.env.local` beside this README, which git ignores. Speech made on the ElevenLabs free plan cannot be used commercially, so run `python pc_short.py revoice` on a paid plan before publishing.
+- `bank_short.py` makes "Import a bank statement without linking your bank" from the `bank` take, narrated by the Azure voice.
+- `spreadsheet_short.py` makes "Still keeping your books in a spreadsheet?" from the `tour` take, with the same voice.
 - `render_thumbnail.js` saves a thumbnail's HTML as a PNG: `node render_thumbnail.js thumbnail.html 1280 720`.
 
 ## Credits

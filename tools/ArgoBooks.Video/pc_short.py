@@ -93,16 +93,16 @@ def shot_list(words, total):
     ]
 
 
-def mix(plan, total):
+def mix(voice_path, plan, total, music_from=MUSIC_FROM):
     n = int((total + 0.3) * RATE)
-    voice = mv.decode(WORK / "voice.mp3", channels=1)[:, 0]
+    voice = mv.decode(voice_path, channels=1)[:, 0]
     voice = np.pad(voice, (0, max(0, n - len(voice))))[:n]
 
     def rms(x):
         return np.sqrt(np.mean(x * x) + 1e-12)
 
     held = mv.window_sum(np.abs(voice) > 10 ** (-40 / 20), 0.3) > 0.5
-    bed = mv.decode(mv.MUSIC)[int(MUSIC_FROM * RATE):][:n].mean(axis=1)
+    bed = mv.decode(mv.MUSIC)[int(music_from * RATE):][:n].mean(axis=1)
     level = rms(voice[held]) / rms(bed) * 10 ** (MUSIC_BETWEEN_DB / 20)
     duck = mv.smooth(np.where(held, 10 ** ((MUSIC_UNDER_VOICE_DB - MUSIC_BETWEEN_DB) / 20), 1.0), 0.2)
     fade = np.clip((total - np.arange(n) / RATE) / 1.2, 0, 1) * np.minimum(1, np.arange(n) / (0.3 * RATE))
@@ -124,6 +124,24 @@ def mix(plan, total):
     return np.stack([mono, mono], axis=1)
 
 
+def finish(plan, chunks, voice_path, work, out_file, music_from=MUSIC_FROM):
+    """Renders the picture, mixes the sound under it, and saves the finished Short."""
+    print("captions:", " / ".join(" ".join(w["text"] for w in c) for c in chunks))
+    for shot, following in zip(plan, plan[1:]):
+        print(f"{shot['at']:5.1f} s for {following['at'] - shot['at']:4.1f} s: {shot.get('title', 'end card')}")
+    picture = work / "picture.mp4"
+    shown = short.render_picture(picture, plan, chunks)
+    mixed = work / "mix.wav"
+    mv.write_wav(mixed, mix(voice_path, plan, shown, music_from))
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    mv.master(mixed, picture, out_file)
+    meter = subprocess.run([mv.FFMPEG, "-hide_banner", "-nostats", "-i", str(out_file), "-af", "ebur128=peak=true", "-f", "null", "-"],
+                           capture_output=True, text=True).stderr
+    summary = meter[meter.rindex("Summary:"):]
+    print(f"{out_file.name}: {shown:.1f} s, {summary.split('I:')[1].split('LUFS')[0].strip()} LUFS, "
+          f"true peak {summary.split('Peak:')[1].split('dBFS')[0].strip()} dBFS")
+
+
 def main():
     if sys.argv[1:] == ["revoice"] or not (WORK / "voice.mp3").exists():
         fetch_voice()
@@ -132,21 +150,7 @@ def main():
     total = length + HOLD_END
     # This voice takes tiny breaths mid-sentence, which should not break a caption.
     chunks = short.caption_chunks(words, longest_pause=0.4)
-    print("captions:", " / ".join(" ".join(w["text"] for w in c) for c in chunks))
-    plan = shot_list(words, total)
-    for shot, following in zip(plan, plan[1:]):
-        print(f"{shot['at']:5.1f} s for {following['at'] - shot['at']:4.1f} s: {shot.get('title', 'end card')}")
-    picture = WORK / "picture.mp4"
-    shown = short.render_picture(picture, plan, chunks)
-    mixed = WORK / "mix.wav"
-    mv.write_wav(mixed, mix(plan, shown))
-    OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    mv.master(mixed, picture, OUT_FILE)
-    meter = subprocess.run([mv.FFMPEG, "-hide_banner", "-nostats", "-i", str(OUT_FILE), "-af", "ebur128=peak=true", "-f", "null", "-"],
-                           capture_output=True, text=True).stderr
-    summary = meter[meter.rindex("Summary:"):]
-    print(f"{OUT_FILE.name}: {shown:.1f} s, {summary.split('I:')[1].split('LUFS')[0].strip()} LUFS, "
-          f"true peak {summary.split('Peak:')[1].split('dBFS')[0].strip()} dBFS")
+    finish(shot_list(words, total), chunks, WORK / "voice.mp3", WORK, OUT_FILE)
 
 
 if __name__ == "__main__":

@@ -68,9 +68,9 @@ def cut_voice():
     return clean, spans, t
 
 
-def timed_words(path):
+def timed_words(path, work=WORK):
     """Azure's words with their times; the Short has no false starts left, so these timings can be trusted."""
-    cache = WORK / "words.json"
+    cache = work / "words.json"
     if not cache.exists():
         keys = mv.env()
         url = (f"https://{keys['AZURE_SPEECH_REGION']}.api.cognitive.microsoft.com/speechtotext/transcriptions:transcribe"
@@ -83,6 +83,15 @@ def timed_words(path):
             words.append({"text": SPELLING.get(word["text"].strip(".,"), word["text"]), "at": word["offsetMilliseconds"] / 1000,
                           "end": (word["offsetMilliseconds"] + word["durationMilliseconds"]) / 1000})
     return words
+
+
+def scripted_words(path, script, work):
+    """Azure's timings with the script's own words, which keep the spelling and punctuation the captions need."""
+    heard = timed_words(path, work)
+    written = script.split()
+    if len(heard) != len(written):
+        raise SystemExit(f"the transcript has {len(heard)} words and the script {len(written)}: {' '.join(w['text'] for w in heard)}")
+    return [{**word, "text": text} for word, text in zip(heard, written)]
 
 
 def caption_chunks(words, longest_pause=0.15):
@@ -228,15 +237,22 @@ def render_picture(path, plan, chunks):
             painter.background = base.convert("RGB")
             start = round((take["marks"][shot["from"][0]] + shot["from"][1]) * FPS)
             part = {"tall": shot["keys"], "frames": stop - first}
-            source = mv.take_frames(take, start, stop - first)
+            # A shot may run longer than its `play` seconds of the take: the last frame then holds while the camera keeps moving.
+            played = min(stop - first, round(shot.get("play", stop - first) * FPS))
+            source = mv.take_frames(take, start, played)
         for f in range(first, stop):
             t = f / FPS
             if "end" in shot:
                 frame = end_frame(base, last, t - shot["at"])
             elif "grid" in shot:
                 frame = grid.copy()
+            elif "still" in shot:
+                frame = shot["still"](t - shot["at"])
             elif "take" in shot:
-                frame = painter.app_frame(next(source), part, 0, start + f - first).convert("RGBA")
+                age = f - first
+                if age < played:
+                    pixels = next(source)
+                frame = painter.app_frame(pixels, part, 0, start + min(age, played - 1), (start + age) / FPS).convert("RGBA")
             else:
                 frame = base.copy()
                 frame.paste(r.page_frame(shot, t, pages, sprites, (vw, vh)), (vx, vy))
