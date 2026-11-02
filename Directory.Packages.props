@@ -4,16 +4,16 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Avalonia" Version="12.1.4" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />
-    <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />
-    <PackageVersion Include="Avalonia.Headless" Version="12.1.4" />
-    <PackageVersion Include="Avalonia.Skia" Version="12.1.4" />
-    <PackageVersion Include="Avalonia.Controls.WebView" Version="12.1.0" />
+    <PackageVersion Include="Avalonia" Version="12.1.5" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.5" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.5" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.5" />
+    <PackageVersion Include="Avalonia.Headless" Version="12.1.5" />
+    <PackageVersion Include="Avalonia.Skia" Version="12.1.5" />
+    <PackageVersion Include="Avalonia.Controls.WebView" Version="12.1.1" />
 
     <!-- Android head -->
-    <PackageVersion Include="Avalonia.Android" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Android" Version="12.1.5" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0.3" />
     <!-- Moves in lockstep with Xamarin.AndroidX.Core, or both .aar's ship the same generated Kotlin class and D8/R8 fails at dex time with a duplicate class. -->
     <PackageVersion Include="Xamarin.AndroidX.Core.Core.Ktx" Version="1.19.0.1" />
@@ -40,7 +40,7 @@
     <PackageVersion Include="LiveChartsCore.SkiaSharpView" Version="2.0.1-av12.1" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.Avalonia" Version="2.0.1-av12.1" />
     <!-- The first-party picker, because PixiEditor's is built against Avalonia 11 and throws MissingMethodException on 12. -->
-    <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="12.1.5" />
     <PackageVersion Include="SkiaSharp" Version="3.119.4" />
     <!-- HEIC decoding, which Skia does not do on Windows or Linux and which every photo off an iPhone needs. The Runtime package bundles one library where the per-rid ones ship untrimmable aom and x265 beside it, costing 15 MB. -->
     <PackageVersion Include="LibHeifSharp" Version="3.2.0" />
