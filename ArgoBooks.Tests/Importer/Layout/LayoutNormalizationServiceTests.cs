@@ -259,4 +259,26 @@ public class LayoutNormalizationServiceTests : IDisposable
         var clean = outWb.Worksheet("Clean");
         Assert.Equal("Lunch", clean.Cell(2, 3).GetString());
     }
+
+    [Fact]
+    public async Task NormalizeAsync_FileOpenInExcel_StillNormalized()
+    {
+        var path = NewTempXlsxPath();
+        using (var wb = new XLWorkbook())
+        {
+            AddMessyPreambleSheet(wb, "Messy");
+            wb.SaveAs(path);
+        }
+
+        // Excel holds an open workbook for writing and lets other programs read it.
+        using var excel = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+        var service = new LayoutNormalizationService(new FakeGemini(PreambleDescriptorJson));
+
+        var result = await service.NormalizeAsync(path);
+
+        Assert.NotEqual(path, result);
+        _tempFiles.Add(result);
+        using var outWb = new XLWorkbook(result);
+        Assert.Equal("Date", outWb.Worksheet("Messy").Cell(1, 1).GetString());
+    }
 }

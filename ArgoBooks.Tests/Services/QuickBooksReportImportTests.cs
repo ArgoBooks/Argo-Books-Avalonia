@@ -178,6 +178,44 @@ public class QuickBooksReportImportTests
     }
 
     [Fact]
+    public void AnOpenInvoicesReportOpenInExcel_IsStillFlattened()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "argo-open-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, "Open Invoices.xlsx");
+        using (var book = new XLWorkbook())
+        {
+            var sheet = book.AddWorksheet("Sheet1");
+            sheet.Cell(1, 2).Value = "Date";
+            sheet.Cell(1, 3).Value = "Transaction type";
+            sheet.Cell(1, 4).Value = "Num";
+            sheet.Cell(1, 5).Value = "Open balance";
+            sheet.Cell(2, 1).Value = "Amy's Bird Sanctuary";
+            sheet.Cell(3, 2).Value = "09/14/2026";
+            sheet.Cell(3, 3).Value = "Invoice";
+            sheet.Cell(3, 4).Value = "1021";
+            sheet.Cell(3, 5).Value = 239.0;
+            book.SaveAs(path);
+        }
+
+        try
+        {
+            string? written;
+            // Excel holds an open workbook for writing and lets other programs read it.
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+                written = QuickBooksReportFlattener.FlattenOpenInvoices(path, Path.Combine(folder, "out"));
+
+            Assert.NotNull(written);
+            using var result = new XLWorkbook(written);
+            Assert.Equal("Amy's Bird Sanctuary", result.Worksheets.First().Cell(2, 1).GetString());
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ReportsThatRepeatTheTransactions_AreLeftOutOfTheQuickBooksZip()
     {
         Assert.True(QuickBooksImportModalViewModel.IsAccountingSummary("General_ledger.xlsx"));

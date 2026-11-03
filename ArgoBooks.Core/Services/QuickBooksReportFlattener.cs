@@ -20,7 +20,8 @@ public static class QuickBooksReportFlattener
         if (!path.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
             return null;
 
-        using var source = new XLWorkbook(path);
+        using var stream = SharedFileReader.OpenRead(path);
+        using var source = new XLWorkbook(stream);
         var sheet = source.Worksheets.First();
         var lastColumn = sheet.LastColumnUsed()?.ColumnNumber() ?? 0;
         var lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
