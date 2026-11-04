@@ -6,6 +6,7 @@ const path = require("path");
 const { chromium } = require("playwright-core");
 
 const EDGE = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
+const MAC_SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15";
 
 // Each page: its address, what to click before the capture, and the lines of text to find on it. A target is the
 // text to find, optionally with the card or row it has to sit inside, given as text that is also in that container.
@@ -58,8 +59,95 @@ const PAGES = {
       team: { text: "Add 5 team members" },
     },
   },
+  // The Mac video. Intuit's pages refuse a headless browser, so its facts are on cards instead.
+  wave_us: {
+    mac: true,
+    url: "https://www.waveapps.com/pricing",
+    clicks: [{ role: "button", name: "Accept All Cookies" }],
+    targets: {
+      starter_price: { text: "$0", near: "Just starting your business" },
+      starter_unlimited: { text: "Create unlimited estimates, invoices, bills, and bookkeeping records" },
+      pro_price: { text: "$250CAD/year" },
+      pro_bank: { text: "Auto-import bank transactions", near: "Everything in Starter" },
+      pro_receipts: { text: "Digitally capture unlimited receipts and track expenses" },
+    },
+  },
+  zoho_mac: {
+    mac: true,
+    url: "https://apps.apple.com/us/app/zoho-books-accounting-app/id1476500403?mt=12",
+    clicks: [],
+    targets: { only_mac: { text: "Only for Mac" }, requires: { text: "Requires macOS 13.0 or later." } },
+  },
+  zoho_us: {
+    mac: true,
+    url: "https://www.zoho.com/us/books/pricing/",
+    clicks: [],
+    opens: ["For how long is the free plan free?", "How many invoices can I create in a year?"],
+    targets: {
+      free_card: { text: "Get started with free accounting software" },
+      free_price: { text: "$0", near: "solopreneurs" },
+      free_users: { text: "1 User + 1 Accountant" },
+      standard_price: { text: "$20", near: "Everything in Free" },
+      bank_feeds: { text: "Connect bank feeds" },
+      faq_free: { text: "As long as your revenue" },
+      faq_invoices: { text: "1,000 invoices" },
+    },
+  },
+  gnucash_download: {
+    mac: true,
+    url: "https://www.gnucash.org/download.phtml",
+    clicks: [],
+    targets: { silicon: { text: "for Apple macOS Apple Silicon" }, intel: { text: "for Apple macOS Intel" } },
+  },
+  gnucash_home: {
+    mac: true,
+    url: "https://www.gnucash.org/",
+    clicks: [],
+    targets: { silicon: { text: "Apple macOS Apple Silicon" } },
+  },
+  gnucash_features: {
+    mac: true,
+    url: "https://www.gnucash.org/features.phtml",
+    clicks: [],
+    targets: { double_entry: { text: "Every transaction must debit one account and credit others" }, register: { text: "Checkbook-Style Register" } },
+  },
+  manager_download: {
+    mac: true,
+    url: "https://www.manager.io/download",
+    clicks: [],
+    targets: {
+      free_forever: { text: "No internet connection required. Fully-featured and free forever." },
+      mac: { text: "Requires Mac OS X 12 (with Apple Silicon) or newer." },
+      intel: { text: "Alternative download for Intel-based Macs" },
+      single_user: { text: "Desktop edition is single-user software." },
+    },
+  },
+  manager_home: {
+    mac: true,
+    url: "https://www.manager.io/",
+    clicks: [],
+    targets: { free_forever: { text: "Free Forever" }, no_limits: { text: "There are no time limits" }, offline: { text: "Work Offline" } },
+  },
+  manager_cloud: {
+    mac: true,
+    url: "https://www.manager.cloud",
+    clicks: [],
+    targets: { price: { text: "59 USD" }, users: { text: "Unlimited Users + Unlimited Businesses" } },
+  },
   argo_home: { url: "https://argorobots.com/", clicks: [], targets: {} },
   argo_downloads: { url: "https://argorobots.com/downloads/", clicks: [], targets: {} },
+  argo_downloads_mac: {
+    mac: true,
+    url: "https://argorobots.com/downloads/",
+    clicks: [],
+    targets: {
+      no_account: { text: "Get started for free. No account required." },
+      mac_card: { text: "For macOS 14 Sonoma and later" },
+      silicon: { text: "Apple Silicon · 107.8 MB" },
+      intel: { text: "Intel · 135 MB" },
+      brew: { text: "brew install" },
+    },
+  },
   argo_pricing: {
     url: "https://argorobots.com/pricing/",
     clicks: [],
@@ -105,11 +193,20 @@ async function boxOf(page, target) {
   const only = process.argv.slice(3);
   fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch({ executablePath: EDGE, headless: true });
-  const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2, locale: "en-CA", timezoneId: "America/Toronto" });
+  const settings = { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2, locale: "en-CA", timezoneId: "America/Toronto" };
+  const context = await browser.newContext(settings);
+  // Download pages offer what suits the visitor's computer, so a page the Mac video shows is opened as a Mac's Safari.
+  const macContext = await browser.newContext({ ...settings, userAgent: MAC_SAFARI });
   for (const [name, spec] of Object.entries(PAGES)) {
     if (only.length && !only.includes(name)) continue;
-    const page = await context.newPage();
-    await page.goto(spec.url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    const page = await (spec.mac ? macContext : context).newPage();
+    try {
+      await page.goto(spec.url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    } catch (e) {
+      console.log(`${name}: did not load (${e.message.split("\n")[0]})`);
+      await page.close();
+      continue;
+    }
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(3000);
     for (const click of spec.clicks) {

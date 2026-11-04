@@ -18,7 +18,8 @@ namespace ArgoBooks.Video;
 internal static class Takes
 {
     /// <summary>The window's size in the app's own units. It is drawn at twice this, so the edit can zoom in and stay sharp.</summary>
-    private static readonly Size WindowSize = new(1600, 900);
+    // A Mac recording leaves room for the 28-point title bar macOS draws above the window, which the edit adds.
+    private static readonly Size WindowSize = new(1600, Environment.GetEnvironmentVariable("ARGO_VIDEO_MAC") == "1" ? 872 : 900);
 
     private const string BusinessName = "Cedar Ridge IT";
 

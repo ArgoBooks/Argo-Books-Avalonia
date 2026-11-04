@@ -72,6 +72,24 @@ The take is recorded with `dotnet bin/Release/net10.0/ArgoBooks.Video.dll quickb
 
 To test real exports, put them in a folder and run `dotnet bin/Release/net10.0/ArgoBooks.Video.dll qbcheck work/qb/check work/receipt.jpg work/scan-cache <folder>`. It imports every file through the QuickBooks screen and prints what the company holds after each one. The clips of QuickBooks itself are screen recordings from Intuit's public test drive, kept in `work/qb/clips/`.
 
+## Free accounting software for Mac (YouTube video 15)
+
+`mac_video.py` makes "Top 5 Free Accounting Software for Mac": Wave, Zoho Books, GnuCash, Manager and Argo Books, the catch in each, and Argo Books as it looks on a Mac. Its files go to `work/mac/`, and the video to `work/videos/`.
+
+```
+python mac_video.py voice              fetches and measures the voice
+python mac_video.py frame 12 95        saves single frames to work/mac/check/
+python mac_video.py                    renders the video
+```
+
+On a Mac the app hides its own title bar and window buttons, leaves them to macOS, and shows Cmd where Windows shows Ctrl. The Mac takes are recorded from a copy of the released app with those macOS paths switched on, so the video shows what a Mac user downloads today:
+
+1. `git worktree add --detach <folder> origin/main`, copy this tool into the copy's `tools/` folder, and add `Avalonia.Headless` and `Avalonia.Skia` to its `Directory.Packages.props` at the copy's Avalonia version.
+2. In that copy only, make the `OperatingSystem.IsMacOS()` checks in `LanguageService.LocalizeShortcutModifier` and `MainWindow.ConfigureMacOsChrome` also pass when the environment variable `ARGO_VIDEO_MAC` is `1`. Never commit that change.
+3. Build the tool there and record `welcome`, `tour`, `receipt` and `bank` with `ARGO_VIDEO_MAC=1` into `work/mac/takes`. The variable also makes the window 28 points shorter, the height of the title bar `mac_window.py` draws above each frame.
+
+The pages are captured with `node capture_pages.js work/mac/pages wave_us zoho_mac zoho_us gnucash_home gnucash_download gnucash_features manager_download manager_home manager_cloud argo_downloads_mac argo_pricing`. Each is opened as a Mac's Safari, so download pages offer the Mac version. Intuit's pages refuse a headless browser, so the QuickBooks facts are on cards that name their source. The few lines the capture finds in the wrong place are placed by hand in `BOXES`, which needs checking after a fresh capture.
+
 ## The Shorts
 
 - `catches_short.py` makes "the catch in each" from the recap of the roundup, in Evan's own voice. Run `roundup.py` first.

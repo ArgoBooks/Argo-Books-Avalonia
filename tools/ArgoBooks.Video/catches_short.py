@@ -6,6 +6,7 @@ Usage: python catches_short.py
 It uses what roundup.py made in work/roundup/ (the transcript, pages and takes), so run that first. The finished video
 goes to work/videos/. The words' timings come from Azure's transcript of the Short's own voice, kept in work/short/.
 """
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -71,12 +72,23 @@ def cut_voice():
 def timed_words(path, work=WORK):
     """Azure's words with their times; the Short has no false starts left, so these timings can be trusted."""
     cache = work / "words.json"
+    stamp = work / "words.audio"
+    heard = hashlib.sha1(Path(path).read_bytes()).hexdigest()
+    # A transcript saved before its audio was remembered is trusted, so the finished videos' timings stay as they were.
+    if cache.exists() and stamp.exists() and stamp.read_text() != heard:
+        cache.unlink()
     if not cache.exists():
         keys = mv.env()
         url = (f"https://{keys['AZURE_SPEECH_REGION']}.api.cognitive.microsoft.com/speechtotext/transcriptions:transcribe"
                "?api-version=2024-11-15")
-        subprocess.run(["curl", "-s", "-f", "-o", str(cache), "-X", "POST", url, "-H", f"Ocp-Apim-Subscription-Key: {keys['AZURE_SPEECH_KEY']}",
-                        "-F", f"audio=@{path}", "-F", 'definition={"locales":["en-US"],"profanityFilterMode":"None"}'], check=True)
+        work.mkdir(parents=True, exist_ok=True)
+        # curl reads the key from its standard input, so a failure's message never shows it.
+        done = subprocess.run(["curl", "-s", "-f", "-o", str(cache), "-X", "POST", url, "-H", "@-",
+                               "-F", f"audio=@{path}", "-F", 'definition={"locales":["en-US"],"profanityFilterMode":"None"}'],
+                              input=f"Ocp-Apim-Subscription-Key: {keys['AZURE_SPEECH_KEY']}\n", text=True)
+        if done.returncode != 0:
+            raise SystemExit(f"Azure transcription of {path} failed (curl exit code {done.returncode})")
+        stamp.write_text(heard)
     words = []
     for phrase in json.loads(cache.read_text())["phrases"]:
         for word in phrase["words"]:
