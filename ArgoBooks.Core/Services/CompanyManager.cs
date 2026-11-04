@@ -913,7 +913,9 @@ public class CompanyManager : IDisposable
         {
             // Clean up on failure (the finally releases the instance lock).
             ReleaseFileLock();
-            _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company");
+            // The app asks the user to update instead, so an older copy opening a newer file is not a fault.
+            if (ex is not CompanyFileTooNewException)
+                _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company");
             DeleteTempDirectoryAfterFailure();
             CompanyData = null;
             throw;

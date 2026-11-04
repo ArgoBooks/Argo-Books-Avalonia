@@ -3,6 +3,7 @@ using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
+using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Platform;
@@ -1075,6 +1076,56 @@ public class CompanyManagerTests : IDisposable
             }
 
             await base.SaveCompanyAsync(filePath, tempDirectory, password, cancellationToken);
+        }
+    }
+
+    #endregion
+
+    #region Open Failure Tests
+
+    private sealed class CountingErrorLogger : IErrorLogger
+    {
+        public int ErrorCount { get; private set; }
+        public void LogError(Exception exception, ErrorCategory category, string? context = null, string callerFile = "", int callerLine = 0, string callerMember = "") => ErrorCount++;
+        public void LogError(string message, ErrorCategory category, string? context = null, string callerFile = "", int callerLine = 0, string callerMember = "") => ErrorCount++;
+        public void LogWarning(string message, string? context = null, ErrorCategory category = ErrorCategory.Unknown, string? code = null, string callerFile = "", int callerLine = 0, string callerMember = "") { }
+        public void LogInfo(string message) { }
+        public void LogDebug(string message) { }
+        public IReadOnlyList<ErrorLogEntry> GetRecentErrors(int count = 50) => [];
+        public event EventHandler<ErrorLogEntry>? ErrorLogged { add { } remove { } }
+    }
+
+    // The app asks the user to update instead, so an older copy opening a newer file is not a fault to report.
+    [Fact]
+    public async Task Open_FileFromANewerVersion_IsNotLoggedAsAnError()
+    {
+        var logger = new CountingErrorLogger();
+        var footerService = new FooterService();
+        using var manager = new CompanyManager(
+            new FileService(new CompressionService(), footerService),
+            new GlobalSettingsService(new MockPlatformService()),
+            footerService,
+            logger);
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await using (var stream = File.Create(path))
+            {
+                await stream.WriteAsync("not readable by this build"u8.ToArray());
+                await footerService.WriteFooterAsync(stream, new FileFooter
+                {
+                    Version = "99.0.0",
+                    FormatVersion = FileFormatConstants.FormatVersion + 1,
+                    CompanyName = "From The Future"
+                });
+            }
+
+            await Assert.ThrowsAsync<CompanyFileTooNewException>(() => manager.OpenCompanyAsync(path));
+            Assert.Equal(0, logger.ErrorCount);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
         }
     }
 
