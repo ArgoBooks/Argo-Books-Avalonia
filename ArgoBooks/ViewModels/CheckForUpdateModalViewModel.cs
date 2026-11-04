@@ -1,4 +1,6 @@
-﻿using ArgoBooks.Core.Platform;
+﻿using System.ComponentModel;
+using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
@@ -300,8 +302,13 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
         {
             _updateService.ApplyUpdateAndRestart();
         }
-        catch
+        catch (Exception failure)
         {
+            // Telemetry drops an error's message, and the Windows code is what says whether permission was refused or antivirus blocked the installer.
+            App.ErrorLogger?.LogError(failure, ErrorCategory.FileSystem, failure is Win32Exception windows
+                ? $"Update did not start, Windows code {windows.NativeErrorCode}"
+                : "Update did not start");
+
             // The app stays open when the update never starts, so this is reported now rather than as a failed install on the next launch.
             var target = _updateService.AvailableUpdate?.Version ?? "unknown";
             _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateFailed,
