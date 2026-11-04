@@ -96,6 +96,7 @@ The pages are captured with `node capture_pages.js work/mac/pages wave_us zoho_m
 - `pc_short.py` makes "Free accounting software for PC", narrated by an ElevenLabs voice. The key is `ELEVENLABS_API_KEY` in `.env.local` beside this README, which git ignores. Speech made on the ElevenLabs free plan cannot be used commercially, so run `python pc_short.py revoice` on a paid plan before publishing.
 - `bank_short.py` makes "Import a bank statement without linking your bank" from the `bank` take, narrated by the Azure voice.
 - `spreadsheet_short.py` makes "Still keeping your books in a spreadsheet?" from the `tour` take, with the same voice.
+- `mac_short.py` makes "Free accounting software for Mac" from the Mac takes and pages, with the same voice. Make those for `mac_video.py` first.
 - `render_thumbnail.js` saves a thumbnail's HTML as a PNG: `node render_thumbnail.js thumbnail.html 1280 720`.
 
 ## Credits

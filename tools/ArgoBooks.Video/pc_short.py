@@ -124,13 +124,13 @@ def mix(voice_path, plan, total, music_from=MUSIC_FROM):
     return np.stack([mono, mono], axis=1)
 
 
-def finish(plan, chunks, voice_path, work, out_file, music_from=MUSIC_FROM):
-    """Renders the picture, mixes the sound under it, and saves the finished Short."""
+def finish(plan, chunks, voice_path, work, out_file, music_from=MUSIC_FROM, **sources):
+    """Renders the picture, mixes the sound under it, and saves the finished Short. `sources` go to render_picture."""
     print("captions:", " / ".join(" ".join(w["text"] for w in c) for c in chunks))
     for shot, following in zip(plan, plan[1:]):
         print(f"{shot['at']:5.1f} s for {following['at'] - shot['at']:4.1f} s: {shot.get('title', 'end card')}")
     picture = work / "picture.mp4"
-    shown = short.render_picture(picture, plan, chunks)
+    shown = short.render_picture(picture, plan, chunks, **sources)
     mixed = work / "mix.wav"
     mv.write_wav(mixed, mix(voice_path, plan, shown, music_from))
     out_file.parent.mkdir(parents=True, exist_ok=True)

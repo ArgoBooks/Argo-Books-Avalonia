@@ -99,7 +99,12 @@ def timed_words(path, work=WORK):
 
 def scripted_words(path, script, work):
     """Azure's timings with the script's own words, which keep the spelling and punctuation the captions need."""
-    heard = timed_words(path, work)
+    heard = []
+    # A name spelled as two words, such as "Argo Books", is heard as one, so its time is shared between them.
+    for word in timed_words(path, work):
+        parts = word["text"].split()
+        step = (word["end"] - word["at"]) / len(parts)
+        heard += [{**word, "text": part, "at": word["at"] + n * step, "end": word["at"] + (n + 1) * step} for n, part in enumerate(parts)]
     written = script.split()
     if len(heard) != len(written):
         raise SystemExit(f"the transcript has {len(heard)} words and the script {len(written)}: {' '.join(w['text'] for w in heard)}")
@@ -231,27 +236,28 @@ def end_frame(base, previous, age):
     return Image.blend(previous, frame, fade) if fade < 1 and previous is not None else frame
 
 
-def render_picture(path, plan, chunks):
+def render_picture(path, plan, chunks, load_take=r.load_take, take_frames=mv.take_frames, pages=None):
+    """Draws the Short. A Mac Short passes its own takes, frames and pages, from mac_window.py and mac_video.py."""
     mv.TALL_VIEW = VIEW
     base = background()
     encoder = subprocess.Popen([mv.FFMPEG, "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-video_size", f"{SIZE[0]}x{SIZE[1]}",
                                 "-framerate", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", "17",
                                 "-pix_fmt", "yuv420p", str(path)], stdin=subprocess.PIPE)
-    pages, sprites, grid = r.Pages(), {}, grid_frame(base)
+    pages, sprites, grid = pages or r.Pages(), {}, grid_frame(base)
     vx, vy, vw, vh = VIEW
     frame_no, last = 0, None
     for shot, following in zip(plan, plan[1:]):
         first, stop = round(shot["at"] * FPS), round(following["at"] * FPS)
         source = None
         if "take" in shot:
-            take = r.load_take(shot["take"])
+            take = load_take(shot["take"])
             painter = mv.Painter("tall", take, [], [])
             painter.background = base.convert("RGB")
             start = round((take["marks"][shot["from"][0]] + shot["from"][1]) * FPS)
             part = {"tall": shot["keys"], "frames": stop - first}
             # A shot may run longer than its `play` seconds of the take: the last frame then holds while the camera keeps moving.
             played = min(stop - first, round(shot.get("play", stop - first) * FPS))
-            source = mv.take_frames(take, start, played)
+            source = take_frames(take, start, played)
         for f in range(first, stop):
             t = f / FPS
             if "end" in shot:
