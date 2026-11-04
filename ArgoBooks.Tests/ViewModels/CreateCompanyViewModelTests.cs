@@ -358,5 +358,19 @@ public class CreateCompanyViewModelTests
         Assert.False(_viewModel.IsOpen);
     }
 
+    // Windows drops a space from the end of a folder name, so "Formex " could not be created there.
+    [Fact]
+    public void CreateCommand_TrimsSpacesAroundTheCompanyName()
+    {
+        _viewModel.CompanyName = " Formex ";
+        _viewModel.Country = "United States";
+        CompanyCreatedEventArgs? created = null;
+        _viewModel.CompanyCreated += (_, args) => created = args;
+
+        _viewModel.CreateCompanyCommand.Execute(null);
+
+        Assert.Equal("Formex", created?.CompanyName);
+    }
+
     #endregion
 }
