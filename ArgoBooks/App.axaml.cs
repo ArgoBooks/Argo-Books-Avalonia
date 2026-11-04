@@ -4400,6 +4400,8 @@ public partial class App : Application
     private static async Task OpenCompanyWithRetryAsync(string filePath, string source, bool leavingConfirmed = false)
     {
         if (CompanyManager == null || _mainWindowViewModel == null || _appShellViewModel == null) return;
+        // A recent company clicked twice asks again while the first open is still loading.
+        if (CompanyManager.IsOpening) return;
         if (!leavingConfirmed && !await ConfirmLeavingCompanyAsync()) return;
 
         var passwordModal = _appShellViewModel.PasswordPromptModalViewModel;
