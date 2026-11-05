@@ -7,18 +7,18 @@ namespace ArgoBooks.Helpers;
 /// <summary>
 /// Prepares an image the user picked, for a logo or an avatar.
 ///
-/// The picked file is copied into the company as-is, so a format Skia cannot decode has to be
-/// converted here rather than only for the preview: otherwise the stored image would fail again
-/// every time the header or an invoice tried to draw it.
+/// The image is copied in when the form it was picked in is saved, which can be minutes later, so
+/// it is staged here straight away: the original may have been moved, deleted, or only lent by
+/// Windows from inside a zip or a phone by then. A format Skia cannot decode is converted here
+/// rather than only for the preview, or the stored image would fail every time it was drawn.
 /// </summary>
 public static class ImageFileLoader
 {
-    /// <summary>The file to store, and the bitmap to show. Path differs from the picked one
-    /// when the image had to be converted.</summary>
+    /// <summary>The staged copy to store, and the bitmap to show.</summary>
     public sealed record PreparedImage(string Path, Bitmap Bitmap);
 
     /// <summary>
-    /// Where a converted copy is staged before the caller copies it into the company. The
+    /// Where a picked image is staged before the caller copies it into the company. The
     /// caller keeps its own copy, so nothing here outlives the pick that produced it.
     /// </summary>
     private static string ConvertedDirectory { get; } = Path.Combine(Core.Services.AppPaths.Temp, "PickedImages");
@@ -52,24 +52,26 @@ public static class ImageFileLoader
         try
         {
             var data = File.ReadAllBytes(pickedPath);
-
-            if (CanDecode(data))
-                return new PreparedImage(pickedPath, new Bitmap(pickedPath));
+            var extension = Path.GetExtension(pickedPath);
 
             // Detected by the decode failing rather than by the extension, so a HEIC someone
             // renamed to .jpg is still handled. Mirrors ReceiptImageHelper.PreprocessForOcr.
-            var asJpeg = HeifImageDecoder.TryConvertToJpeg(data);
-            if (asJpeg == null)
-                return null;
+            if (!CanDecode(data))
+            {
+                data = HeifImageDecoder.TryConvertToJpeg(data);
+                if (data == null)
+                    return null;
+                extension = ".jpg";
+            }
 
-            var converted = Path.Combine(
+            var staged = Path.Combine(
                 ConvertedDirectory,
-                $"{Path.GetFileNameWithoutExtension(pickedPath)}_{Guid.NewGuid():N}.jpg");
+                $"{Path.GetFileNameWithoutExtension(pickedPath)}_{Guid.NewGuid():N}{extension}");
 
             Directory.CreateDirectory(ConvertedDirectory);
-            File.WriteAllBytes(converted, asJpeg);
+            File.WriteAllBytes(staged, data);
 
-            return new PreparedImage(converted, new Bitmap(converted));
+            return new PreparedImage(staged, new Bitmap(staged));
         }
         catch
         {

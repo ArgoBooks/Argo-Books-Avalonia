@@ -163,7 +163,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
                     var totalPaid = companyData?.Payments
                         .Where(p => p.InvoiceId == invoice.Id && p.Amount > 0)
                         .Sum(p => p.Amount) ?? 0;
-                    var remaining = invoice.Total - totalPaid;
+                    var remaining = invoice.Total - totalPaid - invoice.AmountCredited;
                     if (remaining > 0)
                     {
                         ModalAmount = remaining.ToString("F2");
@@ -681,7 +681,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
             var totalPaid = companyData.Payments
                 .Where(p => p.InvoiceId == invoice.Id && p.Amount > 0)
                 .Sum(p => p.Amount);
-            var amountDue = invoice.Total - totalPaid;
+            var amountDue = invoice.Total - totalPaid - invoice.AmountCredited;
             var currency = string.IsNullOrEmpty(invoice.OriginalCurrency)
                 ? CurrencyService.CurrentCurrencyCode
                 : invoice.OriginalCurrency;

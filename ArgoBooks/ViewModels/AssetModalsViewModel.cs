@@ -6,6 +6,7 @@ using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -318,6 +319,8 @@ public partial class AssetModalsViewModel : ViewModelBase
             formAsset.ExpenseId = _sourceExpenseId;
             formAsset.CreatedAt = DateTime.UtcNow;
             data.Assets.Add(formAsset);
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.AssetCreated,
+                $"{(_sourceExpenseId != null ? "expense-row" : "assets-page")}:{formAsset.Type}");
             Record($"Add asset '{formAsset.Name}'",
                 () => data.Assets.RemoveRecord(formAsset),
                 () => data.Assets.RestoreRecord(formAsset));
@@ -529,6 +532,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         var after = asset.Clone();
         Record(IsSale ? $"Edit asset '{asset.Name}' to record its sale" : $"Edit asset '{asset.Name}' to record its disposal",
             () => asset.CopyFrom(before), () => asset.CopyFrom(after));
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.AssetDisposed, IsSale ? "sold" : "scrapped");
 
         IsDisposeOpen = false;
         _disposing = null;

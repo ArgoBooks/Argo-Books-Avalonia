@@ -12,6 +12,12 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class InventoryValuationService
 {
+    /// <summary>One item's reconstructed stock on a date, and what it is worth at its current unit cost.</summary>
+    public sealed record ItemValue(InventoryItem Item, decimal Quantity)
+    {
+        public decimal Value => Quantity * Item.UnitCost;
+    }
+
     /// <summary>
     /// The signed change in stock this adjustment represents:
     /// Add is positive, Remove is negative, Set is (new - previous).
@@ -49,7 +55,13 @@ public static class InventoryValuationService
     /// Total inventory value as of <paramref name="asOfDate"/>: each item's
     /// reconstructed stock-on-hand times its current UnitCost, summed.
     /// </summary>
-    public static decimal TotalValueAsOf(CompanyData data, DateTime asOfDate)
+    public static decimal TotalValueAsOf(CompanyData data, DateTime asOfDate) =>
+        ItemsAsOf(data, asOfDate).Sum(i => i.Value);
+
+    /// <summary>
+    /// Every item's reconstructed stock-on-hand as of <paramref name="asOfDate"/>.
+    /// </summary>
+    public static List<ItemValue> ItemsAsOf(CompanyData data, DateTime asOfDate)
     {
         var transactionDates = BuildTransactionDateLookup(data);
 
@@ -64,14 +76,9 @@ public static class InventoryValuationService
             .GroupBy(a => a.InventoryItemId)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<StockAdjustment>)g.ToList());
 
-        var total = 0m;
-        foreach (var item in data.Inventory)
-        {
-            var adjustments = adjustmentsByItem.GetValueOrDefault(item.Id) ?? [];
-            var quantity = StockOnHandAsOf(item, adjustments, EffectiveDate, asOfDate);
-            total += quantity * item.UnitCost;
-        }
-        return total;
+        return data.Inventory
+            .Select(item => new ItemValue(item, StockOnHandAsOf(item, adjustmentsByItem.GetValueOrDefault(item.Id) ?? [], EffectiveDate, asOfDate)))
+            .ToList();
     }
 
     /// <summary>

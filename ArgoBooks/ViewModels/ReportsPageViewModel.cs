@@ -62,8 +62,16 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Icons.DollarSign, AppColors.FlatPurple, AppColors.FlatPurpleLight),
         new(ReportTemplateFactory.TemplateNames.GeneralLedger, "General Ledger", "Full list of every transaction",
             Icons.DocumentStackAdd, AppColors.ReportSlate, AppColors.FlatSlateLight),
+        new(ReportTemplateFactory.TemplateNames.TrialBalance, "Trial Balance", "Every account's balance for your accountant",
+            Icons.DocumentStack, AppColors.ReportSlate, AppColors.FlatSlateLight),
         new(ReportTemplateFactory.TemplateNames.ARaging, "AR Aging", "Who owes you and for how long",
             Icons.DollarCircleAlt, AppColors.FlatTeal, AppColors.FlatTealLight),
+        new(ReportTemplateFactory.TemplateNames.APaging, "AP Aging", "Which bills you owe and how overdue",
+            Icons.Clock, AppColors.MdCyan, AppColors.MdCyanLight),
+        new(ReportTemplateFactory.TemplateNames.OpenInvoices, "Open Invoices", "Every invoice still waiting to be paid",
+            Icons.Invoices, AppColors.FlatTeal, AppColors.FlatTealLight),
+        new(ReportTemplateFactory.TemplateNames.UnpaidBills, "Unpaid Bills", "Every bill you still have to pay",
+            Icons.Expenses, AppColors.MdCyan, AppColors.MdCyanLight),
         new(ReportTemplateFactory.TemplateNames.CustomerStatement, "Customer Statement", "What one customer owes you",
             Icons.Receipts, AppColors.Violet, AppColors.VioletLight),
         new(ReportTemplateFactory.TemplateNames.SalesByCustomer, "Sales by Customer", "How much each customer bought",
@@ -72,8 +80,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Icons.Suppliers, AppColors.Pink, AppColors.PinkLight),
         new(ReportTemplateFactory.TemplateNames.TaxSummary, "Tax Summary", "Tax you collected vs. tax you paid",
             Icons.Bank, AppColors.FlatOrange, AppColors.FlatOrangeLight),
+        new(ReportTemplateFactory.TemplateNames.SalesTaxLiability, "Sales Tax Liability", "Sales tax owed for each filing period",
+            Icons.SalesTax, AppColors.FlatOrange, AppColors.FlatOrangeLight),
         new(ReportTemplateFactory.TemplateNames.ProductSales, "Sales by Product", "Units and revenue per product",
             Icons.Products, AppColors.FlatIndigo, AppColors.FlatIndigoLight),
+        new(ReportTemplateFactory.TemplateNames.InventoryValuation, "Inventory Valuation", "What your stock is worth",
+            Icons.StockLevels, AppColors.FlatIndigo, AppColors.FlatIndigoLight),
         new(ReportTemplateFactory.TemplateNames.PayrollRemittance, "Payroll Remittance", "What you owe CRA for your payroll",
             Icons.Bank, AppColors.MdBrown, AppColors.MdBrownLight),
         new(ReportTemplateFactory.TemplateNames.PayrollSummary, "Payroll Summary", "What each employee was paid",
@@ -441,9 +453,96 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         }
     }
 
-    partial void OnCustomStartDateChanged(DateTimeOffset? value) => ApplyDesignerCustomDates();
+    partial void OnCustomStartDateChanged(DateTimeOffset? value) => OnCustomDatesChanged();
 
-    partial void OnCustomEndDateChanged(DateTimeOffset? value) => ApplyDesignerCustomDates();
+    partial void OnCustomEndDateChanged(DateTimeOffset? value) => OnCustomDatesChanged();
+
+    private void OnCustomDatesChanged()
+    {
+        if (_applyingCustomPeriod)
+            return;
+
+        ApplyDesignerCustomDates();
+        ShowCustomDatesAsPeriod();
+    }
+
+    /// <summary>The years a custom range can be picked from, newest first: from the first record to this year.</summary>
+    public ObservableCollection<int> CustomPeriodYears { get; } = [];
+
+    /// <summary>The choices beside the year: all of it, or one month.</summary>
+    public IReadOnlyList<CustomMonthOption> CustomPeriodMonths { get; } =
+    [
+        new(null, "Whole Year".Translate()),
+        .. Enumerable.Range(1, 12).Select(m => new CustomMonthOption(m, System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m).Translate()))
+    ];
+
+    [ObservableProperty]
+    private int? _customPeriodYear;
+
+    [ObservableProperty]
+    private CustomMonthOption? _customPeriodMonth;
+
+    private bool _applyingCustomPeriod;
+
+    partial void OnIsCustomDateRangeChanged(bool value)
+    {
+        if (!value)
+            return;
+
+        var earliest = App.CompanyManager?.CompanyData?.GetEarliestDate().Year ?? DateTime.Today.Year;
+        _applyingCustomPeriod = true;
+        var selected = CustomPeriodYear;
+        CustomPeriodYears.Clear();
+        for (var year = DateTime.Today.Year; year >= earliest; year--)
+            CustomPeriodYears.Add(year);
+        CustomPeriodYear = selected;
+        _applyingCustomPeriod = false;
+    }
+
+    partial void OnCustomPeriodYearChanged(int? value) => ApplyCustomPeriod();
+
+    partial void OnCustomPeriodMonthChanged(CustomMonthOption? value) => ApplyCustomPeriod();
+
+    /// <summary>Fills in the custom dates from the year and month picked. A month picked first means this year's.</summary>
+    private void ApplyCustomPeriod()
+    {
+        if (_applyingCustomPeriod || (CustomPeriodYear == null && CustomPeriodMonth == null))
+            return;
+
+        _applyingCustomPeriod = true;
+        CustomPeriodYear ??= DateTime.Today.Year;
+        var (start, end) = DatePresetNames.YearOrMonth(CustomPeriodYear.Value, CustomPeriodMonth?.Month);
+        CustomStartDate = new DateTimeOffset(start);
+        CustomEndDate = new DateTimeOffset(end);
+        _applyingCustomPeriod = false;
+
+        ApplyDesignerCustomDates();
+    }
+
+    /// <summary>Shows the year and month that dates typed by hand make up, and clears them when the dates are neither.</summary>
+    private void ShowCustomDatesAsPeriod()
+    {
+        int? year = null;
+        CustomMonthOption? month = null;
+        if (CustomStartDate?.Date is { Day: 1 } start && CustomEndDate?.Date is { } end)
+        {
+            if (DatePresetNames.YearOrMonth(start.Year).End == end && start.Month == 1)
+            {
+                year = start.Year;
+                month = CustomPeriodMonths[0];
+            }
+            else if (DatePresetNames.YearOrMonth(start.Year, start.Month).End == end)
+            {
+                year = start.Year;
+                month = CustomPeriodMonths[start.Month];
+            }
+        }
+
+        _applyingCustomPeriod = true;
+        CustomPeriodYear = year;
+        CustomPeriodMonth = month;
+        _applyingCustomPeriod = false;
+    }
 
     private void ApplyDesignerCustomDates()
     {
@@ -578,6 +677,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         OnPropertyChanged(nameof(IsAccountingTableSelected));
         OnPropertyChanged(nameof(ShowSectionHeaderColors));
         OnPropertyChanged(nameof(ShowTotalColors));
+        OnPropertyChanged(nameof(ShowIncomeComparison));
         OnPropertyChanged(nameof(IsDistributionChartSelected));
         OnPropertyChanged(nameof(IsGeographicChartSelected));
     }
@@ -637,6 +737,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             {
                 OnPropertyChanged(nameof(ShowSectionHeaderColors));
                 OnPropertyChanged(nameof(ShowTotalColors));
+                OnPropertyChanged(nameof(ShowIncomeComparison));
             }
         }
     }
@@ -680,16 +781,26 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// Whether the selected accounting table's report type produces section header rows.
     /// </summary>
     public bool ShowSectionHeaderColors => SelectedAccountingTableElement.ReportType
-        is not (AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement
-            or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary);
+        is not (AccountingReportType.AccountsReceivableAging or AccountingReportType.AccountsPayableAging or AccountingReportType.CustomerStatement
+            or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary
+            or AccountingReportType.InventoryValuation or AccountingReportType.OpenInvoices or AccountingReportType.UnpaidBills
+            or AccountingReportType.SalesTaxLiability);
+
+    /// <summary>
+    /// Whether the selected accounting table can show comparison columns, which only an Income Statement has.
+    /// </summary>
+    public bool ShowIncomeComparison => SelectedAccountingTableElement.ReportType == AccountingReportType.IncomeStatement;
 
     /// <summary>
     /// Whether the selected accounting table's report type produces total/grand total rows.
     /// </summary>
     public bool ShowTotalColors => SelectedAccountingTableElement.ReportType
-        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging or AccountingReportType.CustomerStatement
+        is AccountingReportType.BalanceSheet or AccountingReportType.AccountsReceivableAging or AccountingReportType.AccountsPayableAging
+            or AccountingReportType.CustomerStatement
             or AccountingReportType.SalesByCustomer or AccountingReportType.ExpensesBySupplier or AccountingReportType.PayrollSummary
-            or AccountingReportType.Rentals or AccountingReportType.AssetRegister;
+            or AccountingReportType.Rentals or AccountingReportType.AssetRegister or AccountingReportType.TrialBalance
+            or AccountingReportType.InventoryValuation or AccountingReportType.OpenInvoices or AccountingReportType.UnpaidBills
+            or AccountingReportType.SalesTaxLiability;
 
     /// <summary>
     /// Gets or sets the selected chart style as a ChartStyleOption for the ComboBox binding.
@@ -1739,7 +1850,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
             if (success)
             {
-                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReportGenerated);
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReportGenerated, ReportTelemetryContext());
                 var doneMessage = exportPath == ExportFilePath
                     ? "Export completed successfully!"
                     : $"{Path.GetFileName(ExportFilePath)} already exists, so this was saved as {Path.GetFileName(exportPath)}.";
@@ -1940,6 +2051,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
     public ObservableCollection<AccountingReportType> AccountingReportTypes { get; } =
         new(Enum.GetValues<AccountingReportType>());
+
+    public ObservableCollection<IncomeComparison> IncomeComparisons { get; } =
+        new(Enum.GetValues<IncomeComparison>());
 
     public ObservableCollection<TableSortOrder> TableSortOrders { get; } =
         new(Enum.GetValues<TableSortOrder>());
@@ -2699,6 +2813,20 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         }
     }
 
+    /// <summary>
+    /// Which report was made and in what format, for telemetry. A template the user saved is sent as
+    /// "saved", since its name is whatever they typed.
+    /// </summary>
+    private string ReportTelemetryContext()
+    {
+        var template = IsChartsTabSelected
+            ? ReportTemplateFactory.TemplateNames.Custom
+            : ReportTemplateFactory.IsBuiltInTemplate(SelectedTemplateName) ? SelectedTemplateName : "saved";
+        if (IsSalesByCustomer && !string.IsNullOrEmpty(Configuration.Filters.CustomerId))
+            template += " (one customer)";
+        return $"{template}:{SelectedExportFormat}";
+    }
+
     private void ApplyFiltersToConfiguration()
     {
         // Custom (charts) tab always uses landscape orientation
@@ -2952,6 +3080,11 @@ public partial class DatePresetOption(string name) : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 }
+
+/// <summary>
+/// A choice in the custom date range's month box: one month, or the whole year when <paramref name="Month"/> is null.
+/// </summary>
+public sealed record CustomMonthOption(int? Month, string Name);
 
 /// <summary>
 /// Represents a report template option for the Step 1 template grid.

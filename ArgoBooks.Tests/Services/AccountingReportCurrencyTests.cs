@@ -244,4 +244,102 @@ public class AccountingReportCurrencyTests
     }
 
     #endregion
+
+    private static Expense UsdBill(string id, DateTime date, decimal total) => new()
+    {
+        Id = id, Date = date, DueDate = date.AddDays(30), OriginalCurrency = "USD", Amount = total, Total = total, TotalUSD = total
+    };
+
+    private static async Task<AccountingTableData> CadReport(CompanyData data, AccountingReportType type,
+        IncomeComparison comparison = IncomeComparison.None, params DateTime[] seeded)
+    {
+        var prior = SetInstance(await SeededServiceAsync(seeded.Length > 0 ? seeded : [Date1, Date2, EndDate]));
+        try
+        {
+            data.Settings.Localization.Currency = "CAD";
+            return new AccountingReportDataService(data, Filters()).GetReportData(type, comparison);
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
+    private static decimal Total(AccountingTableData report, int column) =>
+        ParseAmount(report.Rows.Single(r => r.Label == "TOTAL").Values[column]);
+
+    [Fact]
+    public async Task UnpaidBills_ConvertEachBillAtItsOwnDate()
+    {
+        var data = new CompanyData();
+        data.Expenses.Add(UsdBill("B1", Date1, 100m));
+        data.Expenses.Add(UsdBill("B2", Date2, 200m));
+
+        var report = await CadReport(data, AccountingReportType.UnpaidBills);
+
+        Assert.Equal(140m + 260m, Total(report, 4));
+    }
+
+    [Fact]
+    public async Task OpenInvoices_ConvertEachInvoiceAtItsIssueDate()
+    {
+        var data = new CompanyData();
+        data.Invoices.Add(new Invoice
+        {
+            Id = "I1", CustomerId = "C1", IssueDate = Date1, DueDate = Date1.AddDays(30), OriginalCurrency = "USD",
+            Total = 100m, TotalUSD = 100m, Balance = 100m, BalanceUSD = 100m, Status = InvoiceStatus.Sent
+        });
+        data.Invoices.Add(new Invoice
+        {
+            Id = "I2", CustomerId = "C1", IssueDate = Date2, DueDate = Date2.AddDays(30), OriginalCurrency = "USD",
+            Total = 200m, TotalUSD = 200m, Balance = 200m, BalanceUSD = 200m, Status = InvoiceStatus.Sent
+        });
+
+        var report = await CadReport(data, AccountingReportType.OpenInvoices);
+
+        Assert.Equal(140m + 260m, Total(report, 5));
+    }
+
+    [Fact]
+    public async Task TrialBalance_InAnotherCurrency_StillBalances()
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(UsdRevenue("R1", Date1, 100m));
+        data.Expenses.Add(UsdBill("B1", Date2, 40m));
+
+        var report = await CadReport(data, AccountingReportType.TrialBalance);
+
+        Assert.Contains("CAD", report.Subtitle);
+        Assert.Equal(Total(report, 0), Total(report, 1));
+    }
+
+    [Fact]
+    public async Task IncomeStatement_ByMonth_ConvertsEachMonthAtItsOwnRate()
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(UsdRevenue("R1", Date1, 100m));
+        data.Revenues.Add(UsdRevenue("R2", Date2, 200m));
+
+        var report = await CadReport(data, AccountingReportType.IncomeStatement, IncomeComparison.ByMonth);
+
+        var revenue = report.Rows.Single(r => r.Label == "Total Revenue").Values;
+        Assert.Equal(140m, ParseAmount(revenue[2]));
+        Assert.Equal(260m, ParseAmount(revenue[8]));
+        Assert.Equal(400m, ParseAmount(revenue[^1]));
+    }
+
+    [Fact]
+    public async Task IncomeStatement_ComparedWithLastYear_FallsBackToUsdForBothColumns_WhenLastYearsRateIsMissing()
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(UsdRevenue("R1", Date1, 100m));
+        data.Revenues.Add(UsdRevenue("R0", Date1.AddYears(-1), 50m));
+
+        var report = await CadReport(data, AccountingReportType.IncomeStatement, IncomeComparison.LastYear, Date1, EndDate);
+
+        Assert.Contains("USD", report.Subtitle);
+        var revenue = report.Rows.Single(r => r.Label == "Total Revenue").Values;
+        Assert.Equal(100m, ParseAmount(revenue[0]));
+        Assert.Equal(50m, ParseAmount(revenue[1]));
+    }
 }

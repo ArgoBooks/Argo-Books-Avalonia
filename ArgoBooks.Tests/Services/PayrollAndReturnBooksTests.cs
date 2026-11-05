@@ -229,14 +229,21 @@ public class PayrollAndReturnBooksTests
     }
 
     [Fact]
-    public void ReturnedSale_NothingPaid_RecordsNoRefund()
+    public void ReturnedSale_NothingPaid_RecordsACreditNote_AndNoCash()
     {
         var data = new CompanyData();
         data.Revenues.Add(Sale(RevenuePaymentStatus.Unpaid));
         var returnRecord = ReturnOf("SAL-1", "Customer");
 
-        Assert.Null(ReturnRefunds.Record(data, returnRecord));
-        Assert.Empty(data.Payments);
+        var refund = ReturnRefunds.Record(data, returnRecord)!;
+
+        Assert.Null(refund.Payment);
+        Assert.True(refund.CreditNote!.IsCreditNote);
+        Assert.Equal(-113m, refund.CreditNote.Amount);
+        Assert.Equal(13m, refund.CreditNote.RefundTaxAmount);
+        Assert.Equal(refund.CreditNote.Id, returnRecord.CreditNoteId);
+        Assert.Equal(0m, Amount(Report(data, AccountingReportType.IncomeStatement), "Total Revenue"));
+        Assert.Equal(0m, Amount(Report(data, AccountingReportType.BalanceSheet), "Cash (Estimated)"));
     }
 
     [Fact]

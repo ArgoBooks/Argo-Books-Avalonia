@@ -172,7 +172,7 @@
 
                                     <Grid ColumnDefinitions="*,16,*">
                                         <StackPanel Grid.Column="0" Spacing="6">
-                                            <TextBlock Classes="field-label" Text="{loc:Loc 'Value at end (optional)'}" />
+                                            <TextBlock Classes="field-label" Text="{loc:Loc 'Value at end'}" />
                                             <TextBox Text="{Binding ModalEndValue, Mode=TwoWay, Converter={x:Static converters:OptionalDecimalConverter.Instance}}"
                                                      Classes="form-input"
                                                      PlaceholderText="0.00"

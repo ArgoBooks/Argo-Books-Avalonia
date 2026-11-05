@@ -128,6 +128,60 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [ObservableProperty]
     private bool _modalIsAsset;
 
+    /// <summary>Whether the expense is paid, or a bill still to pay by <see cref="ModalBillDueDate"/>. Only the expense form offers it.</summary>
+    [ObservableProperty]
+    private bool _modalBillPaid = true;
+
+    [ObservableProperty]
+    private DateTimeOffset? _modalBillDueDate;
+
+    /// <summary>When a bill being edited was paid.</summary>
+    [ObservableProperty]
+    private DateTimeOffset? _modalBillPaidDate;
+
+    /// <summary>Whether the expense being edited is a bill, which asks for the day it was paid rather than becoming an ordinary expense.</summary>
+    [ObservableProperty]
+    private bool _isEditingBill;
+
+    public bool ShowBillPaidDate => ModalBillPaid && IsEditingBill;
+
+    /// <summary>The due date of a paid bill, shown beside the day it was paid.</summary>
+    public string BillWasDueText => ModalBillDueDate is { } due
+        ? "It was due {0}.".TranslateFormat(DateFormatService.Format(due.DateTime))
+        : string.Empty;
+
+    /// <summary>When the bill is due relative to today, shown under the due date.</summary>
+    public string BillDueHint => ModalBillDueDate is not { } due
+        ? string.Empty
+        : (due.Date - DateTime.Today).Days switch
+        {
+            < 0 and var d => "Overdue by {0} days".TranslateFormat(-d),
+            0 => "Due today".Translate(),
+            1 => "Due tomorrow".Translate(),
+            var d => "Due in {0} days".TranslateFormat(d)
+        };
+
+    public bool IsBillOverdue => ModalBillDueDate is { } due && due.Date < DateTime.Today;
+
+    partial void OnModalBillPaidChanged(bool value)
+    {
+        // Bills are usually due a month after they arrive.
+        if (!value && ModalBillDueDate == null)
+            ModalBillDueDate = (ModalDate ?? DateTimeOffset.Now).AddDays(30);
+        if (value && IsEditingBill && ModalBillPaidDate == null)
+            ModalBillPaidDate = DateTimeOffset.Now;
+        OnPropertyChanged(nameof(ShowBillPaidDate));
+    }
+
+    partial void OnIsEditingBillChanged(bool value) => OnPropertyChanged(nameof(ShowBillPaidDate));
+
+    partial void OnModalBillDueDateChanged(DateTimeOffset? value)
+    {
+        OnPropertyChanged(nameof(BillDueHint));
+        OnPropertyChanged(nameof(IsBillOverdue));
+        OnPropertyChanged(nameof(BillWasDueText));
+    }
+
     [ObservableProperty]
     private IReadOnlyList<AssetTypeOption> _assetTypeOptions = [];
 
@@ -780,6 +834,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     protected void PopulateFormFromTransaction(Transaction transaction)
     {
+        IsEditingBill = false;
+        ModalBillPaid = true;
+        ModalBillDueDate = null;
+        ModalBillPaidDate = null;
         ModalDate = new DateTimeOffset(transaction.Date);
         var productId = transaction.LineItems.FirstOrDefault()?.ProductId;
         var product = productId != null ? App.CompanyManager?.CompanyData?.GetProduct(productId) : null;
@@ -1503,6 +1561,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         EditingTransactionId = string.Empty;
         _original = null;
         SetEntryCurrency(null);
+        IsEditingBill = false;
+        ModalBillPaid = true;
+        ModalBillDueDate = null;
+        ModalBillPaidDate = null;
         ModalDate = DateTimeOffset.Now;
         SelectedCounterparty = null;
         CounterpartyText = null;
@@ -2033,6 +2095,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
         RaiseTransactionSaved();
+        TrackBulkEdit("product", edits.Count);
         return new BulkEditResult(edits.Count, unchanged, madeElsewhere, notOneLine, movesStock, action);
     }
 
@@ -2069,6 +2132,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
         RaiseTransactionSaved();
+        TrackBulkEdit(IsExpenseForm ? "supplier" : "customer", changed.Count);
         return new BulkEditResult(changed.Count, unchanged, madeElsewhere, 0, 0, action);
     }
 
@@ -2086,6 +2150,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var keys = targets.Select(UsdConversion.KeyOf).ToList();
         var queued = new List<PendingConversion>[targets.Count];
         var stockChanges = new List<StockChange>[targets.Count];
+        var returns = new List<TransactionReturns.Change>[targets.Count];
+        var assets = new List<FixedAsset>[targets.Count];
         var reason = IsExpenseForm ? "Expense deleted" : "Revenue deleted";
 
         void Remove()
@@ -2097,6 +2163,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                     data.Receipts.RemoveRecord(receipt);
                 queued[i] = UsdConversion.Snapshot(data, [keys[i]]);
                 UsdConversion.Set(data, keys[i], null);
+                returns[i] = TransactionReturns.RemoveAll(data, targets[i].Id);
+                assets[i] = IsExpenseForm ? ExpenseAssetLink.RemoveFor(data, targets[i].Id) : [];
                 stockChanges[i] = AdjustInventoryForEdit(data, targets[i], targets[i].LineItems, [], IsExpenseForm, reason);
             }
             data.MarkAsModified();
@@ -2111,6 +2179,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                     data.Receipts.RestoreRecord(receipt);
                 UsdConversion.Restore(data, [keys[i]], queued[i]);
                 RevertInventoryAdjustments(data, stockChanges[i]);
+                TransactionReturns.PutBackAll(data, returns[i]);
+                ExpenseAssetLink.PutBack(data, assets[i]);
             }
             data.MarkAsModified();
         }
@@ -2124,8 +2194,12 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
         RaiseTransactionDeleted();
+        TrackBulkEdit("delete", targets.Count);
         return new BulkEditResult(targets.Count, 0, madeElsewhere, 0, 0, action);
     }
+
+    private void TrackBulkEdit(string change, int count) =>
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.BulkEdited, $"{(IsExpenseForm ? "expense" : "revenue")}:{change}:{count}");
 
     #endregion
 
@@ -2141,6 +2215,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var queueKey = UsdConversion.KeyOf(transaction);
         List<StockChange> stockChanges = [];
         List<PendingConversion> queued = [];
+        List<TransactionReturns.Change> returns = [];
+        List<FixedAsset> assets = [];
 
         // The queued conversion leaves with the row and comes back with it as it was, keeping the
         // date whose rate it waits for.
@@ -2153,6 +2229,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                     companyData.Receipts.RemoveRecord(receipt);
                 queued = UsdConversion.Snapshot(companyData, [queueKey]);
                 UsdConversion.Set(companyData, queueKey, null);
+                returns = TransactionReturns.RemoveAll(companyData, transaction.Id);
+                if (isExpense)
+                    assets = ExpenseAssetLink.RemoveFor(companyData, transaction.Id);
                 stockChanges = AdjustInventoryForEdit(companyData, transaction, transaction.LineItems, [], isExpense, reason);
             },
             onRestore: () =>
@@ -2161,6 +2240,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                     companyData.Receipts.RestoreRecord(receipt);
                 UsdConversion.Restore(companyData, [queueKey], queued);
                 RevertInventoryAdjustments(companyData, stockChanges);
+                TransactionReturns.PutBackAll(companyData, returns);
+                ExpenseAssetLink.PutBack(companyData, assets);
             });
 
         App.CompanyManager?.MarkAsChanged();

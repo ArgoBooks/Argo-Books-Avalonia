@@ -1,0 +1,9 @@
+{
+  "name": "argobooks-video-pages",
+  "private": true,
+  "description": "Captures the web pages the marketing videos show.",
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.75.0",
+    "playwright-core": "1.48.2"
+  }
+}

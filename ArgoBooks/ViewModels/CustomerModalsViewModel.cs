@@ -983,14 +983,23 @@ public partial class CustomerModalsViewModel : ViewModelBase
         var payments = companyData.Payments.Where(p => p.CustomerId == customerId);
         foreach (var payment in payments)
         {
-            historyItems.Add(new CustomerHistoryItem
-            {
-                Date = payment.Date,
-                Type = "Payment",
-                Description = $"Payment - {payment.PaymentMethod}",
-                Amount = -payment.Amount, // Negative because it reduces balance
-                Status = "Completed"
-            });
+            historyItems.Add(payment.IsCreditNote
+                ? new CustomerHistoryItem
+                {
+                    Date = payment.Date,
+                    Type = "Credit note",
+                    Description = "Credit note for returned items",
+                    Amount = -Math.Abs(payment.Amount),
+                    Status = "Completed"
+                }
+                : new CustomerHistoryItem
+                {
+                    Date = payment.Date,
+                    Type = "Payment",
+                    Description = $"Payment - {payment.PaymentMethod}",
+                    Amount = -payment.Amount, // Negative because it reduces balance
+                    Status = "Completed"
+                });
         }
 
         // Add rentals

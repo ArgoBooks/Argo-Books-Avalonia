@@ -70,7 +70,7 @@ public partial class TopCustomersWidgetViewModel : WidgetViewModelBase
     {
         // The same ranking as the Top Customers chart, over the dashboard's date range.
         var chartSettings = ChartSettingsService.Instance;
-        var ranked = TopCustomers.Rank(data.Revenues, data.Payments, chartSettings.StartDate, chartSettings.EndDate,
+        var ranked = TopCustomers.Rank(data.Revenues, RefundAggregator.ForPaidSales(data), chartSettings.StartDate, chartSettings.EndDate,
             CurrencyService.GetDisplayAmount);
 
         var sorted = SortBy == "count"

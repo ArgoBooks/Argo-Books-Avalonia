@@ -1203,7 +1203,8 @@ public class PaymentPortalService : IDisposable
     /// one place.
     /// </summary>
     /// <remarks>
-    /// Only manual, non-refund, positive payments count. Portal payments are
+    /// Only manual, non-refund, positive payments count, and credit notes for returned
+    /// goods, which take off what is owed the same way. Portal payments are
     /// excluded because the server recorded those itself, and including them
     /// would subtract the same money twice. Currency is matched the same way
     /// <see cref="InvoiceTotalsService"/> does, treating a blank code as USD so
@@ -1228,15 +1229,15 @@ public class PaymentPortalService : IDisposable
         {
             if (payment.InvoiceId != invoice.Id) continue;
             if (payment.Source != PaymentSource.Manual) continue;
-            if (payment.IsRefund) continue;
-            if (payment.Amount <= 0) continue;
+            if (payment.IsRefund && !payment.IsCreditNote) continue;
+            if (payment.Amount == 0) continue;
 
             string paymentCurrency = string.IsNullOrWhiteSpace(payment.OriginalCurrency)
                 ? "USD"
                 : payment.OriginalCurrency;
             if (!string.Equals(paymentCurrency, invoiceCurrency, StringComparison.OrdinalIgnoreCase)) continue;
 
-            externalPaid += payment.Amount;
+            externalPaid += Math.Abs(payment.Amount);
         }
 
         return new PortalBalanceSyncItem
@@ -1248,7 +1249,7 @@ public class PaymentPortalService : IDisposable
             DueDate = invoice.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             Cancelled = invoice.Status == InvoiceStatus.Cancelled,
             // Only worth sending once something has been paid. An untouched invoice's stored snapshot is still accurate, and the HTML is by far the largest thing in this payload.
-            CustomInvoiceHtml = invoice.AmountPaid > 0
+            CustomInvoiceHtml = invoice.AmountPaid > 0 || invoice.AmountCredited > 0
                 ? RenderInvoiceHtml(invoice, companyData, invoiceCurrency)
                 : null,
         };

@@ -277,7 +277,23 @@ public enum AccountingReportType
     ExpensesBySupplier,
     PayrollSummary,
     Rentals,
-    AssetRegister
+    AssetRegister,
+    AccountsPayableAging,
+    TrialBalance,
+    InventoryValuation,
+    OpenInvoices,
+    UnpaidBills,
+    SalesTaxLiability
+}
+
+/// <summary>
+/// How an Income Statement lays out its amounts beside the report's date range.
+/// </summary>
+public enum IncomeComparison
+{
+    None,
+    LastYear,
+    ByMonth
 }
 
 /// <summary>
@@ -465,7 +481,26 @@ public static class ReportEnumExtensions
             AccountingReportType.PayrollSummary => "Payroll Summary",
             AccountingReportType.Rentals => "Rentals",
             AccountingReportType.AssetRegister => "Asset Register",
+            AccountingReportType.AccountsPayableAging => "Accounts Payable Aging",
+            AccountingReportType.TrialBalance => "Trial Balance",
+            AccountingReportType.InventoryValuation => "Inventory Valuation",
+            AccountingReportType.OpenInvoices => "Open Invoices",
+            AccountingReportType.UnpaidBills => "Unpaid Bills",
+            AccountingReportType.SalesTaxLiability => "Sales Tax Liability",
             _ => reportType.ToString()
+        };
+    }
+
+    /// <summary>
+    /// Gets a user-friendly display name for an Income Statement comparison.
+    /// </summary>
+    public static string GetDisplayName(this IncomeComparison comparison)
+    {
+        return comparison switch
+        {
+            IncomeComparison.LastYear => "Compare with last year",
+            IncomeComparison.ByMonth => "By month",
+            _ => "No comparison"
         };
     }
 

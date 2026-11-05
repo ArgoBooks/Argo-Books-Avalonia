@@ -65,7 +65,8 @@ public sealed class LayoutNormalizationService(IGeminiService geminiService, IEr
             // First pass: open the source and decide which sheets (if any) are messy.
             // We materialize the grids up front so we can both decide and reuse them.
             List<(IXLWorksheet Sheet, SheetGrid Grid, bool NeedsInterpretation)> sheets;
-            using (var probe = new XLWorkbook(xlsxPath))
+            using (var probeStream = SharedFileReader.OpenRead(xlsxPath))
+            using (var probe = new XLWorkbook(probeStream))
             {
                 sheets = new List<(IXLWorksheet, SheetGrid, bool)>();
                 foreach (var ws in probe.Worksheets)
@@ -98,7 +99,8 @@ public sealed class LayoutNormalizationService(IGeminiService geminiService, IEr
 
             // At least one sheet is messy. Re-open the source (a fresh workbook so we can
             // use ClosedXML's cross-workbook CopyTo) and build the normalized temp workbook.
-            using var source = new XLWorkbook(xlsxPath);
+            using var sourceStream = SharedFileReader.OpenRead(xlsxPath);
+            using var source = new XLWorkbook(sourceStream);
             using var output = new XLWorkbook();
 
             // Re-pair the source worksheets (from the re-opened workbook) with the

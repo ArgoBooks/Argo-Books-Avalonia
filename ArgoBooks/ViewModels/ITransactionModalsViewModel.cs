@@ -66,6 +66,13 @@ public interface ITransactionModalsViewModel
 
     bool ModalPaid { get; set; }
     bool ModalIsAsset { get; set; }
+    bool ModalBillPaid { get; set; }
+    DateTimeOffset? ModalBillDueDate { get; set; }
+    DateTimeOffset? ModalBillPaidDate { get; set; }
+    bool ShowBillPaidDate { get; }
+    string BillWasDueText { get; }
+    string BillDueHint { get; }
+    bool IsBillOverdue { get; }
     Services.AssetTypeOption? ModalAssetType { get; set; }
     decimal? ModalAssetUsefulLife { get; set; }
     bool ModalAssetIsLand { get; }

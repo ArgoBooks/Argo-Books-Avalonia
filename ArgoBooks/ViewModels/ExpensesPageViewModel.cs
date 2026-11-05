@@ -36,6 +36,12 @@ public partial class ExpensesPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private int _returnsCount;
 
+    [ObservableProperty]
+    private string _billsToPay = "$0.00";
+
+    [ObservableProperty]
+    private string _billsToPaySubtext = string.Empty;
+
     #endregion
 
     #region Search and Filter
@@ -292,6 +298,11 @@ public ExpensesPageViewModel()
         {
             App.ExpenseModalsViewModel.ExpenseSaved += OnExpenseSaved;
             App.ExpenseModalsViewModel.ExpenseDeleted += OnExpenseDeleted;
+            if (App.ReturnsModalsViewModel != null)
+            {
+                App.ReturnsModalsViewModel.ReturnUndone += OnExpenseDeleted;
+                App.ReturnsModalsViewModel.ReturnRecorded += OnExpenseDeleted;
+            }
             App.ExpenseModalsViewModel.FiltersApplied += OnFiltersApplied;
             App.ExpenseModalsViewModel.FiltersCleared += OnFiltersCleared;
         }
@@ -321,6 +332,11 @@ public ExpensesPageViewModel()
         {
             App.ExpenseModalsViewModel.ExpenseSaved -= OnExpenseSaved;
             App.ExpenseModalsViewModel.ExpenseDeleted -= OnExpenseDeleted;
+            if (App.ReturnsModalsViewModel != null)
+            {
+                App.ReturnsModalsViewModel.ReturnUndone -= OnExpenseDeleted;
+                App.ReturnsModalsViewModel.ReturnRecorded -= OnExpenseDeleted;
+            }
             App.ExpenseModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.ExpenseModalsViewModel.FiltersCleared -= OnFiltersCleared;
         }
@@ -390,7 +406,9 @@ public ExpensesPageViewModel()
         if (companyData?.Expenses == null)
             return;
 
-        _allExpenses.AddRange(companyData.Expenses);
+        // A supplier credit shows as its purchase being returned, as a customer refund shows on its sale.
+        var creditIds = ReturnRefunds.SupplierCreditIds(companyData);
+        _allExpenses.AddRange(companyData.Expenses.Where(e => !creditIds.Contains(e.Id)));
         UpdateStatistics();
         FilterExpenses();
     }
@@ -418,6 +436,26 @@ public ExpensesPageViewModel()
         {
             ReturnsCount = 0;
         }
+
+        // Each bill in the company's currency at its own date, as every other expense total is (Calculations.md Rule 4).
+        // A bill returned in full owes nothing, and the credits for returned bills come off what is owed.
+        var returned = companyData == null ? [] : TransactionReturns.ReturnedById(companyData, _allExpenses);
+        var bills = _allExpenses.Where(e => !e.IsPaid && !returned.GetValueOrDefault(e.Id)).ToList();
+        var overdue = bills.Where(e => e.IsOverdueOn(DateTime.Today)).ToList();
+        var creditsByBill = (companyData?.Returns ?? [])
+            .Where(r => r.ReturnType == "Expense" && r.RefundRecordId != null)
+            .Select(r => (BillId: r.OriginalTransactionId, Credit: companyData!.Expenses.FirstOrDefault(e => e.Id == r.RefundRecordId)))
+            .Where(c => c.Credit is { IsPaid: false })
+            .ToLookup(c => c.BillId, c => c.Credit!);
+        decimal Owed(IEnumerable<Expense> expenses) => expenses
+            .SelectMany(e => creditsByBill[e.Id].Prepend(e))
+            .Sum(e => CurrencyService.GetDisplayAmount(e.EffectiveTotalUSD, e.Date));
+        BillsToPay = CurrencyService.Format(Owed(bills));
+        BillsToPaySubtext = bills.Count == 0
+            ? "Nothing owed".Translate()
+            : overdue.Count > 0
+                ? "{0} overdue".TranslateFormat(CurrencyService.Format(Owed(overdue)))
+                : "{0} unpaid, none overdue".TranslateFormat(bills.Count);
     }
 
     [RelayCommand]
@@ -432,10 +470,7 @@ public ExpensesPageViewModel()
 
         var lostDamagedIds = new HashSet<string>(
             companyData?.LostDamaged.Select(ld => ld.InventoryItemId ?? "") ?? []);
-        var returnedIds = new HashSet<string>(
-            companyData?.Returns
-                .Where(r => r.Status == ReturnStatus.Completed)
-                .Select(r => r.OriginalTransactionId) ?? []);
+        var returned = companyData == null ? [] : TransactionReturns.ReturnedById(companyData, _allExpenses);
         IEnumerable<Expense> filtered = _allExpenses;
 
         // Apply search filter
@@ -448,7 +483,7 @@ public ExpensesPageViewModel()
 
         if (FilterStatus != "All")
         {
-            filtered = filtered.Where(p => GetStatusDisplay(p, lostDamagedIds, returnedIds) == FilterStatus);
+            filtered = filtered.Where(p => GetStatusDisplay(p, lostDamagedIds, returned) == FilterStatus);
         }
 
         if (!string.IsNullOrEmpty(FilterSupplierId))
@@ -512,7 +547,7 @@ public ExpensesPageViewModel()
             var categoryId = product?.CategoryId;
             var category = categoryId != null ? companyData?.GetCategory(categoryId) : null;
             var accountant = companyData?.GetAccountant(purchase.AccountantId ?? "");
-            var statusDisplay = purchase.IsPendingConversion ? "Pending" : GetStatusDisplay(purchase, lostDamagedIds, returnedIds);
+            var statusDisplay = purchase.IsPendingConversion ? "Pending" : GetStatusDisplay(purchase, lostDamagedIds, returned);
             var (productName, productMoreText) = Utilities.TransactionDisplay.ProductSummary(purchase);
             var hasReceipt = !string.IsNullOrEmpty(purchase.ReceiptId);
             var receipt = hasReceipt ? companyData?.GetReceipt(purchase.ReceiptId!) : null;
@@ -554,7 +589,8 @@ public ExpensesPageViewModel()
                 PaymentMethod = purchase.PaymentMethod,
                 IsHighlighted = purchase.Id == HighlightTransactionId,
                 IsPendingConversion = purchase.IsPendingConversion,
-                OriginalCurrency = purchase.OriginalCurrency
+                OriginalCurrency = purchase.OriginalCurrency,
+                BillDueDate = purchase.IsPaid ? null : purchase.DueDate
             };
         }).ToList();
 
@@ -589,10 +625,11 @@ public ExpensesPageViewModel()
         Selection.MarkRows();
     }
 
-    private static string GetStatusDisplay(Expense purchase, HashSet<string> lostDamagedIds, HashSet<string> returnedIds)
+    private static string GetStatusDisplay(Expense purchase, HashSet<string> lostDamagedIds, Dictionary<string, bool> returned)
     {
         if (lostDamagedIds.Contains(purchase.Id)) return "Lost / Damaged";
-        if (returnedIds.Contains(purchase.Id)) return "Returned";
+        if (returned.TryGetValue(purchase.Id, out var all)) return all ? "Returned" : "Partial Return";
+        if (!purchase.IsPaid) return purchase.IsOverdueOn(DateTime.Today) ? "Overdue" : "Unpaid";
         return "Completed";
     }
 
@@ -723,6 +760,9 @@ public ExpensesPageViewModel()
     }
 
     [RelayCommand]
+    private void MarkBillPaid(ExpenseDisplayItem? item) => App.ExpenseModalsViewModel?.MarkBillPaid(item);
+
+    [RelayCommand]
     private void MarkAsLostDamaged(ExpenseDisplayItem? item)
     {
         App.ExpenseModalsViewModel?.OpenMarkAsLostDamagedModal(item);
@@ -743,7 +783,8 @@ public ExpensesPageViewModel()
     [RelayCommand]
     private void UndoReturn(ExpenseDisplayItem? item)
     {
-        App.ExpenseModalsViewModel?.OpenUndoReturnedModal(item);
+        if (item != null)
+            App.ReturnsModalsViewModel?.OpenUndoLatestReturn(item.Id);
     }
 
     [RelayCommand]
@@ -893,28 +934,22 @@ public partial class ExpenseDisplayItem : ObservableObject, ISelectableRow
     private string _originalCurrency = "USD";
 
     public string DateFormatted => DateFormatService.Format(Date);
-    public string TotalFormatted => IsPendingConversion
-        ? CurrencyService.Format(Total)
-        : CurrencyService.FormatWithOriginal(Total, OriginalCurrency, TotalUSD, Date);
-    public string AmountFormatted => IsPendingConversion
-        ? CurrencyService.Format(Amount)
-        : CurrencyService.FormatWithOriginal(Amount, OriginalCurrency, AmountUSD, Date);
-    public string TaxAmountFormatted => IsPendingConversion
-        ? CurrencyService.Format(TaxAmount)
-        : CurrencyService.FormatWithOriginal(TaxAmount, OriginalCurrency, TaxAmountUSD, Date);
+    public string TotalFormatted => Money(Total, TotalUSD);
+    public string AmountFormatted => Money(Amount, AmountUSD);
+    public string TaxAmountFormatted => Money(TaxAmount, TaxAmountUSD);
     public string TaxRateFormatted => $"{TaxRate:N1}%";
-    public string ShippingCostFormatted => IsPendingConversion
-        ? CurrencyService.Format(ShippingCost)
-        : CurrencyService.FormatWithOriginal(ShippingCost, OriginalCurrency, ShippingCostUSD, Date);
-    public string DiscountFormatted => IsPendingConversion
-        ? $"-{CurrencyService.Format(Discount)}"
-        : $"-{CurrencyService.FormatWithOriginal(Discount, OriginalCurrency, DiscountUSD, Date)}";
-    public string FeeFormatted => IsPendingConversion
-        ? CurrencyService.Format(Fee)
-        : CurrencyService.FormatWithOriginal(Fee, OriginalCurrency, FeeUSD, Date);
-    public string UnitPriceFormatted => IsPendingConversion
-        ? CurrencyService.Format(UnitPrice)
-        : CurrencyService.FormatWithOriginal(UnitPrice, OriginalCurrency, UnitPriceUSD, Date);
+    public string ShippingCostFormatted => Money(ShippingCost, ShippingCostUSD);
+    public string DiscountFormatted => $"-{Money(Discount, DiscountUSD)}";
+    public string FeeFormatted => Money(Fee, FeeUSD);
+    public string UnitPriceFormatted => Money(UnitPrice, UnitPriceUSD);
+
+    /// <summary>Money coming back to the business, a refund from a supplier, which the page shows like income: in green, without a minus.</summary>
+    public bool IsMoneyBack => Total < 0;
+
+    // Amounts show without their sign, since the colour of the total says which way the money went.
+    private string Money(decimal amount, decimal amountUSD) => IsPendingConversion
+        ? CurrencyService.Format(Math.Abs(amount))
+        : CurrencyService.FormatWithOriginal(Math.Abs(amount), OriginalCurrency, Math.Abs(amountUSD), Date);
 
     /// <summary>Friendly explanation for the info tooltip next to the "Pending" status badge.</summary>
     public string PendingConversionHint => CurrencyService.BuildPendingConversionHint(Total, OriginalCurrency, Date);
@@ -922,8 +957,26 @@ public partial class ExpenseDisplayItem : ObservableObject, ISelectableRow
     public bool IsReturned => StatusDisplay == "Returned";
     public bool IsPartialReturn => StatusDisplay == "Partial Return";
     public bool IsLostDamaged => StatusDisplay == "Lost / Damaged";
+
+    /// <summary>When the bill is due, while it is unpaid.</summary>
+    public DateTime? BillDueDate { get; init; }
+
+    public bool IsUnpaidBill => BillDueDate != null;
+
+    public string BillDueHint => BillDueDate is not { } due
+        ? string.Empty
+        : (due - DateTime.Today).Days switch
+        {
+            < 0 and var d => "Overdue by {0} days (due {1})".TranslateFormat(-d, DateFormatService.Format(due)),
+            0 => "Due today".Translate(),
+            var d => "Due in {0} days ({1})".TranslateFormat(d, DateFormatService.Format(due))
+        };
+    public bool HasReturn => IsReturned || IsPartialReturn;
     public bool CanMarkAsReturned => !IsReturned && !IsLostDamaged;
-    public bool CanMarkAsLostDamaged => !IsReturned && !IsLostDamaged;
+    public bool CanMarkAsLostDamaged => !HasReturn && !IsLostDamaged;
+
+    /// <summary>A purchase with a return keeps its lines as they were, since the return points at them.</summary>
+    public bool CanEdit => !HasReturn;
 
     [ObservableProperty]
     private bool _isHighlighted;

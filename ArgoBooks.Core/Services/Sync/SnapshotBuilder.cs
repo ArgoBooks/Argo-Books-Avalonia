@@ -25,7 +25,7 @@ public static class SnapshotBuilder
         decimal Convert(decimal amountUSD, DateTime date) => DisplayCurrency.FromUSD(amountUSD, code, date);
 
         var moneyIn = RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, DateTime.MinValue, DateTime.MaxValue, Convert)
-                      - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, DateTime.MinValue, DateTime.MaxValue, Convert);
+                      - RefundAggregator.GetRefundedInDateRangeDisplay(RefundAggregator.ForPaidSales(data), DateTime.MinValue, DateTime.MaxValue, Convert);
         var moneyOut = ExpenseAggregator.SumExpensesDisplay(data.Expenses, DateTime.MinValue, DateTime.MaxValue, Convert);
         var profit = moneyIn - moneyOut;
 

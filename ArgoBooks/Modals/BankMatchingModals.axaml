@@ -45,7 +45,7 @@
                                                             <TextBlock Text="{Binding RecordDescription}" FontWeight="SemiBold"
                                                                        TextTrimming="CharacterEllipsis" />
                                                             <TextBlock FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}"
-                                                                       Text="{Binding RecordType}" />
+                                                                       Text="{Binding RecordTypeName, Converter={StaticResource TranslateConverter}}" />
                                                         </StackPanel>
                                                         <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
                                                             <TextBlock Text="{Binding RecordAmount, Converter={x:Static converters:Converters.Money}}" FontWeight="SemiBold" />
@@ -80,7 +80,7 @@
                                                                    TextTrimming="CharacterEllipsis" />
                                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                                             <TextBlock FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}"
-                                                                       Text="{Binding RecordType}" />
+                                                                       Text="{Binding RecordTypeName, Converter={StaticResource TranslateConverter}}" />
                                                             <TextBlock FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}"
                                                                        Text="{Binding RecordDate, StringFormat='MMM dd, yyyy'}" />
                                                         </StackPanel>

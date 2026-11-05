@@ -72,6 +72,7 @@ public static class RecurringInvoiceService
         template.RecurringInvoiceId = null;
         template.AmountPaid = 0;
         template.AmountRefunded = 0;
+        template.AmountCredited = 0;
         template.History = [];
         template.BankMatched = false;
         template.BankMatchedDate = null;
@@ -148,6 +149,7 @@ public static class RecurringInvoiceService
         invoice.UpdatedAt = occurrenceDate;
         invoice.AmountPaid = 0;
         invoice.AmountRefunded = 0;
+        invoice.AmountCredited = 0;
         invoice.History = [];
         invoice.BankMatched = false;
         invoice.BankMatchedDate = null;

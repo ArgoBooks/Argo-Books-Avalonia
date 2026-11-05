@@ -63,6 +63,39 @@ public class Return : IRecord
     public decimal RestockingFee { get; set; }
 
     /// <summary>
+    /// The tax part of <see cref="RefundAmount"/>, the returned items' share of the transaction's tax.
+    /// Null for a return recorded before returns could be partial.
+    /// </summary>
+    [JsonPropertyName("refundTax")]
+    public decimal? RefundTax { get; set; }
+
+    /// <summary>
+    /// The credit note for the part of the refund taken off what the customer still owed on the sale,
+    /// when they had not paid it all. <see cref="RefundRecordId"/> is the refund of the rest, if any.
+    /// </summary>
+    [JsonPropertyName("creditNoteId")]
+    public string? CreditNoteId { get; set; }
+
+    /// <summary>Whether the refund includes the transaction's shipping.</summary>
+    [JsonPropertyName("includesShipping")]
+    public bool IncludesShipping { get; set; }
+
+    /// <summary>Whether the refund includes the transaction's fee.</summary>
+    [JsonPropertyName("includesFee")]
+    public bool IncludesFee { get; set; }
+
+    /// <summary>Whether the returned goods went back into stock, for a sale, or out of it, for a purchase.</summary>
+    [JsonPropertyName("restocked")]
+    public bool Restocked { get; set; }
+
+    /// <summary>
+    /// What the sold goods that went back into stock had cost, in USD, which comes off cost of goods sold
+    /// on the return date (docs/Calculations.md §14). Zero for a purchase, or goods not put back.
+    /// </summary>
+    [JsonPropertyName("costOfGoodsReturnedUSD")]
+    public decimal CostOfGoodsReturnedUSD { get; set; }
+
+    /// <summary>
     /// The refund recorded with the return: a refund payment for a sale, or a supplier credit (an expense
     /// below zero) for a purchase. Null when nothing was paid back, as for a sale that was never paid.
     /// </summary>

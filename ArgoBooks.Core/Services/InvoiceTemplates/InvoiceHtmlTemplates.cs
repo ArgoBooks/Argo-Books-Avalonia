@@ -161,6 +161,12 @@ public static class InvoiceHtmlTemplates
                                     <td style="padding: 8px 0; font-size: 14px; color: {{AccentColor}}; text-align: right;">-{{AmountPaid}}</td>
                                 </tr>
                                 {{/AmountPaid}}
+                                {{#AmountCredited}}
+                                <tr>
+                                    <td style="padding: 8px 0; font-size: 14px; color: {{AccentColor}};">Credit</td>
+                                    <td style="padding: 8px 0; font-size: 14px; color: {{AccentColor}}; text-align: right;">-{{AmountCredited}}</td>
+                                </tr>
+                                {{/AmountCredited}}
                                 {{#ShowProcessingFee}}
                                 <tr>
                                     <td style="padding: 8px 0; font-size: 14px; color: {{TextColor}};">{{ProcessingFeeLabel}}</td>
@@ -384,6 +390,12 @@ public static class InvoiceHtmlTemplates
                                                 <td style="padding: 6px 0; font-size: 13px; color: {{AccentColor}}; text-align: right;">-{{AmountPaid}}</td>
                                             </tr>
                                             {{/AmountPaid}}
+                                            {{#AmountCredited}}
+                                            <tr>
+                                                <td style="padding: 6px 0; font-size: 13px; color: {{AccentColor}};">Credit</td>
+                                                <td style="padding: 6px 0; font-size: 13px; color: {{AccentColor}}; text-align: right;">-{{AmountCredited}}</td>
+                                            </tr>
+                                            {{/AmountCredited}}
                                             {{#ShowProcessingFee}}
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 13px; color: {{TextColor}};">{{ProcessingFeeLabel}}</td>
@@ -585,6 +597,12 @@ public static class InvoiceHtmlTemplates
                                                 <td style="padding: 10px 15px; font-size: 13px; color: {{AccentColor}}; text-align: right; border-bottom: 1px solid {{SecondaryColor}};">-{{AmountPaid}}</td>
                                             </tr>
                                             {{/AmountPaid}}
+                                            {{#AmountCredited}}
+                                            <tr>
+                                                <td style="padding: 10px 15px; font-size: 13px; color: {{AccentColor}}; border-bottom: 1px solid {{SecondaryColor}};">Credit</td>
+                                                <td style="padding: 10px 15px; font-size: 13px; color: {{AccentColor}}; text-align: right; border-bottom: 1px solid {{SecondaryColor}};">-{{AmountCredited}}</td>
+                                            </tr>
+                                            {{/AmountCredited}}
                                             {{#ShowProcessingFee}}
                                             <tr>
                                                 <td style="padding: 10px 15px; font-size: 13px; color: {{TextColor}}; border-bottom: 1px solid {{SecondaryColor}};">{{ProcessingFeeLabel}}</td>
@@ -793,6 +811,12 @@ public static class InvoiceHtmlTemplates
                                                 <td style="padding: 6px 0; font-size: 13px; color: {{AccentColor}}; text-align: right;">-{{AmountPaid}}</td>
                                             </tr>
                                             {{/AmountPaid}}
+                                            {{#AmountCredited}}
+                                            <tr>
+                                                <td style="padding: 6px 0; font-size: 13px; color: {{AccentColor}};">Credit</td>
+                                                <td style="padding: 6px 0; font-size: 13px; color: {{AccentColor}}; text-align: right;">-{{AmountCredited}}</td>
+                                            </tr>
+                                            {{/AmountCredited}}
                                             {{#ShowProcessingFee}}
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 13px; color: {{TextColor}};">{{ProcessingFeeLabel}}</td>
@@ -1037,6 +1061,12 @@ public static class InvoiceHtmlTemplates
                         <span>-{{AmountPaid}}</span>
                     </div>
                     {{/AmountPaid}}
+                    {{#AmountCredited}}
+                    <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: {{AccentColor}};">
+                        <span>Credit</span>
+                        <span>-{{AmountCredited}}</span>
+                    </div>
+                    {{/AmountCredited}}
                     {{#ShowProcessingFee}}
                     <div style="display: flex; justify-content: space-between; padding: 10px 0; font-size: 14px; color: {{TextColor}};">
                         <span>{{ProcessingFeeLabel}}</span>

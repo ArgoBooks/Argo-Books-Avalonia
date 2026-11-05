@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Transactions;
 
 namespace ArgoBooks.Core.Services;
@@ -17,6 +18,24 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class RefundAggregator
 {
+    /// <summary>
+    /// The payments a figure that counts only paid sales takes refunds from: every one but a credit note
+    /// whose sale isn't paid yet. Until it is, neither the sale nor its credit note has been counted.
+    /// </summary>
+    public static IEnumerable<Payment> ForPaidSales(CompanyData data)
+    {
+        var credited = data.Returns.Where(r => r.CreditNoteId != null).ToList();
+        if (credited.Count == 0)
+            return data.Payments;
+
+        var paidSales = data.Revenues.Where(RevenueAggregator.IsCollected).Select(r => r.Id).ToHashSet();
+        var waiting = credited
+            .Where(r => !paidSales.Contains(r.OriginalTransactionId))
+            .Select(r => r.CreditNoteId!)
+            .ToHashSet();
+        return waiting.Count == 0 ? data.Payments : data.Payments.Where(p => !waiting.Contains(p.Id));
+    }
+
     /// <summary>The part of one refund that comes off revenue (USD, positive): all of it but a deposit it gave back.</summary>
     public static decimal RevenuePortionUSD(Payment refund) => Math.Abs(refund.EffectiveAmountUSD) * refund.RevenueShare;
 

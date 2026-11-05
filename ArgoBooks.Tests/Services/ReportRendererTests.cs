@@ -1,6 +1,9 @@
 using System.Reflection;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Models.Entities;
+using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
@@ -182,5 +185,67 @@ public class ReportRendererTests
 
         Assert.False(firstContinuation.IsLastContinuationPage);
         Assert.Equal(expectedRows, firstContinuation.RowCount);
+    }
+
+    [Fact]
+    public void AccountingTable_DrawsTheIncomeStatementComparisonChosenOnIt()
+    {
+        var config = ReportTemplateFactory.CreateFromTemplate(ReportTemplateFactory.TemplateNames.IncomeStatement);
+        config.Filters.DatePresetName = DatePresetNames.Custom;
+        config.Filters.StartDate = new DateTime(2024, 1, 1);
+        config.Filters.EndDate = new DateTime(2024, 12, 31);
+        var table = config.Elements.OfType<AccountingTableReportElement>().Single();
+        table.Comparison = IncomeComparison.LastYear;
+
+        using var renderer = new ReportRenderer(config, new CompanyData());
+        renderer.ComputeContinuationPlan();
+
+        Assert.Equal(["This Period", "Last Year", "Change"], renderer.GetContinuationPlan()!.CachedTableData[table.Id].Rows[0].Values);
+    }
+
+    [Theory]
+    [InlineData(ReportTemplateFactory.TemplateNames.UnpaidBills)]
+    [InlineData(ReportTemplateFactory.TemplateNames.OpenInvoices)]
+    [InlineData(ReportTemplateFactory.TemplateNames.InventoryValuation)]
+    [InlineData(ReportTemplateFactory.TemplateNames.SalesTaxLiability)]
+    [InlineData(ReportTemplateFactory.TemplateNames.TrialBalance)]
+    public void LongNewReports_DrawEveryRowAcrossPages(string template)
+    {
+        var data = new CompanyData();
+        data.Settings.Company.SalesTaxFrequency = SalesTaxFrequency.Monthly;
+        for (var i = 0; i < 90; i++)
+        {
+            var date = new DateTime(2020, 1, 15).AddMonths(i);
+            data.Products.Add(new Product { Id = $"P{i}", Name = $"Item {i}", CategoryId = $"CAT{i}" });
+            data.Categories.Add(new Category { Id = $"CAT{i}", Name = $"Category {i}" });
+            data.Inventory.Add(new InventoryItem { Id = $"INV{i}", ProductId = $"P{i}", InStock = 3, UnitCost = 2m });
+            data.Expenses.Add(new Expense
+            {
+                Id = $"B{i}", Date = date, DueDate = date.AddDays(30), OriginalCurrency = "USD", Amount = 10m, Total = 10m, TotalUSD = 10m,
+                LineItems = [new LineItem { ProductId = $"P{i}", Description = "Part", Quantity = 1, UnitPrice = 10m }]
+            });
+            data.Revenues.Add(new Revenue { Id = $"R{i}", Date = date, OriginalCurrency = "USD", Subtotal = 20m, TaxAmount = 2m, Total = 22m, TotalUSD = 22m });
+            data.Invoices.Add(new Invoice
+            {
+                Id = $"I{i}", CustomerId = "C1", IssueDate = date, DueDate = date.AddDays(30), OriginalCurrency = "USD",
+                Total = 30m, TotalUSD = 30m, Balance = 30m, BalanceUSD = 30m, Status = InvoiceStatus.Sent
+            });
+        }
+
+        var config = ReportTemplateFactory.CreateFromTemplate(template);
+        config.Filters.DatePresetName = DatePresetNames.Custom;
+        config.Filters.StartDate = new DateTime(2020, 1, 1);
+        config.Filters.EndDate = new DateTime(2028, 1, 1);
+
+        using var renderer = new ReportRenderer(config, data);
+        renderer.ComputeContinuationPlan();
+        var plan = renderer.GetContinuationPlan()!;
+        var table = config.Elements.OfType<AccountingTableReportElement>().Single();
+
+        foreach (var page in plan.Pages)
+            renderer.RenderEffectivePageToBitmap(page).Dispose();
+
+        Assert.True(plan.Pages.Count >= 2);
+        Assert.Equal(plan.CachedTableData[table.Id].Rows.Count, renderer.AccountingRowsDrawn);
     }
 }

@@ -888,11 +888,9 @@ public partial class SkiaReportDesignCanvas : UserControl
         if (_continuationPlan == null) return;
 
         // Get effective ratios and table data
-        List<double>? effectiveRatios = element.ColumnWidthRatios;
-        _continuationPlan.CachedTableData.TryGetValue(element.Id, out var tableData);
-        if (effectiveRatios == null && tableData != null)
-            effectiveRatios = tableData.ColumnWidthRatios;
-        if (effectiveRatios == null || borderIndex < 0 || borderIndex >= effectiveRatios.Count - 1) return;
+        if (!_continuationPlan.CachedTableData.TryGetValue(element.Id, out var tableData)) return;
+        var effectiveRatios = element.EffectiveColumnRatios(tableData);
+        if (borderIndex < 0 || borderIndex >= effectiveRatios.Count - 1) return;
 
         // Compute column border X position
         var cellPadding = element.CellPadding;
@@ -1214,8 +1212,8 @@ public partial class SkiaReportDesignCanvas : UserControl
             if (!_continuationPlan.CachedTableData.TryGetValue(element.Id, out var tableData))
                 continue;
 
-            var effectiveRatios = element.ColumnWidthRatios ?? tableData.ColumnWidthRatios;
-            if (effectiveRatios == null || effectiveRatios.Count < 2) continue;
+            var effectiveRatios = element.EffectiveColumnRatios(tableData);
+            if (effectiveRatios.Count < 2) continue;
 
             // Compute the header area Y range (title + subtitle + column headers)
             var headerAreaTop = element.Y;
@@ -1953,21 +1951,12 @@ public partial class SkiaReportDesignCanvas : UserControl
         _columnResizeStartX = point.X;
 
         // Capture the original ratios for undo
-        if (element.ColumnWidthRatios != null)
-        {
-            _columnResizeOriginalRatios = element.ColumnWidthRatios.ToList();
-        }
-        else if (_continuationPlan?.CachedTableData.TryGetValue(element.Id, out var tableData) == true)
-        {
-            _columnResizeOriginalRatios = tableData.ColumnWidthRatios.ToList();
-        }
-        else
-        {
-            _columnResizeOriginalRatios = null;
-        }
+        _columnResizeOriginalRatios = _continuationPlan?.CachedTableData.TryGetValue(element.Id, out var tableData) == true
+            ? element.EffectiveColumnRatios(tableData).ToList()
+            : element.ColumnWidthRatios?.ToList();
 
-        // Initialize element's custom ratios from defaults if not yet set
-        if (element.ColumnWidthRatios == null && _columnResizeOriginalRatios != null)
+        // Start the drag from the widths on screen, which are the table's own until the user has set some that fit it
+        if (_columnResizeOriginalRatios != null && element.ColumnWidthRatios?.Count != _columnResizeOriginalRatios.Count)
         {
             element.ColumnWidthRatios = _columnResizeOriginalRatios.ToList();
         }

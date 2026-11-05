@@ -303,6 +303,7 @@
         <modals:CategoryModals DataContext="{Binding CategoryModalsViewModel}" />
         <modals:LocationsModals DataContext="{Binding LocationsModalsViewModel}" />
         <modals:AssetModals DataContext="{Binding AssetModalsViewModel}" />
+        <modals:SalesTaxModals DataContext="{Binding SalesTaxModalsViewModel}" />
         <modals:PayrollModals DataContext="{Binding PayrollModalsViewModel}" />
         <modals:PayRunModals DataContext="{Binding PayRunModalsViewModel}" />
         <modals:YearEndModal DataContext="{Binding YearEndModalViewModel}" />

@@ -52,6 +52,11 @@
                                    Value="{Binding ReturnsCount}"
                                    Icon="{x:Static icons:Icons.MoneyOff}"
                                    IconColor="Warning" />
+                <controls:StatCard Label="{loc:Loc 'Bills to Pay'}"
+                                   Value="{Binding BillsToPay}"
+                                   SecondaryText="{Binding BillsToPaySubtext}"
+                                   Icon="{x:Static icons:Icons.Clock}"
+                                   IconColor="Danger" />
             </controls:StatCardsRow>
 
             <!-- Main Content Card using ArgoTable -->
@@ -418,10 +423,19 @@
                                                 <TextBlock Text="{Binding TotalFormatted}"
                                                            FontSize="14"
                                                            FontWeight="Medium"
-                                                           Foreground="{DynamicResource ErrorBrush}"
+                                                           Classes.money-back="{Binding IsMoneyBack}"
                                                            VerticalAlignment="Center"
                                                            Margin="8,0"
-                                                           TextTrimming="CharacterEllipsis" />
+                                                           TextTrimming="CharacterEllipsis">
+                                                    <TextBlock.Styles>
+                                                        <Style Selector="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+                                                        </Style>
+                                                        <Style Selector="TextBlock.money-back">
+                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                        </Style>
+                                                    </TextBlock.Styles>
+                                                </TextBlock>
                                             </table:ArgoTableCell.CellContent>
                                         </table:ArgoTableCell>
 
@@ -456,6 +470,7 @@
                                                         Padding="8,4"
                                                         CornerRadius="4"
                                                         ClipToBounds="True"
+                                                        ToolTip.Tip="{Binding BillDueHint}"
                                                         Background="{Binding StatusDisplay, Converter={x:Static local:StatusConverters.TransactionStatusBackground}}">
                                                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding StatusDisplay, Converter={StaticResource TranslateConverter}}"
@@ -493,6 +508,16 @@
                                                                   Width="16" Height="16"
                                                                   Foreground="{DynamicResource WarningBrush}" />
                                                     </Button>
+                                                    <!-- An unpaid bill (preview) -->
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Mark as paid'}"
+                                                            IsVisible="{Binding IsUnpaidBill}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).MarkBillPaidCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Check}"
+                                                                  Width="16" Height="16"
+                                                                  Foreground="{DynamicResource SuccessBrush}" />
+                                                    </Button>
                                                     <!-- View Receipt Button -->
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'View Receipt'}"
@@ -505,7 +530,8 @@
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Edit'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).OpenEditModalCommand}"
-                                                            CommandParameter="{Binding}">
+                                                            CommandParameter="{Binding}"
+                                                            IsVisible="{Binding CanEdit}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
                                                                   Width="16" Height="16" />
                                                     </Button>
@@ -550,12 +576,12 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Undo}"
                                                                   Width="16" Height="16" />
                                                     </Button>
-                                                    <!-- Undo Return (shown when already returned) -->
+                                                    <!-- Undo Return (shown when some or all of it was returned) -->
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Undo Return'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).UndoReturnCommand}"
                                                             CommandParameter="{Binding}"
-                                                            IsVisible="{Binding IsReturned}">
+                                                            IsVisible="{Binding HasReturn}">
                                                         <PathIcon Data="{x:Static icons:Icons.Returns}"
                                                                   Width="16" Height="16" />
                                                     </Button>

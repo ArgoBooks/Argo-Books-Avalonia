@@ -913,7 +913,9 @@ public class CompanyManager : IDisposable
         {
             // Clean up on failure (the finally releases the instance lock).
             ReleaseFileLock();
-            _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company");
+            // The app asks the user to update instead, so an older copy opening a newer file is not a fault.
+            if (ex is not CompanyFileTooNewException)
+                _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company");
             DeleteTempDirectoryAfterFailure();
             CompanyData = null;
             throw;
@@ -989,10 +991,10 @@ public class CompanyManager : IDisposable
         {
             if (invoicesWithPayments.Contains(invoice.Id))
             {
-                var before = (invoice.AmountPaid, invoice.AmountRefunded, invoice.Balance,
+                var before = (invoice.AmountPaid, invoice.AmountRefunded, invoice.AmountCredited, invoice.Balance,
                     invoice.BalanceUSD, invoice.Status);
                 InvoiceTotalsService.Recalculate(invoice, data.Payments);
-                var after = (invoice.AmountPaid, invoice.AmountRefunded, invoice.Balance,
+                var after = (invoice.AmountPaid, invoice.AmountRefunded, invoice.AmountCredited, invoice.Balance,
                     invoice.BalanceUSD, invoice.Status);
                 if (!before.Equals(after))
                     healed = true;

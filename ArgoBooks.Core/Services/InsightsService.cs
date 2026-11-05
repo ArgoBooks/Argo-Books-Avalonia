@@ -454,7 +454,7 @@ public class InsightsService(
         // Get weekly expense data for the past 12 weeks (gross, to match the
         // Expenses stat card the user sees).
         var twelveWeeksAgo = dateRange.EndDate.AddDays(-84);
-        var weeklyGroups = companyData.Expenses
+        var weeklyGroups = ExpenseAggregator.OnlyPaid(companyData.Expenses)
             .Where(p => p.Date >= twelveWeeksAgo && p.Date <= dateRange.EndDate)
             .GroupBy(p => GetWeekNumber(p.Date))
             .ToList();
@@ -675,7 +675,7 @@ public class InsightsService(
         var monthlyRevenue = GetMonthlyTotals(
             companyData.Revenues.Where(RevenueAggregator.IsCollected).ToList(),
             s => s.EffectiveTotalUSD);
-        var monthlyExpenses = GetMonthlyTotals(companyData.Expenses, p => p.EffectiveTotalUSD);
+        var monthlyExpenses = GetMonthlyTotals(ExpenseAggregator.OnlyPaid(companyData.Expenses).ToList(), p => p.EffectiveTotalUSD);
 
         forecast.DataMonthsUsed = Math.Max(monthlyRevenue.Count, monthlyExpenses.Count);
 
@@ -1093,7 +1093,7 @@ public class InsightsService(
     {
         // Analyze purchase patterns by supplier, gross (Total) to match the
         // Expenses stat card and Expenses Over Time chart.
-        var supplierPurchases = companyData.Expenses
+        var supplierPurchases = ExpenseAggregator.OnlyPaid(companyData.Expenses)
             .Where(p => p.Date >= dateRange.StartDate && p.Date <= dateRange.EndDate)
             .GroupBy(p => p.SupplierId)
             .Select(g => new

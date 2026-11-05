@@ -450,6 +450,18 @@ public static class DatePresetNames
     public const string NextYearToDate = "Next Year to Date";
 
     /// <summary>
+    /// A whole year, or one month of it when <paramref name="month"/> is given. One still under way ends
+    /// today, as This Year and This Month do, since later days have no records and no exchange rates yet.
+    /// </summary>
+    public static (DateTime Start, DateTime End) YearOrMonth(int year, int? month = null, DateTime? today = null)
+    {
+        var start = new DateTime(year, month ?? 1, 1);
+        var end = (month == null ? start.AddYears(1) : start.AddMonths(1)).AddDays(-1);
+        var now = (today ?? DateTime.Today).Date;
+        return (start, start <= now && now < end ? now : end);
+    }
+
+    /// <summary>
     /// Gets the date range for a preset name.
     /// Handles case-insensitive matching to support both constant values and UI display values.
     /// </summary>

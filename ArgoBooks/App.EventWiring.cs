@@ -544,7 +544,7 @@ public partial class App
         fileMenu.OpenRecentCompanyRequested += async (_, company) =>
         {
             if (string.IsNullOrEmpty(company.FilePath)) return;
-            await OpenCompanyWithRetryAsync(company.FilePath);
+            await OpenCompanyWithRetryAsync(company.FilePath, "menu-recent");
         };
     }
 
@@ -595,16 +595,26 @@ public partial class App
                         args.DefaultCurrency,
                         args.OpeningBalance);
 
-                    // Apply logo if one was selected
+                    // The company exists by now, so a logo that can't be added is reported once it is saved rather than failing the whole creation.
+                    var logoFailed = false;
                     if (!string.IsNullOrEmpty(args.LogoPath))
                     {
-                        await CompanyManager.SetCompanyLogoAsync(args.LogoPath);
+                        try
+                        {
+                            await CompanyManager.SetCompanyLogoAsync(args.LogoPath);
 
-                        // Refresh sidebar/UI with the newly set logo
-                        var logo = LoadBitmapFromPath(CompanyManager.CurrentCompanyLogoPath);
-                        _appShellViewModel.SetCompanyInfo(args.CompanyName, logo);
-                        _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
-                            args.CompanyName, filePath, logo);
+                            // Refresh sidebar/UI with the newly set logo
+                            var logo = LoadBitmapFromPath(CompanyManager.CurrentCompanyLogoPath);
+                            _appShellViewModel.SetCompanyInfo(args.CompanyName, logo);
+                            _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
+                                args.CompanyName, filePath, logo);
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        {
+                            ErrorLogger?.LogWarning($"Could not add the logo to a new company: {ex.GetType().Name}",
+                                "CompanyCreate", ErrorCategory.FileSystem, ex.GetType().Name);
+                            logoFailed = true;
+                        }
                     }
 
                     _suppressSavedFeedback = true;
@@ -613,6 +623,13 @@ public partial class App
                     await LoadRecentCompaniesAsync();
                     // Here, not on the wizard's button: a cancelled save dialog creates nothing.
                     _ = TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyCreated);
+
+                    if (logoFailed)
+                    {
+                        await ShowWarningDialogAsync(
+                            "Logo Not Added".Translate(),
+                            "Your company was created, but the logo couldn't be added. You can add it in Edit Company.".Translate());
+                    }
                     return;
                 }
                 catch (Exception ex) when (FileAccessHelper.IsLikelySecurityBlock(ex))
@@ -679,7 +696,7 @@ public partial class App
         _welcomeScreenViewModel.OpenRecentCompanyRequested += async (_, company) =>
         {
             if (string.IsNullOrEmpty(company.FilePath)) return;
-            await OpenCompanyWithRetryAsync(company.FilePath);
+            await OpenCompanyWithRetryAsync(company.FilePath, "recent");
         };
 
         // Remove from recent companies
@@ -723,7 +740,7 @@ public partial class App
         companySwitcher.SwitchCompanyRequested += async (_, company) =>
         {
             if (string.IsNullOrEmpty(company.FilePath)) return;
-            await OpenCompanyWithRetryAsync(company.FilePath);
+            await OpenCompanyWithRetryAsync(company.FilePath, "switcher");
         };
 
         // Open company from file dialog
@@ -1664,7 +1681,7 @@ public partial class App
                 return;
             }
 
-            var paths = quickBooks.Files.Select(f => f.Path).ToList();
+            var paths = QuickBooksImportModalViewModel.ImportOrder(quickBooks.Files.Select(f => f.Path));
             quickBooks.CloseCommand.Execute(null);
 
             if (paths.Count == 0)
@@ -1676,18 +1693,22 @@ public partial class App
             // they are analysed and reviewed separately rather than merged beforehand.
             await BackUpBeforeRiskyChangeAsync();
             _importBatchBackedUp = true;
+            var flattened = Path.Combine(Path.GetTempPath(), "ArgoBooks-quickbooks-" + Guid.NewGuid().ToString("N"));
             try
             {
                 foreach (var path in paths)
                 {
                     var isCsv = SpreadsheetFiles.IsDelimitedText(path);
-                    await PerformAiImportAsync(path, CompanyManager.CompanyData, isCsv);
+                    var report = QuickBooksReportFlattener.FlattenOpenInvoices(path, flattened) ?? path;
+                    await PerformAiImportAsync(report, CompanyManager.CompanyData, isCsv);
                 }
             }
             finally
             {
                 _importBatchBackedUp = false;
                 quickBooks.DiscardUnpacked();
+                if (Directory.Exists(flattened))
+                    Directory.Delete(flattened, recursive: true);
             }
         };
     }

@@ -238,7 +238,7 @@ public partial class RefundModalViewModel : ObservableObject
     private void BuildRefundHistory()
     {
         var refunds = _allPayments
-            .Where(p => p.IsRefund)
+            .Where(p => p.IsRefund && !p.IsCreditNote)
             .OrderByDescending(p => p.Date);
         foreach (var r in refunds)
         {

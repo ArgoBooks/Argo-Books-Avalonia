@@ -243,10 +243,11 @@ public partial class InvoiceHtmlRenderer
         sb.AppendLine($"TOTAL: {currencySymbol}{Money(NonNegative(invoice.Total), decimals)}");
 
         if (invoice.AmountPaid > 0)
-        {
             sb.AppendLine($"Amount Paid: -{currencySymbol}{Money(invoice.AmountPaid, decimals)}");
+        if (invoice.AmountCredited > 0)
+            sb.AppendLine($"Credit: -{currencySymbol}{Money(invoice.AmountCredited, decimals)}");
+        if (invoice.AmountPaid > 0 || invoice.AmountCredited > 0)
             sb.AppendLine($"Balance Due: {currencySymbol}{Money(invoice.Balance, decimals)}");
-        }
 
         sb.AppendLine();
 
@@ -415,6 +416,8 @@ public partial class InvoiceHtmlRenderer
             ["Total"] = $"{currencySymbol}{Money(NonNegative(invoice.Total), decimals)}{CurrencyCodeSuffix(invoice)}",
             // Already gross: portal payments are stored at the amount the customer was actually charged, fee included (see PaymentPortalService). Adding the fee again here double-counts it.
             ["AmountPaid"] = invoice.AmountPaid > 0 ? $"{currencySymbol}{Money(invoice.AmountPaid, decimals)}" : null,
+            // What credit notes for returned goods took off what is owed.
+            ["AmountCredited"] = invoice.AmountCredited > 0 ? $"{currencySymbol}{Money(invoice.AmountCredited, decimals)}" : null,
             ["Balance"] = $"{currencySymbol}{Money(NonNegative(invoice.Balance), decimals)}{CurrencyCodeSuffix(invoice)}",
 
             // Every fee touching this invoice: already charged, plus the estimate on what is still owed.

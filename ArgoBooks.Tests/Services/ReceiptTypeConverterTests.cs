@@ -192,6 +192,15 @@ public class ReceiptTypeConverterTests
     }
 
     [Fact]
+    public void GetBlockReason_ExpenseThatBoughtAnAsset_IsBlocked()
+    {
+        var (data, receipt) = WithExpenseReceipt();
+        data.Assets.Add(new ArgoBooks.Core.Models.Assets.FixedAsset { Id = "AST-001", ExpenseId = receipt.TransactionId });
+
+        Assert.Equal(ReceiptSwitchBlock.BoughtAsset, ReceiptTypeConverter.GetBlockReason(data, receipt));
+    }
+
+    [Fact]
     public void GetBlockReason_PlainScannedReceipt_IsAllowed()
     {
         var (data, receipt) = WithExpenseReceipt();

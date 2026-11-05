@@ -1,0 +1,258 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:table="using:ArgoBooks.Controls.ArgoTable"
+             xmlns:local="using:ArgoBooks.Converters"
+             xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:icons="using:ArgoBooks"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="ArgoBooks.Views.SalesTaxPage"
+             x:DataType="vm:SalesTaxPageViewModel">
+
+    <Design.DataContext>
+        <vm:SalesTaxPageViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,*" Margin="24">
+        <controls:StatCardsRow Grid.Row="0" Margin="0,0,0,24">
+            <controls:StatCard Label="{loc:Loc 'Owed now'}"
+                               Value="{Binding OwedNow}"
+                               SecondaryText="{Binding OwedNowDetail}"
+                               Icon="{x:Static icons:Icons.SalesTax}"
+                               IconColor="Danger" />
+            <controls:StatCard Label="{loc:Loc 'Next filing due'}"
+                               Value="{Binding NextDue}"
+                               SecondaryText="{Binding NextDueDetail}"
+                               Icon="{x:Static icons:Icons.Calendar}"
+                               IconColor="Warning" />
+            <controls:StatCard Label="{loc:Loc 'This period so far'}"
+                               Value="{Binding ThisPeriodSoFar}"
+                               SecondaryText="{Binding ThisPeriodName}"
+                               Icon="{x:Static icons:Icons.Dollar}"
+                               IconColor="Primary" />
+            <controls:StatCard Label="{loc:Loc 'Paid this year'}"
+                               Value="{Binding PaidThisYear}"
+                               Icon="{x:Static icons:Icons.Check}"
+                               IconColor="Success" />
+        </controls:StatCardsRow>
+
+        <table:ArgoTable Grid.Row="1"
+                         Title="{loc:Loc 'Filing periods'}"
+                         ItemsSource="{Binding Periods}"
+                         ShowSearch="False"
+                         ShowFilterButton="False"
+                         ShowAddButton="False"
+                         ColumnWidthsManager="{Binding ColumnWidths}"
+                         CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
+                         TotalPages="{Binding TotalPages}"
+                         PageSize="{Binding PageSize, Mode=TwoWay}"
+                         PaginationText="{Binding PaginationText}"
+                         GoToPageCommand="{Binding GoToPageCommand}"
+                         GoToPreviousPageCommand="{Binding GoToPreviousPageCommand}"
+                         GoToNextPageCommand="{Binding GoToNextPageCommand}"
+                         EmptyIcon="{x:Static icons:Icons.SalesTax}"
+                         EmptyTitle="{loc:Loc 'Nothing to file yet'}"
+                         EmptyMessage="{loc:Loc 'Sales tax you collect and pay shows here, one row for each period you file.'}">
+
+            <table:ArgoTable.ExtraButtonsContent>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="{loc:Loc 'I file'}"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <ComboBox ItemsSource="{Binding FrequencyOptions}"
+                              SelectedItem="{Binding SelectedFrequency}"
+                              PlaceholderText="{loc:Loc 'Choose...'}"
+                              Classes="form-combobox"
+                              MinWidth="130">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="{loc:Loc 'Tax year starts in'}"
+                               FontSize="13"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding ShowYearStart}"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <ComboBox ItemsSource="{Binding YearStartOptions}"
+                              SelectedItem="{Binding SelectedYearStart}"
+                              IsVisible="{Binding ShowYearStart}"
+                              Classes="form-combobox"
+                              MinWidth="130">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+            </table:ArgoTable.ExtraButtonsContent>
+
+            <table:ArgoTable.InfoBannerContent>
+                <Border IsVisible="{Binding !IsFrequencyChosen}"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource PrimaryBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14,10"
+                        Margin="0,0,0,4">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <PathIcon Data="{x:Static icons:Icons.Calendar}"
+                                  Width="16" Height="16"
+                                  Foreground="{DynamicResource PrimaryBrush}"
+                                  VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:Loc 'Choose how often you file, and the dashboard will remind you before each return is due. Until then the periods are listed quarterly.'}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                    </StackPanel>
+                </Border>
+            </table:ArgoTable.InfoBannerContent>
+
+            <table:ArgoTable.HeaderContent>
+                <StackPanel Orientation="Horizontal">
+                    <table:ArgoTableHeader Header="{loc:Loc Period}" ColumnName="Period" SortProperty="Period"
+                                           ColumnWidth="{Binding ColumnWidths.PeriodColumnWidth}"
+                                           SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                           SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+                    <table:ArgoTableHeader Header="{loc:Loc 'Tax collected'}" ColumnName="Collected" SortProperty="Collected"
+                                           ColumnWidth="{Binding ColumnWidths.CollectedColumnWidth}"
+                                           SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                           SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+                    <table:ArgoTableHeader Header="{loc:Loc 'Claimed back'}" ColumnName="ClaimedBack" SortProperty="ClaimedBack"
+                                           ColumnWidth="{Binding ColumnWidths.ClaimedBackColumnWidth}"
+                                           SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                           SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+                    <table:ArgoTableHeader Header="{loc:Loc 'Net owed'}" ColumnName="Net" SortProperty="Net"
+                                           ColumnWidth="{Binding ColumnWidths.NetColumnWidth}"
+                                           SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                           SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+                    <table:ArgoTableHeader Header="{loc:Loc Due}" ColumnName="Due" SortProperty="Due"
+                                           ColumnWidth="{Binding ColumnWidths.DueColumnWidth}"
+                                           SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                           SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+                    <table:ArgoTableHeader Header="{loc:Loc Status}" ColumnName="Status" SortProperty="Status"
+                                           ColumnWidth="{Binding ColumnWidths.StatusColumnWidth}"
+                                           SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                           SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+                    <table:ArgoTableHeader Header="{loc:Loc Actions}" ColumnName="Actions"
+                                           ColumnWidth="{Binding ColumnWidths.ActionsColumnWidth}"
+                                           IsSortable="False" IsResizable="False" ShowSeparator="False" />
+                </StackPanel>
+            </table:ArgoTable.HeaderContent>
+
+            <table:ArgoTable.RowsContent>
+                <ItemsControl Classes="table-rows" ItemsSource="{Binding Periods}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:SalesTaxPeriodRow">
+                            <Border Padding="24,0,0,0"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    MinHeight="56">
+                                <StackPanel Orientation="Horizontal">
+                                    <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:SalesTaxPageViewModel)DataContext).ColumnWidths.PeriodColumnWidth}">
+                                        <table:ArgoTableCell.CellContent>
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding PeriodName}"
+                                                           FontSize="14"
+                                                           FontWeight="Medium"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text="{Binding DatesText}"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            </StackPanel>
+                                        </table:ArgoTableCell.CellContent>
+                                    </table:ArgoTableCell>
+
+                                    <table:ArgoTableCell Text="{Binding CollectedFormatted}"
+                                                         ColumnWidth="{Binding $parent[ItemsControl].((vm:SalesTaxPageViewModel)DataContext).ColumnWidths.CollectedColumnWidth}" />
+
+                                    <table:ArgoTableCell Text="{Binding ClaimedBackFormatted}"
+                                                         ColumnWidth="{Binding $parent[ItemsControl].((vm:SalesTaxPageViewModel)DataContext).ColumnWidths.ClaimedBackColumnWidth}" />
+
+                                    <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:SalesTaxPageViewModel)DataContext).ColumnWidths.NetColumnWidth}">
+                                        <table:ArgoTableCell.CellContent>
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding NetFormatted}"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           ToolTip.Tip="{Binding WaitingHint}"
+                                                           IsVisible="{Binding !IsRefundDue}" />
+                                                <TextBlock Text="{Binding NetFormatted}"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource SuccessBrush}"
+                                                           IsVisible="{Binding IsRefundDue}" />
+                                                <TextBlock Text="{Binding RefundLabel}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}"
+                                                           IsVisible="{Binding IsRefundDue}" />
+                                                <StackPanel Orientation="Horizontal" Spacing="4"
+                                                            IsVisible="{Binding HasChanged}"
+                                                            ToolTip.Tip="{Binding ChangedHint}">
+                                                    <PathIcon Data="{x:Static icons:Icons.WarningCircle}" Width="12" Height="12"
+                                                              Foreground="{DynamicResource WarningBrush}" />
+                                                    <TextBlock Text="{loc:Loc 'Changed since filed'}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource WarningBrush}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </table:ArgoTableCell.CellContent>
+                                    </table:ArgoTableCell>
+
+                                    <table:ArgoTableCell Text="{Binding DueFormatted}"
+                                                         ColumnWidth="{Binding $parent[ItemsControl].((vm:SalesTaxPageViewModel)DataContext).ColumnWidths.DueColumnWidth}" />
+
+                                    <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:SalesTaxPageViewModel)DataContext).ColumnWidths.StatusColumnWidth}">
+                                        <table:ArgoTableCell.CellContent>
+                                            <Border HorizontalAlignment="Left"
+                                                    Margin="8,0,8,0"
+                                                    Padding="8,4"
+                                                    CornerRadius="4"
+                                                    ToolTip.Tip="{Binding FiledHint}"
+                                                    Background="{Binding Status, Converter={x:Static local:StatusConverters.SalesTaxStatusBackground}}">
+                                                <TextBlock Text="{Binding Status, Converter={StaticResource TranslateConverter}}"
+                                                           FontSize="12"
+                                                           FontWeight="Medium"
+                                                           Foreground="{Binding Status, Converter={x:Static local:StatusConverters.SalesTaxStatusForeground}}" />
+                                            </Border>
+                                        </table:ArgoTableCell.CellContent>
+                                    </table:ArgoTableCell>
+
+                                    <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:SalesTaxPageViewModel)DataContext).ColumnWidths.ActionsColumnWidth}"
+                                                         ShowSeparator="False">
+                                        <table:ArgoTableCell.CellContent>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Spacing="4">
+                                                <Button Classes="icon-button" ToolTip.Tip="{loc:Loc 'File and pay'}"
+                                                        IsVisible="{Binding CanFile}"
+                                                        Command="{Binding $parent[ItemsControl].((vm:SalesTaxPageViewModel)DataContext).FilePeriodCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <PathIcon Data="{x:Static icons:Icons.Check}" Width="16" Height="16"
+                                                              Foreground="{DynamicResource SuccessBrush}" />
+                                                </Button>
+                                                <Button Classes="icon-button" ToolTip.Tip="{loc:Loc 'Undo filing'}"
+                                                        IsVisible="{Binding IsFiled}"
+                                                        Command="{Binding $parent[ItemsControl].((vm:SalesTaxPageViewModel)DataContext).UndoFilingCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <PathIcon Data="{x:Static icons:Icons.Undo}" Width="16" Height="16" />
+                                                </Button>
+                                            </StackPanel>
+                                        </table:ArgoTableCell.CellContent>
+                                    </table:ArgoTableCell>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </table:ArgoTable.RowsContent>
+        </table:ArgoTable>
+    </Grid>
+
+</UserControl>

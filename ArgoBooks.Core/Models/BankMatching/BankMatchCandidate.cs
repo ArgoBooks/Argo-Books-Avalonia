@@ -12,6 +12,9 @@ public class BankMatchCandidate
     public string LineId { get; set; } = string.Empty;
 
     public BookRecordType RecordType { get; set; }
+
+    /// <summary>The kind of record as the matching screens name it.</summary>
+    public string RecordTypeName => RecordType == BookRecordType.SalesTaxFiling ? "Sales tax" : RecordType.ToString();
     public string RecordId { get; set; } = string.Empty;
 
     /// <summary>Display description of the candidate book record.</summary>

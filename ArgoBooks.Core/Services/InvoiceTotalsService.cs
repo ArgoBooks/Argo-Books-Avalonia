@@ -41,13 +41,17 @@ public static class InvoiceTotalsService
             .Where(p => !p.IsRefund && p.Amount > 0 && MatchesInvoiceCurrency(p))
             .Sum(p => p.Amount);
 
-        // AmountRefunded: absolute sum of refund rows in the invoice's currency.
+        // AmountRefunded: absolute sum of refund rows in the invoice's currency. A credit note returned no money.
         invoice.AmountRefunded = invoicePayments
-            .Where(p => p.IsRefund && MatchesInvoiceCurrency(p))
+            .Where(p => p.IsRefund && !p.IsCreditNote && MatchesInvoiceCurrency(p))
+            .Sum(p => Math.Abs(p.Amount));
+
+        invoice.AmountCredited = invoicePayments
+            .Where(p => p.IsCreditNote && MatchesInvoiceCurrency(p))
             .Sum(p => Math.Abs(p.Amount));
 
         // Balance: remaining owed. Refunds don't raise the balance, once the customer paid, returning their money doesn't make them owe again.
-        invoice.Balance = Math.Max(0, invoice.Total - invoice.AmountPaid);
+        invoice.Balance = Math.Max(0, invoice.Total - invoice.AmountPaid - invoice.AmountCredited);
 
         // Keep USD fields in sync when we have a conversion ratio.
         if (invoice.TotalUSD > 0)
@@ -55,7 +59,10 @@ public static class InvoiceTotalsService
             var totalPaidUSD = invoicePayments
                 .Where(p => !p.IsRefund && p.Amount > 0)
                 .Sum(p => p.EffectiveAmountUSD);
-            invoice.BalanceUSD = Math.Max(0, invoice.TotalUSD - totalPaidUSD);
+            var creditedUSD = invoicePayments
+                .Where(p => p.IsCreditNote)
+                .Sum(p => Math.Abs(p.EffectiveAmountUSD));
+            invoice.BalanceUSD = Math.Max(0, invoice.TotalUSD - totalPaidUSD - creditedUSD);
         }
     }
 
@@ -82,7 +89,7 @@ public static class InvoiceTotalsService
     /// </summary>
     public static void RecalculateStatus(Invoice invoice)
     {
-        var hasPayments = invoice.AmountPaid > 0 || invoice.AmountRefunded > 0;
+        var hasPayments = invoice.AmountPaid > 0 || invoice.AmountRefunded > 0 || invoice.AmountCredited > 0;
         if (invoice.Status == InvoiceStatus.Draft
             || invoice.Status == InvoiceStatus.Pending
             || invoice.Status == InvoiceStatus.Sent
@@ -111,7 +118,8 @@ public static class InvoiceTotalsService
         }
 
         // Invoice.IsPaidInFull rather than Balance <= 0, because a fraction of a cent reads as $0.00 while leaving the invoice Partial and then Overdue.
-        if (invoice.IsPaidInFull && invoice.AmountPaid > 0)
+        // One settled by a credit note counts as paid, as accounting software shows an invoice a credit note closes.
+        if (invoice.IsPaidInFull && (invoice.AmountPaid > 0 || invoice.AmountCredited > 0))
         {
             invoice.Status = InvoiceStatus.Paid;
             return;
@@ -141,12 +149,14 @@ public static class InvoiceTotalsService
     /// </summary>
     public static InvoiceStatus RefundedStatus(Invoice invoice)
     {
-        if (invoice.AmountRefunded + 0.01m < invoice.Total)
+        // What the customer was to pay once credit notes came off.
+        var owedTotal = invoice.Total - invoice.AmountCredited;
+        if (invoice.AmountRefunded + 0.01m < owedTotal)
             return InvoiceStatus.PartiallyRefunded;
 
         // Refund covers a full invoice value. Distinguish "single pay + fee, fully refunded" from "pay → refund → pay again": the latter leaves a net of at least one invoice value.
         var netPaid = invoice.AmountPaid - invoice.AmountRefunded;
-        return netPaid + 0.01m < invoice.Total
+        return netPaid + 0.01m < owedTotal
             ? InvoiceStatus.Refunded
             : InvoiceStatus.PartiallyRefunded;
     }

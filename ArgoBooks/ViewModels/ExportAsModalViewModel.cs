@@ -101,6 +101,7 @@ public partial class ExportAsModalViewModel : ViewModelBase
         AddDataItem(new ExportDataItem { Name = "Revenue", Key = "Revenue", RecordCount = 0, IsSelected = true });
         AddDataItem(new ExportDataItem { Name = "Expenses", Key = "Expenses", RecordCount = 0, IsSelected = true });
         AddDataItem(new ExportDataItem { Name = "Assets", Key = "Assets", RecordCount = 0, IsSelected = true });
+        AddDataItem(new ExportDataItem { Name = "Sales Tax Filings", Key = "Sales Tax Filings", RecordCount = 0, IsSelected = true });
         AddDataItem(new ExportDataItem { Name = "Invoices", Key = "Invoices", RecordCount = 0, IsSelected = true });
 
         // Straight after Invoices, because the importer assigns lines to whichever invoice it has
@@ -169,6 +170,7 @@ public partial class ExportAsModalViewModel : ViewModelBase
                 "Revenue" => companyData.Revenues.Count,
                 "Expenses" => companyData.Expenses.Count,
                 "Assets" => companyData.Assets.Count,
+                "Sales Tax Filings" => companyData.SalesTaxFilings.Count,
                 "Invoices" => companyData.Invoices.Count,
                 "Invoice Line Items" => companyData.Invoices.Sum(i => i.LineItems.Count),
                 "Payments" => companyData.Payments.Count,

@@ -75,6 +75,7 @@ public static class StatusConverters
             ["Completed"] = GreenBg,
             ["Pending"] = YellowBg,
             ["Unpaid"] = OrangeBg,
+            ["Overdue"] = RedBg,
             ["Returned"] = BlueBg,
             ["Partial Return"] = PurpleBg,
             ["Lost / Damaged"] = RedBg,
@@ -87,10 +88,33 @@ public static class StatusConverters
             ["Completed"] = GreenFg,
             ["Pending"] = YellowFg,
             ["Unpaid"] = OrangeFg,
+            ["Overdue"] = RedFg,
             ["Returned"] = BlueFg,
             ["Partial Return"] = PurpleFg,
             ["Lost / Damaged"] = RedFg,
             ["Cancelled"] = GrayFg
+        }, GrayFg);
+
+    #endregion
+
+    #region Sales Tax Filing Status
+
+    public static readonly IValueConverter SalesTaxStatusBackground = new StatusToBrushConverter(
+        new Dictionary<string, string>
+        {
+            ["Open"] = BlueBg,
+            ["Due"] = OrangeBg,
+            ["Overdue"] = RedBg,
+            ["Filed"] = GreenBg
+        });
+
+    public static readonly IValueConverter SalesTaxStatusForeground = new StatusToBrushConverter(
+        new Dictionary<string, string>
+        {
+            ["Open"] = BlueFg,
+            ["Due"] = OrangeFg,
+            ["Overdue"] = RedFg,
+            ["Filed"] = GreenFg
         }, GrayFg);
 
     #endregion

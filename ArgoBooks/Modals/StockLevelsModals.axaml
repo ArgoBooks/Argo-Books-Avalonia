@@ -253,7 +253,7 @@
                                     <TextBlock Text="{loc:Loc SKU}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Text="{Binding AddItemSku, Mode=TwoWay}"
                                              Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter SKU (optional)'}"
+                                             PlaceholderText="{loc:Loc 'Enter SKU'}"
                                              MaxLength="50" />
                                 </StackPanel>
 

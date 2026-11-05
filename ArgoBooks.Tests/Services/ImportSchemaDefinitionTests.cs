@@ -6,9 +6,10 @@ namespace ArgoBooks.Tests.Services;
 
 public class ImportSchemaDefinitionTests
 {
-    // Pay runs are exported to be read, not imported, because an approved run's figures are frozen so a reprinted stub still matches.
+    // Pay runs and sales tax filings are exported to be read, not imported: an approved run's figures are frozen so a reprinted
+    // stub still matches, and a filed return records what was reported to the government.
     private static bool IsImportable(SpreadsheetSheetType type) =>
-        type is not (SpreadsheetSheetType.PayRuns or SpreadsheetSheetType.Unknown);
+        type is not (SpreadsheetSheetType.PayRuns or SpreadsheetSheetType.SalesTaxFilings or SpreadsheetSheetType.Unknown);
 
     [Fact]
     public void GetSchema_ContainsEveryImportableEntityType()

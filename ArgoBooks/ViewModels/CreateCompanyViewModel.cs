@@ -316,7 +316,7 @@ public partial class CreateCompanyViewModel : ViewModelBase
 
         var args = new CompanyCreatedEventArgs
         {
-            CompanyName = CompanyName!,
+            CompanyName = CompanyName!.Trim(),
             Industry = Industry,
             Country = Country,
             ProvinceState = IsProvinceRequired ? ProvinceState : null,

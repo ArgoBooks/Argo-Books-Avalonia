@@ -147,8 +147,13 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     protected override Transaction? LoadIntoForm(RevenueDisplayItem item)
     {
-        var revenue = App.CompanyManager?.CompanyData?.Revenues.FirstOrDefault(s => s.Id == item.Id);
+        var companyData = App.CompanyManager?.CompanyData;
+        var revenue = companyData?.Revenues.FirstOrDefault(s => s.Id == item.Id);
         if (revenue == null) return null;
+
+        // A return points at the sale's lines and amounts, so they stay as they were while it has one.
+        if (companyData!.Returns.Any(r => r.OriginalTransactionId == revenue.Id))
+            return null;
 
         LoadCounterpartyOptions();
         LoadCategoryOptions();
@@ -251,19 +256,37 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.LostDamaged), "Mark as Lost / Damaged", "Mark as Lost / Damaged", false, LostDamagedReasonOptions);
     }
 
+    /// <summary>
+    /// Records an unpaid sale with no invoice as paid, with undo. A sale with a return can't be edited, so
+    /// this is how the rest of it gets paid; a return's credit note comes off revenue from then on.
+    /// </summary>
+    public void MarkSalePaid(RevenueDisplayItem? item)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var sale = companyData?.Revenues.FirstOrDefault(r => r.Id == item?.Id);
+        if (sale == null || !string.IsNullOrEmpty(sale.InvoiceId) || RevenueAggregator.IsCollected(sale)) return;
+
+        var before = sale.PaymentStatus;
+        sale.PaymentStatus = RevenuePaymentStatus.Paid;
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            $"Mark revenue {sale.Id} as paid",
+            () => { sale.PaymentStatus = before; RaiseTransactionSaved(); },
+            () => { sale.PaymentStatus = RevenuePaymentStatus.Paid; RaiseTransactionSaved(); }));
+        App.CompanyManager?.MarkAsChanged();
+        RaiseTransactionSaved();
+    }
+
+    /// <summary>Opens the return form for the row, where some or all of it can be returned.</summary>
     public void OpenMarkAsReturnedModal(RevenueDisplayItem? item)
     {
-        OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.Returned), "Mark as Returned", "Mark as Returned", false, ReturnReasonOptions);
+        var transaction = item == null ? null : App.CompanyManager?.CompanyData?.Revenues.FirstOrDefault(t => t.Id == item.Id);
+        if (transaction != null)
+            App.ReturnsModalsViewModel?.OpenRecordReturnModal(transaction, ReturnReasonOptions);
     }
 
     public void OpenUndoLostDamagedModal(RevenueDisplayItem? item)
     {
         OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.UndoLostDamaged), "Undo Lost / Damaged Status", "Undo Status", true, UndoReasonOptions);
-    }
-
-    public void OpenUndoReturnedModal(RevenueDisplayItem? item)
-    {
-        OpenItemStatusModal(item, nameof(ArgoBooks.Core.Enums.ItemStatusAction.UndoReturned), "Undo Returned Status", "Undo Status", true, UndoReasonOptions);
     }
 
     protected override string GetItemStatusDescription(RevenueDisplayItem item)
@@ -330,28 +353,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                     }));
                 break;
             }
-            case ArgoBooks.Core.Enums.ItemStatusAction.Returned:
-            {
-                var record = CreateReturnRecord(companyData, revenue);
-                var refund = ReturnRefunds.Record(companyData, record);
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Mark revenue '{revenue.Id}' as returned",
-                    () =>
-                    {
-                        companyData.Returns.RemoveRecord(record);
-                        if (refund != null) ReturnRefunds.Remove(companyData, refund);
-                        companyData.MarkAsModified();
-                        RaiseTransactionSaved();
-                    },
-                    () =>
-                    {
-                        companyData.Returns.RestoreRecord(record);
-                        if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
-                        companyData.MarkAsModified();
-                        RaiseTransactionSaved();
-                    }));
-                break;
-            }
             case ArgoBooks.Core.Enums.ItemStatusAction.UndoLostDamaged:
             {
                 var record = companyData.LostDamaged.FirstOrDefault(ld => ld.InventoryItemId == revenue.Id);
@@ -369,33 +370,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                         () =>
                         {
                             companyData.LostDamaged.RemoveRecord(record);
-                            companyData.MarkAsModified();
-                            RaiseTransactionSaved();
-                        }));
-                }
-                break;
-            }
-            case ArgoBooks.Core.Enums.ItemStatusAction.UndoReturned:
-            {
-                var record = companyData.Returns.FirstOrDefault(r => r.OriginalTransactionId == revenue.Id);
-                if (record != null)
-                {
-                    var refund = ReturnRefunds.Find(companyData, record);
-                    companyData.Returns.RemoveRecord(record);
-                    if (refund != null) ReturnRefunds.Remove(companyData, refund);
-                    RecordStatusUndo(new DelegateAction(
-                        $"Undo returned status for revenue '{revenue.Id}'",
-                        () =>
-                        {
-                            companyData.Returns.RestoreRecord(record);
-                            if (refund != null) ReturnRefunds.Restore(companyData, record, refund);
-                            companyData.MarkAsModified();
-                            RaiseTransactionSaved();
-                        },
-                        () =>
-                        {
-                            companyData.Returns.RemoveRecord(record);
-                            if (refund != null) ReturnRefunds.Remove(companyData, refund);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));
@@ -433,40 +407,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         companyData.LostDamaged.Add(lostDamaged);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LostDamagedRecorded);
         return lostDamaged;
-    }
-
-    private Return CreateReturnRecord(CompanyData companyData, Revenue revenue)
-    {
-        var productId = revenue.LineItems.FirstOrDefault()?.ProductId ?? "";
-
-        var returnRecord = new Return
-        {
-            Id = new IdGenerator(companyData).NextReturnId(),
-            OriginalTransactionId = revenue.Id,
-            ReturnType = "Customer",
-            SupplierId = "",
-            CustomerId = revenue.CustomerId ?? "",
-            ReturnDate = DateTime.UtcNow,
-            Items =
-            [
-                new ReturnItem
-                {
-                    ProductId = productId,
-                    Quantity = (int)revenue.Quantity,
-                    Reason = SelectedItemStatusReason ?? "Other"
-                }
-            ],
-            RefundAmount = ReturnLossAmounts.RefundFor(revenue, revenue.Subtotal > 0 ? revenue.Subtotal : revenue.Amount),
-            RestockingFee = 0,
-            Status = ReturnStatus.Completed,
-            Notes = ItemStatusNotes,
-            ProcessedBy = revenue.AccountantId ?? "",
-            CreatedAt = DateTime.UtcNow
-        };
-
-        companyData.Returns.Add(returnRecord);
-        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReturnRecorded);
-        return returnRecord;
     }
 
     #endregion
