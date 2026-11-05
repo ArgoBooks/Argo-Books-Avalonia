@@ -4,7 +4,11 @@ using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Reports;
+using System.Net;
+using System.Reflection;
+using System.Text;
 using ArgoBooks.Core.Models.Transactions;
+using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using Xunit;
 
@@ -543,10 +547,21 @@ public class AccountingReportAdditionsTests
         var data = TaxedCompany();
         data.SalesTaxFilings[0].Currency = "ZZZ";
 
-        var report = Report(data, AccountingReportType.SalesTaxLiability, Range(new DateTime(2024, 7, 1), new DateTime(2024, 9, 30)));
+        // A rate service that knows no rates has to be in place, because with no service at all a
+        // conversion hands back the amount it was given and the return never counts as pending.
+        var priorRates = RatesInstance.GetValue(null);
+        RatesInstance.SetValue(null, new ExchangeRateService(new NoDiskPlatform(), new HttpClient(new NoRatesHandler())));
+        try
+        {
+            var report = Report(data, AccountingReportType.SalesTaxLiability, Range(new DateTime(2024, 7, 1), new DateTime(2024, 9, 30)));
 
-        Assert.Equal("Pending", report.Rows.Single(r => r.Label == "Brought forward").Values[5]);
-        Assert.Equal("Pending", report.Rows.Single(r => r.Label == "TOTAL").Values[5]);
+            Assert.Equal("Pending", report.Rows.Single(r => r.Label == "Brought forward").Values[5]);
+            Assert.Equal("Pending", report.Rows.Single(r => r.Label == "TOTAL").Values[5]);
+        }
+        finally
+        {
+            RatesInstance.SetValue(null, priorRates);
+        }
     }
 
     [Fact]
@@ -633,4 +648,39 @@ public class AccountingReportAdditionsTests
     }
 
     #endregion
+
+    private static readonly PropertyInfo RatesInstance =
+        typeof(ExchangeRateService).GetProperty(nameof(ExchangeRateService.Instance), BindingFlags.Public | BindingFlags.Static)!;
+
+    private sealed class NoRatesHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{ "success": true, "base": "USD", "rates": {} }""", Encoding.UTF8, "application/json")
+            });
+    }
+
+    private sealed class NoDiskPlatform : IPlatformService
+    {
+        public PlatformType Platform => PlatformType.Linux;
+        public string GetAppDataPath() => Path.GetTempPath();
+        public string GetCachePath() => Path.GetTempPath();
+        public void EnsureDirectoryExists(string path) { }
+        public bool SupportsFileSystem => false;
+        public bool SupportsNativeDialogs => false;
+        public bool SupportsBiometrics => false;
+        public Task<bool> IsBiometricAvailableAsync() => Task.FromResult(false);
+        public Task<string> GetBiometricAvailabilityDetailsAsync() => Task.FromResult("");
+        public Task<bool> AuthenticateWithBiometricAsync(string reason) => Task.FromResult(false);
+        public void StorePasswordForBiometric(string fileId, string password) { }
+        public string? GetPasswordForBiometric(string fileId) => null;
+        public void ClearPasswordForBiometric(string fileId) { }
+        public bool SupportsAutoUpdate => false;
+        public int MaxRecentCompanies => 10;
+        public string NormalizePath(string path) => path;
+        public string CombinePaths(params string[] paths) => Path.Combine(paths);
+        public string GetMachineId() => "test-machine-id";
+        public StringComparer PathComparer => StringComparer.Ordinal;
+    }
 }
