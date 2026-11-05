@@ -250,6 +250,9 @@ public partial class App
                     await AutoSyncPortalPaymentsAsync();
 
                     ApplyPortalSyncInterval();
+
+                    // Here as well as on the Revenue page, so data a connected app sent while the app was closed is announced without visiting it.
+                    await ArgoApiPendingNotice.CheckAsync(CompanyManager.CompanyData, SharedHttpClient);
                 }
                 catch (Exception ex)
                 {
