@@ -236,7 +236,7 @@ def end_frame(base, previous, age):
     return Image.blend(previous, frame, fade) if fade < 1 and previous is not None else frame
 
 
-def render_picture(path, plan, chunks, load_take=r.load_take, take_frames=mv.take_frames, pages=None):
+def render_picture(path, plan, chunks, load_take=r.load_take, take_frames=mv.take_frames, pages=None, end_card=end_frame):
     """Draws the Short. A Mac Short passes its own takes, frames and pages, from mac_window.py and mac_video.py."""
     mv.TALL_VIEW = VIEW
     base = background()
@@ -261,7 +261,7 @@ def render_picture(path, plan, chunks, load_take=r.load_take, take_frames=mv.tak
         for f in range(first, stop):
             t = f / FPS
             if "end" in shot:
-                frame = end_frame(base, last, t - shot["at"])
+                frame = end_card(base, last, t - shot["at"])
             elif "grid" in shot:
                 frame = grid.copy()
             elif "still" in shot:
