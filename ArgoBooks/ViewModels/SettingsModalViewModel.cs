@@ -454,6 +454,10 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(CanEnableBiometricLogin));
         OnPropertyChanged(nameof(NeedsPasswordForBiometricLogin));
+
+        // The license check can finish after the settings have loaded.
+        if (value && ArgoApiEnabled)
+            _ = RefreshArgoApiKeysAsync();
     }
 
     /// <summary>
@@ -1791,7 +1795,8 @@ public partial class SettingsModalViewModel : ViewModelBase
 
         RefreshArgoApiLastSynced(api);
 
-        if (ArgoApiEnabled)
+        // Without Premium the tab only offers an upgrade, and the server would refuse the request anyway.
+        if (ArgoApiEnabled && HasPremium)
             _ = RefreshArgoApiKeysAsync();
     }
 
