@@ -416,7 +416,11 @@ public class SpreadsheetImportService
                         options.RowCurrencyBySheet[csvSheetName] = csvCurrency;
                     }
 
-                    ReserveIdNumbers(companyData, [new ImportSheet(csvSheetName, sheetType, headers, rows)]);
+                    var csvSheet = new ImportSheet(csvSheetName, sheetType, headers, rows);
+                    ReserveIdNumbers(companyData, [csvSheet]);
+                    if (options.AutoCreateMissingReferences || options.AutoCreateTypes.Count > 0)
+                        CreateMissingReferences(csvSheet, companyData, options);
+
                     var sheetResult = ImportBySheetTypeWithCount(sheetType, companyData, headers, rows, csvSheetName, options);
                     result.TotalImported += sheetResult.Inserted;
                     result.TotalUpdated += sheetResult.Updated;
@@ -461,6 +465,13 @@ public class SpreadsheetImportService
 
             try
             {
+                if (SpreadsheetFiles.IsDelimitedText(filePath))
+                {
+                    if (ReadMappedCsv(filePath, analysis) is { } csv)
+                        ValidateCsv(csv, companyData, result);
+                    return result;
+                }
+
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var workbook = new XLWorkbook(fileStream);
 
@@ -1011,23 +1022,19 @@ public class SpreadsheetImportService
     /// Collects every transaction date in the included Tier 1 financial sheets, using the SAME
     /// parser the import uses (so it cannot diverge from how dates are read) and the correct mapped
     /// date-column name per sheet type. Lets the import rate gate pre-fetch each date's exact rate.
-    /// Best-effort: CSV and unparseable dates are skipped; any row the gate misses still self-heals
+    /// Best-effort: unparseable dates are skipped; any row the gate misses still self-heals
     /// via <see cref="Transaction.IsPendingConversion"/> + <see cref="PendingConversionService"/>.
     /// </summary>
     public List<DateTime> CollectTransactionDates(string filePath, SpreadsheetAnalysisResult analysis)
     {
         var dates = new List<DateTime>();
-        if (analysis is null || SpreadsheetFiles.IsDelimitedText(filePath))
+        if (analysis is null)
             return dates;
         try
         {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var wb = new XLWorkbook(stream);
-            foreach (var sheet in analysis.Sheets)
+            foreach (var sheet in MappedTier1Sheets(filePath, analysis))
             {
-                if (!sheet.IsIncluded || sheet.Tier != ProcessingTier.Tier1_Mapping)
-                    continue;
-                var dateColumn = sheet.DetectedType switch
+                var dateColumn = sheet.Type switch
                 {
                     SpreadsheetSheetType.Revenue or SpreadsheetSheetType.Expenses
                         or SpreadsheetSheetType.Payments => "Date",
@@ -1036,15 +1043,11 @@ public class SpreadsheetImportService
                     _ => null
                 };
                 if (dateColumn is null) continue;
-                if (!wb.TryGetWorksheet(sheet.SourceSheetName, out var ws)) continue;
 
-                var headers = SpreadsheetRowReader.GetHeaders(ws);
-                ApplyColumnMapping(headers, sheet); // source -> target names, in place
-                var rows = SpreadsheetRowReader.GetDataRows(ws, headers.Count);
-                var order = SpreadsheetRowReader.DetectDateOrder(rows, headers, dateColumn);
-                foreach (var row in rows)
+                var order = SpreadsheetRowReader.DetectDateOrder(sheet.Rows, sheet.Headers, dateColumn);
+                foreach (var row in sheet.Rows)
                 {
-                    var d = SpreadsheetRowReader.GetNullableDateTime(row, headers, dateColumn, order);
+                    var d = SpreadsheetRowReader.GetNullableDateTime(row, sheet.Headers, dateColumn, order);
                     if (d.HasValue) dates.Add(d.Value.Date);
                 }
             }
@@ -1054,6 +1057,27 @@ public class SpreadsheetImportService
             _errorLogger?.LogWarning($"Could not pre-scan import dates: {ex.Message}", "Import");
         }
         return dates;
+    }
+
+    /// <summary>The sheets the import reads by their mapped columns, with the mapping applied.</summary>
+    private static List<ImportSheet> MappedTier1Sheets(string filePath, SpreadsheetAnalysisResult analysis)
+    {
+        if (SpreadsheetFiles.IsDelimitedText(filePath))
+            return ReadMappedCsv(filePath, analysis) is { } csv ? [csv] : [];
+
+        var sheets = new List<ImportSheet>();
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var wb = new XLWorkbook(stream);
+        foreach (var sheet in analysis.Sheets)
+        {
+            if (!sheet.IsIncluded || sheet.Tier != ProcessingTier.Tier1_Mapping) continue;
+            if (!wb.TryGetWorksheet(sheet.SourceSheetName, out var ws)) continue;
+
+            var headers = SpreadsheetRowReader.GetHeaders(ws);
+            ApplyColumnMapping(headers, sheet);
+            sheets.Add(new ImportSheet(sheet.SourceSheetName, sheet.DetectedType, headers, SpreadsheetRowReader.GetDataRows(ws, headers.Count)));
+        }
+        return sheets;
     }
 
     internal static void ApplyColumnMapping(List<string> headers, SheetAnalysis sheetAnalysis)
@@ -2028,45 +2052,49 @@ public class SpreadsheetImportService
 
             var rows = GetDataRows(worksheet, headers.Count);
             var sheetName = (sheetAnalysis == null ? null : CanonicalSheetName(sheetAnalysis.DetectedType)) ?? worksheet.Name;
-
-            // The Invoices sheet exports both "ID" (INV-2026-00001) and "Invoice #" (#INV-2026-00001), and the line item and payment sheets reference the ID, so that is what has to be collected.
-            bool invoices = sheetName == "Invoices";
-
-            if (!headers.Contains("ID") && !(invoices && headers.Contains("Invoice #"))) continue;
-
-            var entityType = GetEntityTypeFromSheetName(sheetName);
-            if (string.IsNullOrEmpty(entityType)) continue;
-
-            if (!ids.ContainsKey(entityType))
-                ids[entityType] = [];
-
-            foreach (var row in rows)
-            {
-                var id = GetString(row, headers, "ID");
-
-                if (string.IsNullOrEmpty(id) && invoices)
-                    id = GetString(row, headers, "Invoice #");
-
-                if (!string.IsNullOrEmpty(id))
-                    ids[entityType].Add(id);
-            }
-
-            // Also collect product names for name-based lookups
-            if (sheetName == "Products" && headers.Contains("Name"))
-            {
-                if (!ids.ContainsKey("ProductNames"))
-                    ids["ProductNames"] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var row in rows)
-                {
-                    var name = GetString(row, headers, "Name");
-                    if (!string.IsNullOrEmpty(name))
-                        ids["ProductNames"].Add(name);
-                }
-            }
+            AddImportedIds(ids, sheetName, headers, rows);
         }
 
         return ids;
+    }
+
+    private static void AddImportedIds(Dictionary<string, HashSet<string>> ids, string sheetName, List<string> headers, List<List<object?>> rows)
+    {
+        // The Invoices sheet exports both "ID" (INV-2026-00001) and "Invoice #" (#INV-2026-00001), and the line item and payment sheets reference the ID, so that is what has to be collected.
+        bool invoices = sheetName == "Invoices";
+
+        if (!headers.Contains("ID") && !(invoices && headers.Contains("Invoice #"))) return;
+
+        var entityType = GetEntityTypeFromSheetName(sheetName);
+        if (string.IsNullOrEmpty(entityType)) return;
+
+        if (!ids.ContainsKey(entityType))
+            ids[entityType] = [];
+
+        foreach (var row in rows)
+        {
+            var id = GetString(row, headers, "ID");
+
+            if (string.IsNullOrEmpty(id) && invoices)
+                id = GetString(row, headers, "Invoice #");
+
+            if (!string.IsNullOrEmpty(id))
+                ids[entityType].Add(id);
+        }
+
+        // Also collect product names for name-based lookups
+        if (sheetName == "Products" && headers.Contains("Name"))
+        {
+            if (!ids.ContainsKey("ProductNames"))
+                ids["ProductNames"] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in rows)
+            {
+                var name = GetString(row, headers, "Name");
+                if (!string.IsNullOrEmpty(name))
+                    ids["ProductNames"].Add(name);
+            }
+        }
     }
 
     private static string GetEntityTypeFromSheetName(string sheetName)
@@ -2105,6 +2133,31 @@ public class SpreadsheetImportService
         if (rows.Count == 0) return;
 
         ValidateWorksheetData(ValidationName(worksheet, sheetAnalysis), headers, rows, data, importedIds, result);
+    }
+
+    /// <summary>A CSV as the import reads it: one sheet, with its column mapping applied.</summary>
+    private static ImportSheet? ReadMappedCsv(string filePath, SpreadsheetAnalysisResult analysis)
+    {
+        var sheetAnalysis = analysis.Sheets.FirstOrDefault();
+        if (sheetAnalysis is not { IsIncluded: true, Tier: ProcessingTier.Tier1_Mapping })
+            return null;
+
+        var dataRows = CsvReader.ReadAllRows(filePath, out var headers);
+        if (headers.Count == 0 || dataRows.Count == 0)
+            return null;
+
+        ApplyColumnMapping(headers, sheetAnalysis);
+        return new ImportSheet(Path.GetFileNameWithoutExtension(filePath), sheetAnalysis.DetectedType, headers,
+            dataRows.Select(r => r.Cast<object?>().ToList()).ToList());
+    }
+
+    private void ValidateCsv(ImportSheet csv, CompanyData data, ImportValidationResult result)
+    {
+        // A CSV's name is whatever its file is called, so it is validated as the type it was recognised as.
+        var sheetName = CanonicalSheetName(csv.Type) ?? csv.Name;
+        var importedIds = new Dictionary<string, HashSet<string>>();
+        AddImportedIds(importedIds, sheetName, csv.Headers, csv.Rows);
+        ValidateWorksheetData(sheetName, csv.Headers, csv.Rows, data, importedIds, result);
     }
 
     private void ValidateWorksheetData(
@@ -2808,6 +2861,18 @@ public class SpreadsheetImportService
             ValidateWorksheet(worksheet, data, importedIds, result, analysis);
         }
 
+        CreatePlaceholders(result, data, options);
+    }
+
+    private void CreateMissingReferences(ImportSheet csv, CompanyData data, ImportOptions options)
+    {
+        var result = new ImportValidationResult();
+        ValidateCsv(csv, data, result);
+        CreatePlaceholders(result, data, options);
+    }
+
+    private void CreatePlaceholders(ImportValidationResult result, CompanyData data, ImportOptions options)
+    {
         foreach (var (refType, ids) in result.MissingReferences)
         {
             if (!options.AutoCreateMissingReferences && !options.AutoCreateTypes.Contains(refType))
@@ -4231,7 +4296,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 description = GetString(row, headers, "Description");
 
             var date = GetDateTime(row, headers, "Date");
-            var customerId = GetNullableString(row, headers, "Customer ID");
+            var customerId = GetNullableString(row, headers, "Customer ID") is { } customer ? FindCustomerId(data, customer) : null;
 
             // Skip summary/blank rows (e.g. "Subtotal", "Grand Total") that carry an amount but no
             // real revenue content, so they aren't imported as junk records.

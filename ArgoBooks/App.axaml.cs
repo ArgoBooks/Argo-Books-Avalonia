@@ -3166,9 +3166,7 @@ public partial class App : Application
                 using var validationCts = new CancellationTokenSource();
                 _mainWindowViewModel?.ShowLoading("Validating mapped data...".Translate(), cts: validationCts, cancelConfirmation: ConfirmCancelAsync);
 
-                var validationResult = isCsv
-                    ? new ImportValidationResult() // CSV validation is simpler
-                    : await importService.ValidateWithMappingsAsync(filePath, companyData, updatedAnalysis);
+                var validationResult = await importService.ValidateWithMappingsAsync(filePath, companyData, updatedAnalysis);
 
                 _mainWindowViewModel?.HideLoading();
 
