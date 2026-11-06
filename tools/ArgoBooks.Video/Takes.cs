@@ -60,6 +60,12 @@ internal static class Takes
                 case "bank":
                     await BankAsync(window, options);
                     break;
+                case "bill":
+                    await BillAsync(window, options);
+                    break;
+                case "salestax":
+                    await SalesTaxAsync(window, options);
+                    break;
                 case "forecast":
                     await ForecastAsync(window);
                     break;
@@ -466,6 +472,117 @@ internal static class Takes
         await rec.ClickAsync();
         await rec.HoldAsync(4.0);
         window.CaptureRenderedFrame()?.Save(Path.Combine(options.OutFolder, "statement.png"));
+        await rec.FinishAsync();
+    }
+
+    /// <summary>
+    /// An expense made into a bill to pay later: opened from the Expenses page, Paid unticked so it takes a due date, and
+    /// saved. Then the Accounts Payable Aging report, which lists what is owed to each supplier.
+    /// </summary>
+    private static async Task BillAsync(Window window, TakeOptions options)
+    {
+        App.NavigationService!.NavigateTo(PageNames.Expenses);
+        await Task.Delay(2500);
+        var rec = new Recorder(window, Path.Combine(options.OutFolder, "bill.mkv"), new Point(1250, 330));
+        await rec.WarmUpAsync(3);
+        rec.Mark("expenses");
+        await rec.HoldAsync(1.2);
+
+        var expenses = window.GetVisualDescendants().OfType<Control>().Select(c => c.DataContext).OfType<ExpensesPageViewModel>().First();
+        var row = Ui.Text(window, "NetSwitch 1000-24T");
+        var edit = window.GetVisualDescendants().OfType<Button>()
+            .First(b => b.Command == expenses.OpenEditModalCommand && b.IsEffectivelyVisible && Math.Abs(Ui.CentreOf(window, b).Y - Ui.CentreOf(window, row).Y) < 16);
+        await rec.MoveToAsync(Ui.LeftOf(window, row, 0.5), 1.0);
+        rec.Mark("row");
+        await rec.HoldAsync(0.6);
+        await rec.MoveToAsync(Ui.CentreOf(window, edit), 0.8);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_edit");
+        await rec.ClickAsync();
+
+        CheckBox? Paid() => window.GetVisualDescendants().OfType<CheckBox>().FirstOrDefault(c => c.Content as string == "Paid" && c.IsEffectivelyVisible);
+        await rec.WaitForAsync(() => Paid() != null && Ui.Shows(window, "Save Changes"), 10, "the expense form");
+        rec.Mark("form");
+        await rec.HoldAsync(1.2);
+        Ui.Dump(window, "expense form");
+
+        // The Paid box sits under the line items, so the form is scrolled down to it.
+        var save = Ui.Text(window, "Save Changes");
+        await rec.MoveToAsync(Ui.CentreOf(window, save) + new Point(-320, -260), 0.7);
+        rec.Mark("scroll");
+        for (var i = 0; i < 60 && Ui.CentreOf(window, Paid()!).Y > Ui.CentreOf(window, save).Y - 280; i++)
+        {
+            window.MouseWheel(rec.Cursor, new Vector(0, -1));
+            await rec.HoldAsync(0.07);
+        }
+        await rec.HoldAsync(0.5);
+        await rec.MoveToAsync(Ui.LeftOf(window, Paid()!, 0.08), 0.7);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_paid");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Due date"), 5, "the due date");
+        rec.Mark("due");
+        await rec.HoldAsync(2.8);
+        Ui.Dump(window, "bill");
+        await rec.MoveToAsync(Ui.CentreOf(window, save), 0.8);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_save");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => !Ui.Shows(window, "Save Changes"), 10, "the form to close");
+        rec.Mark("saved");
+        await rec.HoldAsync(1.0);
+        Ui.Dump(window, "expenses with the bill");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Bills to Pay")) + new Point(0, -14), 1.0);
+        rec.Mark("bills_card");
+        await rec.HoldAsync(2.5);
+
+        App.NavigationService!.NavigateTo("Reports");
+        await rec.WaitForAsync(() => App.NavigationService?.CurrentPageName == "Reports", 10, "the Reports page");
+        await rec.HoldAsync(1.0);
+        var reports = window.GetVisualDescendants().OfType<Control>().Select(c => c.DataContext).OfType<ReportsPageViewModel>().First();
+        reports.SelectTemplateCommand.Execute(ReportTemplateFactory.TemplateNames.APaging);
+        await rec.HoldAsync(0.8);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.9);
+        await rec.ClickAsync();
+        await rec.HoldAsync(2.0);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.9);
+        await rec.ClickAsync();
+        await rec.HoldAsync(5.0);
+        rec.Mark("aging");
+        Ui.Dump(window, "aging");
+        await rec.HoldAsync(4.0);
+        window.CaptureRenderedFrame()?.Save(Path.Combine(options.OutFolder, "aging.png"));
+        rec.Mark("end");
+        await rec.FinishAsync();
+    }
+
+    /// <summary>The Sales Tax page from the sidebar: each period's tax, what is owed, and when its return is due.</summary>
+    private static async Task SalesTaxAsync(Window window, TakeOptions options)
+    {
+        var rec = new Recorder(window, Path.Combine(options.OutFolder, "salestax.mkv"), new Point(1100, 260));
+        await rec.WarmUpAsync(3);
+        rec.Mark("dashboard");
+        await rec.HoldAsync(1.0);
+        var item = window.GetVisualDescendants().OfType<TextBlock>()
+            .First(t => Ui.TextOf(t) == "Sales Tax" && t.IsEffectivelyVisible && Ui.CentreOf(window, t).X < 300);
+        await rec.MoveToAsync(Ui.LeftOf(window, item), 1.0);
+        await rec.HoldAsync(0.15);
+        rec.Mark("click_sales_tax");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => App.NavigationService?.CurrentPageName == PageNames.SalesTax, 10, "the Sales Tax page");
+        rec.Mark("sales_tax");
+        await rec.HoldAsync(1.0);
+        Ui.Dump(window, "sales tax");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Owed now")) + new Point(30, 18), 1.0);
+        rec.Mark("owed");
+        await rec.HoldAsync(1.8);
+        var due = Ui.Text(window, "Due");
+        await rec.MoveToAsync(Ui.CentreOf(window, due) + new Point(10, 110), 1.0);
+        rec.Mark("due");
+        await rec.HoldAsync(1.0);
+        await rec.MoveToAsync(Ui.CentreOf(window, due) + new Point(10, 320), 1.6);
+        await rec.HoldAsync(2.5);
+        rec.Mark("end");
         await rec.FinishAsync();
     }
 

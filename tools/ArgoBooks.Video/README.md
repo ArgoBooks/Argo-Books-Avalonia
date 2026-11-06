@@ -90,6 +90,20 @@ On a Mac the app hides its own title bar and window buttons, leaves them to macO
 
 The pages are captured with `node capture_pages.js work/mac/pages wave_us zoho_mac zoho_us gnucash_home gnucash_download gnucash_features manager_download manager_home manager_cloud argo_downloads_mac argo_pricing`. Each is opened as a Mac's Safari, so download pages offer the Mac version. Intuit's pages refuse a headless browser, so the QuickBooks facts are on cards that name their source. The few lines the capture finds in the wrong place are placed by hand in `BOXES`, which needs checking after a fresh capture.
 
+## Best QuickBooks Desktop alternatives (YouTube video 16)
+
+`qb_desktop_video.py` makes "Best QuickBooks Desktop Alternatives (2026)": Sage 50, AccountEdge Pro, GnuCash, Manager and Argo Books, what each costs, whether your QuickBooks data comes with you, and the catch in each. Its files go to `work/qbvideo/`, and the video to `work/videos/`.
+
+```
+python qb_desktop_video.py voice              fetches and measures the voice
+python qb_desktop_video.py frame 12 95        saves single frames to work/qbvideo/check/
+python qb_desktop_video.py                    renders the video
+```
+
+The takes are recorded from a copy of the released app, the same way as the Mac takes but without the Mac changes: `git worktree add --detach <folder> origin/main`, copy this tool's `Takes.cs` over the copy's, build it there, and record `welcome`, `tour`, `bill`, `salestax` and `quickbooks` into `work/qbvideo/takes`. The `quickbooks` take needs `work/qb/exports` as its last argument and uses five of this computer's monthly spreadsheet imports. The `bill` take turns one of the sample company's expenses into a bill, then opens the Accounts Payable Aging report.
+
+The pages are captured with `node capture_pages.js work/qbvideo/pages accountedge_pricing accountedge_qb gnucash_download_win manager_download_win manager_cloud argo_downloads argo_pricing`. Sage's site refuses a headless browser and Intuit's refuses the connection, so their facts are on cards that name their source. GnuCash's features page is the one captured for video 15. The QuickBooks Online clip is video 14's, from `work/qb/clips`.
+
 ## The Shorts
 
 - `catches_short.py` makes "the catch in each" from the recap of the roundup, in Evan's own voice. Run `roundup.py` first.
