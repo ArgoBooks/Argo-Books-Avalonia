@@ -97,7 +97,7 @@ The pages are captured with `node capture_pages.js work/mac/pages wave_us zoho_m
 - `bank_short.py` makes "Import a bank statement without linking your bank" from the `bank` take, narrated by the Azure voice.
 - `spreadsheet_short.py` makes "Still keeping your books in a spreadsheet?" from the `tour` take, with the same voice.
 - `mac_short.py` makes "Free accounting software for Mac" from the Mac takes and pages, with the same voice. Make those for `mac_video.py` first.
-- `invoice_short.py` makes "Free invoice generator" from argorobots.com's free invoice generator, with the same voice. Record its take first with `node record_invoice.js work/invoice/takes`: it opens the live page in Edge, types an invoice into it and downloads the PDF, saving every change with the hand's path, and the Short turns that into a take like the app's. The recording blocks the page's own statistics, so it does not count as a visit or a download.
+- `invoice_short.py` makes "Free invoice generator" from argorobots.com's free invoice generator, and `estimate_short.py` makes "Free estimate generator for contractors" from the estimate generator, both with the same voice. Record each take first with `node record_generator.js invoice work/invoice/takes` or `node record_generator.js estimate work/estimate/takes`: it opens the live page in Edge, types the document into it and downloads the PDF, saving every change with the hand's path, and the Short turns that into a take like the app's. The recording blocks the page's own statistics, so it does not count as a visit or a download.
 - `render_thumbnail.js` saves a thumbnail's HTML as a PNG: `node render_thumbnail.js thumbnail.html 1280 720`.
 
 ## Credits

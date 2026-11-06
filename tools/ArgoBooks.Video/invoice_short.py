@@ -3,7 +3,8 @@ downloaded as a PDF, narrated by the Azure voice, with big captions timed to eac
 
 Usage: python invoice_short.py
 
-Record the take first with `node record_invoice.js work/invoice/takes`. The finished video goes to work/videos/.
+Record the take first with `node record_generator.js invoice work/invoice/takes`. The finished video goes to work/videos/.
+estimate_short.py makes its Short with the same pieces.
 """
 import bisect
 import json
@@ -42,13 +43,13 @@ HOLD_END = 1.8
 MUSIC_FROM = 60.0
 
 
-def spoken():
-    return "".join(text + (f"<break time='{pause}ms'/>" if pause else "") for text, pause in LINES)
+def spoken(lines=LINES):
+    return "".join(text + (f"<break time='{pause}ms'/>" if pause else "") for text, pause in lines)
 
 
-def build_take():
+def build_take(takes=TAKES, name="invoice"):
     """Turns the recorded pictures and the hand's path into a take like the app's: a video at 30 frames a second and its log."""
-    session_file, video, log_file = TAKES / "invoice_session.json", TAKES / "invoice.mkv", TAKES / "invoice.json"
+    session_file, video, log_file = takes / f"{name}_session.json", takes / f"{name}.mkv", takes / f"{name}.json"
     if log_file.exists() and video.exists() and log_file.stat().st_mtime > session_file.stat().st_mtime:
         return
     session = json.loads(session_file.read_text())
@@ -64,7 +65,7 @@ def build_take():
         t = i / FPS
         n = bisect.bisect_right(shot_times, t + 1e-6) - 1
         if n != shown:
-            pixels = Image.open(TAKES / "frames" / session["shots"][n]["file"]).convert("RGB").tobytes()
+            pixels = Image.open(takes / "frames" / session["shots"][n]["file"]).convert("RGB").tobytes()
             shown = n
         encoder.stdin.write(pixels)
         k = bisect.bisect_right(path_times, t + 1e-6) - 1
@@ -77,15 +78,27 @@ def build_take():
     log_file.write_text(json.dumps(log))
 
 
-def load_take(name):
-    log = json.loads((TAKES / f"{name}.json").read_text())
-    log["path"] = TAKES / f"{name}.mkv"
-    return log
+def take_loader(takes):
+    def load_take(name):
+        log = json.loads((takes / f"{name}.json").read_text())
+        log["path"] = takes / f"{name}.mkv"
+        return log
+    return load_take
 
 
-def pdf_card():
+load_take = take_loader(TAKES)
+
+
+def prepare(takes, name):
+    """Makes the take if the recording is newer, and has the painter read it at its own size, which is taller than the app's."""
+    build_take(takes, name)
+    mv.SOURCE = tuple(json.loads((takes / f"{name}_session.json").read_text())["size"])
+    return take_loader(takes)(name)
+
+
+def pdf_card(pdf):
     """The PDF the generator saved, cut below the invoice so the empty half of the page is left out, on a soft shadow."""
-    page = fitz.open(TAKES / "invoice.pdf")[0]
+    page = fitz.open(pdf)[0]
     pixmap = page.get_pixmap(dpi=200)
     paper = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
     grey = paper.convert("L").point(lambda v: 255 if v < 235 else 0)
@@ -101,8 +114,9 @@ def pdf_card():
     return card
 
 
-def pdf_still(base):
-    card = pdf_card()
+def pdf_still(base, pdf=TAKES / "invoice.pdf", name="invoice-1.pdf"):
+    """The PDF, under the name the generator saves it with."""
+    card = pdf_card(pdf)
     label_font = mv.font("SemiBold", 34)
     vx, vy, vw, vh = short.VIEW
 
@@ -113,7 +127,6 @@ def pdf_still(base):
         top = vy + 90 + (vh - 90 - shown.height) // 2
         out.alpha_composite(shown, ((short.SIZE[0] - shown.width) // 2, top))
         draw = ImageDraw.Draw(out)
-        name = "invoice-1.pdf"
         chip_w = draw.textlength(name, font=label_font) + 56
         draw.rounded_rectangle(((short.SIZE[0] - chip_w) / 2, vy + 10, (short.SIZE[0] + chip_w) / 2, vy + 72), radius=31,
                                fill=(255, 255, 255, 255), outline=(226, 232, 240, 255), width=2)
@@ -122,17 +135,20 @@ def pdf_still(base):
     return frame
 
 
-def end_card(base, previous, age):
-    frame = base.copy()
-    draw = ImageDraw.Draw(frame)
-    mark = Image.open(mv.ASSETS / "logo.png").convert("RGBA")
-    mark = mark.resize((840, round(840 * mark.height / mark.width)), Image.LANCZOS)
-    frame.alpha_composite(mark, ((short.SIZE[0] - 840) // 2, 620))
-    w = short.SIZE[0] / 2
-    draw.text((w, 860), "Free invoice generator", font=mv.font("Regular", 50), fill=mv.GREY + (255,), anchor="mm")
-    draw.text((w, 960), "argorobots.com", font=mv.font("Bold", 68), fill=mv.BLUE + (255,), anchor="mm")
-    fade = r.ease(age / 0.35)
-    return Image.blend(previous, frame, fade) if fade < 1 and previous is not None else frame
+def end_card_saying(line):
+    """The end card: the logo, what the tool is, and the website."""
+    def end_card(base, previous, age):
+        frame = base.copy()
+        draw = ImageDraw.Draw(frame)
+        mark = Image.open(mv.ASSETS / "logo.png").convert("RGBA")
+        mark = mark.resize((840, round(840 * mark.height / mark.width)), Image.LANCZOS)
+        frame.alpha_composite(mark, ((short.SIZE[0] - 840) // 2, 620))
+        w = short.SIZE[0] / 2
+        draw.text((w, 860), line, font=mv.font("Regular", 50), fill=mv.GREY + (255,), anchor="mm")
+        draw.text((w, 960), "argorobots.com", font=mv.font("Bold", 68), fill=mv.BLUE + (255,), anchor="mm")
+        fade = r.ease(age / 0.35)
+        return Image.blend(previous, frame, fade) if fade < 1 and previous is not None else frame
+    return end_card
 
 
 def fit(take, names, pad=60, most=1.6, closer=1.0, below=None):
@@ -150,18 +166,27 @@ def fit(take, names, pad=60, most=1.6, closer=1.0, below=None):
     return zoom, (x0 + x1) / 2, cy
 
 
-def shot_list(words, total, base, take):
+def whole_page(take):
+    """The camera standing back to show the document's whole width. It runs below the window, so its height is left out."""
+    x, _, w, _ = take["places"]["invoice"]
+    return mv.TALL_SLICE / (w + 60), x + w / 2, mv.SOURCE[1] / 2
+
+
+def shot_maker(words, take_name):
+    """Finds when a word is said, and makes a shot of the take that starts on a word, with its camera keys."""
     def at(text, nth=1):
         matches = [w["at"] for w in words if w["text"].strip(".,?").lower() == text.lower()]
         return matches[nth - 1]
 
     def shot(word, mark, offset, title, keys, nth=1):
-        return {"at": at(word, nth) - 0.1, "take": "invoice", "from": (mark, offset), "title": title,
+        return {"at": at(word, nth) - 0.1, "take": take_name, "from": (mark, offset), "title": title,
                 "keys": [(key_mark, key_offset, *framing) for key_mark, key_offset, framing in keys]}
+    return at, shot
 
-    x, _, w, _ = take["places"]["invoice"]
-    # The invoice runs below the window, so only its width decides how far back the camera stands.
-    whole = (mv.TALL_SLICE / (w + 60), x + w / 2, mv.SOURCE[1] / 2)
+
+def shot_list(words, total, base, take):
+    at, shot = shot_maker(words, "invoice")
+    whole = whole_page(take)
     templates = shot("Pick", "click_elegant", -0.35, "5 templates", [("click_elegant", -0.35, whole)])
     # The download follows straight on from the templates, so the hand carries on to the button without a jump.
     carry_on = ("click_elegant", -0.35 + at("And", 2) - at("Pick"))
@@ -189,10 +214,7 @@ def shot_list(words, total, base, take):
 
 
 def main():
-    build_take()
-    take = load_take("invoice")
-    # The browser's take is taller than the app's, so the painter reads and frames it at its own size.
-    mv.SOURCE = tuple(json.loads((TAKES / "invoice_session.json").read_text())["size"])
+    take = prepare(TAKES, "invoice")
     WORK.mkdir(parents=True, exist_ok=True)
     voice_path = WORK / "voice.wav"
     r.write_mono(voice_path, mv.voice_line(spoken()))
@@ -200,7 +222,7 @@ def main():
     total = max(w["end"] for w in words) + HOLD_END
     chunks = short.caption_chunks(words, longest_pause=0.4)
     pc.finish(shot_list(words, total, short.background(), take), chunks, voice_path, WORK, OUT_FILE, MUSIC_FROM,
-              load_take=load_take, end_card=end_card)
+              load_take=load_take, end_card=end_card_saying("Free invoice generator"))
 
 
 if __name__ == "__main__":

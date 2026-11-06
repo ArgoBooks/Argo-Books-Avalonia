@@ -1,13 +1,13 @@
-// Records the free invoice generator on argorobots.com as a take, the way Takes.cs records the app: a hand moves, clicks
-// and types through the page while every change is saved. The take keeps its own clock, so it plays at an even speed
-// however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
-// Usage: node record_invoice.js OUT_FOLDER   (run "npm install" in this folder first)
+// Records argorobots.com's free invoice or estimate generator as a take, the way Takes.cs records the app: a hand moves,
+// clicks and types through the page while every change is saved. The take keeps its own clock, so it plays at an even
+// speed however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
+// Usage: node record_generator.js invoice|estimate OUT_FOLDER   (run "npm install" in this folder first)
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
 
 const EDGE = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
-const PAGE = "https://argorobots.com/invoice-generator/";
+const PAGES = { invoice: "https://argorobots.com/invoice-generator/", estimate: "https://argorobots.com/estimate-generator/" };
 const SCALE = 2;
 // Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short.
 const VIEWPORT = { width: 1600, height: 1000 };
@@ -126,82 +126,113 @@ function round(t) {
   return Math.round(t * 10000) / 10000;
 }
 
-async function record(page, take) {
+// The page's title and its promise, held for as long as the Short's first line takes, then down to the document itself.
+async function opening(take, linger = 1.7) {
   await take.snap();
   take.mark("top");
   await take.placeText("hero_title", ".site-hero-title");
   await take.placeText("tagline", ".site-hero-tagline");
   take.hold(0.8);
   await take.moveTo(930, 268, 1.8);
-  take.hold(1.7);
+  take.hold(linger);
   take.mark("scroll");
   await take.scrollTo(400, 0.9);
   take.hold(0.3);
+}
 
+// The business's name, its address (typed off camera, so the PDF is complete), and the client's.
+async function parties(take, business, from, client) {
   await take.place("logo", "#logo-slot");
   await take.moveInto("business", '[data-label="businessTitle"]', 0, 0.8, 40);
   take.mark("click_business");
   await take.click();
-  await take.type("Cedar Ridge IT", 0.07);
+  await take.type(business, 0.07);
   take.mark("business_done");
   take.hold(0.6);
 
   await take.moveInto("from", "#field-from", 0, 0.5, 60);
   await take.click();
-  await take.type("Cedar Ridge IT\n18 Elm Street\nPortland, ME 04102", 0.03);
+  await take.type(from, 0.03);
   take.mark("from_done");
 
   await take.moveInto("billto", "#field-billTo", 0, 0.7, 50);
   take.mark("click_billto");
   await take.click();
-  await take.type("Harbor Dental\n42 Bay Street\nPortland, ME 04101", 0.03);
+  await take.type(client, 0.03);
   take.mark("billto_done");
   take.hold(0.6);
+}
 
+async function firstLine(take, description, rate) {
   await take.scrollTo(640, 0.7);
   take.mark("items");
   await take.moveInto("desc", '[data-field="lineItem-description"]', 0, 0.6, 40);
   take.mark("click_desc");
   await take.click();
-  await take.type("Network setup", 0.05);
+  await take.type(description, 0.05);
   take.hold(0.2);
   await take.moveInto("rate", '[data-field="lineItem-rate"]', 0, 0.5);
   take.mark("click_rate");
   await take.click();
-  await take.retype("450", 0.09);
+  await take.retype(rate, 0.09);
   await take.place("amount", '[data-field="lineItem-amount"]');
   await take.place("total1", '[data-field="total"]');
   take.mark("rate_done");
   take.hold(0.8);
+}
 
+// A second line, whose quantity stays at 1 when none is given.
+async function addLine(take, description, quantity, rate) {
   await take.moveInto("add", '[data-action="add-line-item"]', 0, 0.6);
   take.mark("click_add");
   await take.click();
   take.hold(0.25);
   await take.moveInto("desc2", '[data-field="lineItem-description"]', 1, 0.4, 40);
   await take.click();
-  await take.type("Laptop repair", 0.04);
-  await take.moveInto("qty2", '[data-field="lineItem-quantity"]', 1, 0.4);
-  take.mark("click_qty2");
-  await take.click();
-  await take.retype("2", 0.1);
+  await take.type(description, 0.04);
+  if (quantity) {
+    await take.moveInto("qty2", '[data-field="lineItem-quantity"]', 1, 0.4);
+    take.mark("click_qty2");
+    await take.click();
+    await take.retype(quantity, 0.1);
+  }
   await take.moveInto("rate2", '[data-field="lineItem-rate"]', 1, 0.4);
+  take.mark("click_rate2");
   await take.click();
-  await take.retype("85", 0.09);
+  await take.retype(rate, 0.09);
   take.mark("second_done");
+}
+
+async function lookAtTotal(take) {
   await take.place("subtotal", '[data-field="subtotal"]');
   await take.place("totals", ".invoice-totals");
   const total = await take.place("total", '[data-field="total"]');
   await take.moveTo(total.x + total.width / 2 + 10, total.y + total.height / 2 + 20, 0.8);
   take.mark("look_total");
   take.hold(1.6);
+}
 
+// The lines an estimate's client signs to accept it, low in the window, so the mailing list form under them stays out of sight.
+async function signature(take) {
+  const button = '[data-action="toggle-signature"]';
+  const box = await take.page.locator(button).boundingBox();
+  await take.scrollTo(Math.round((await take.page.evaluate(() => window.scrollY)) + box.y - 820), 0.6);
+  await take.moveInto("sign_button", button, 0, 0.6);
+  take.mark("click_signature");
+  await take.click();
+  take.hold(0.3);
+  await take.place("signature", "#signature-block");
+  take.mark("signature_shown");
+  take.hold(1.4);
+}
+
+async function templates(take, page, names) {
   await take.scrollTo(360, 0.7);
   take.mark("templates");
   await take.place("invoice", "main.invoice");
   await take.place("share", "#copy-share-link");
   await take.moveInto("template", 'select[data-field="template"]', 0, 0.7);
-  for (const name of ["elegant", "ribbon", "modern"]) {
+  for (const name of names) {
     take.mark("click_" + name);
     await take.click(false);
     await page.selectOption('select[data-field="template"]', name);
@@ -211,20 +242,44 @@ async function record(page, take) {
     take.mark(name);
     take.hold(0.65);
   }
+}
 
+async function download(take, page, file) {
   await take.moveInto("pdf", "#download-pdf", 0, 0.6);
   take.mark("click_pdf");
-  const download = page.waitForEvent("download");
+  const saved = page.waitForEvent("download");
   await take.click();
-  await (await download).saveAs(path.join(take.folder, "invoice.pdf"));
+  await (await saved).saveAs(path.join(take.folder, file));
   take.mark("downloaded");
   take.hold(1.5);
   take.mark("end");
 }
 
+const RECORDINGS = {
+  async invoice(page, take) {
+    await opening(take);
+    await parties(take, "Cedar Ridge IT", "Cedar Ridge IT\n18 Elm Street\nPortland, ME 04102", "Harbor Dental\n42 Bay Street\nPortland, ME 04101");
+    await firstLine(take, "Network setup", "450");
+    await addLine(take, "Laptop repair", "2", "85");
+    await lookAtTotal(take);
+    await templates(take, page, ["elegant", "ribbon", "modern"]);
+    await download(take, page, "invoice.pdf");
+  },
+  async estimate(page, take) {
+    await opening(take, 3.0);
+    await parties(take, "Northline Decks", "Northline Decks\n214 Harbor Road\nPortland, ME 04102", "Linda Park\n88 Maple Avenue\nPortland, ME 04103");
+    await firstLine(take, "New cedar deck, labor", "2400");
+    await addLine(take, "Cedar boards and hardware", null, "1850");
+    await lookAtTotal(take);
+    await signature(take);
+    await templates(take, page, ["modern", "formal"]);
+    await download(take, page, "estimate.pdf");
+  },
+};
+
 (async () => {
-  const folder = process.argv[2];
-  if (!folder) throw new Error("Usage: node record_invoice.js OUT_FOLDER");
+  const [kind, folder] = process.argv.slice(2);
+  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate OUT_FOLDER");
   fs.rmSync(path.join(folder, "frames"), { recursive: true, force: true });
   fs.mkdirSync(path.join(folder, "frames"), { recursive: true });
   const browser = await chromium.launch({ executablePath: EDGE, headless: true });
@@ -234,13 +289,13 @@ async function record(page, take) {
   const page = await context.newPage();
   // The recording would otherwise count as visits and downloads in the site's own tool statistics.
   await page.route("**/api/invoice-generator/track.php", (route) => route.abort());
-  await page.goto(PAGE, { waitUntil: "networkidle" });
+  await page.goto(PAGES[kind], { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(800);
   const take = new Take(page, folder);
-  await record(page, take);
+  await RECORDINGS[kind](page, take);
   const session = { size: [VIEWPORT.width * SCALE, VIEWPORT.height * SCALE], scale: SCALE, shots: take.shots, path: take.path, marks: take.marks, events: take.events, places: take.places };
-  fs.writeFileSync(path.join(folder, "invoice_session.json"), JSON.stringify(session, null, 1));
+  fs.writeFileSync(path.join(folder, `${kind}_session.json`), JSON.stringify(session, null, 1));
   console.log(`${take.shots.length} pictures over ${take.t.toFixed(1)} s; marks: ${Object.entries(take.marks).map(([k, v]) => `${k} ${v}`).join(", ")}`);
   await browser.close();
 })();
