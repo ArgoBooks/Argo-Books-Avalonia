@@ -6,6 +6,7 @@ Usage: python catches_short.py
 It uses what roundup.py made in work/roundup/ (the transcript, pages and takes), so run that first. The finished video
 goes to work/videos/. The words' timings come from Azure's transcript of the Short's own voice, kept in work/short/.
 """
+import difflib
 import hashlib
 import json
 import subprocess
@@ -106,9 +107,104 @@ def scripted_words(path, script, work):
         step = (word["end"] - word["at"]) / len(parts)
         heard += [{**word, "text": part, "at": word["at"] + n * step, "end": word["at"] + (n + 1) * step} for n, part in enumerate(parts)]
     written = script.split()
-    if len(heard) != len(written):
-        raise SystemExit(f"the transcript has {len(heard)} words and the script {len(written)}: {' '.join(w['text'] for w in heard)}")
-    return [{**word, "text": text} for word, text in zip(heard, written)]
+    if len(heard) == len(written):
+        return [{**word, "text": text} for word, text in zip(heard, written)]
+    return matched_words(heard, written, path)
+
+
+def matched_words(heard, written, path):
+    """Gives each written word a time when the transcript splits, joins or mishears some of them, such as "GNU Cash" for
+    GnuCash or "$737" for "737 US dollars"."""
+    def plain(text):
+        return text.strip(".,?!$").lower()
+
+    words = []
+    blocks = difflib.SequenceMatcher(None, [plain(w["text"]) for w in heard], [plain(w) for w in written], autojunk=False)
+    for kind, h0, h1, w0, w1 in blocks.get_opcodes():
+        if kind == "equal":
+            words += [{**heard[h0 + n], "text": written[w0 + n]} for n in range(w1 - w0)]
+            continue
+        if kind == "delete":
+            continue
+        joined = h0 == h1 and bool(words)
+        if joined:
+            spoken = words.pop()
+            texts = [spoken["text"]] + written[w0:w1]
+        elif h0 == h1:
+            spoken = {"at": heard[0]["at"], "end": heard[0]["at"]}
+            texts = written[w0:w1]
+        else:
+            spoken = {"at": heard[h0]["at"], "end": heard[h1 - 1]["end"]}
+            texts = written[w0:w1]
+        step = (spoken["end"] - spoken["at"]) / len(texts)
+        words += [{"text": text, "at": spoken["at"] + n * step, "end": spoken["at"] + (n + 1) * step, "joined": joined}
+                  for n, text in enumerate(texts)]
+    return retimed_amounts(words, path)
+
+
+def retimed_amounts(words, path):
+    """Azure writes a spoken amount such as "737 US dollars" as one word, "$737", and places it at the end of the stretch
+    it was said in, so the words of that stretch are spread over it again by how long each takes to say."""
+    voice = mv.decode(path, channels=1)[:, 0]
+    frame = RATE // 100
+    level = np.sqrt(np.mean(voice[: len(voice) // frame * frame].reshape(-1, frame) ** 2, axis=1) + 1e-12)
+    quiet = 20 * np.log10(level) < -45
+
+    def pause_between(a, b):
+        run = 0
+        for q in quiet[int(a * 100):int(b * 100) + 1]:
+            run = run + 1 if q else 0
+            if run >= 6:
+                return True
+        return False
+
+    n = 0
+    while n < len(words):
+        if not (words[n].get("joined") and any(c.isdigit() for c in words[n]["text"])):
+            n += 1
+            continue
+        last = n
+        while last + 1 < len(words) and words[last + 1].get("joined"):
+            last += 1
+        first = n
+        while first > 0 and not pause_between(words[first - 1]["end"], words[first]["at"]):
+            first -= 1
+        if first == n and n > 0:
+            after = int(words[n - 1]["end"] * 100)
+            start = (after + int(np.argmax(~quiet[after:]))) / 100
+        else:
+            start = words[first]["at"]
+        stop = words[last + 1]["at"] if last + 1 < len(words) else words[last]["end"]
+        lengths = [said_length(w["text"]) for w in words[first:last + 1]]
+        step, t = (stop - start) / sum(lengths), start
+        for word, length in zip(words[first:last + 1], lengths):
+            word["at"], word["end"] = t, t + step * length
+            t += step * length
+        n = last + 1
+    return words
+
+
+def said_length(text):
+    """Roughly how long a word takes to say, in letters, with numbers and initials counted as they are said."""
+    word = text.strip(".,?!$%")
+    if word.replace(",", "").isdigit():
+        return len(number_words(int(word.replace(",", ""))))
+    if word.isupper() and len(word) <= 3:
+        return 3 * len(word)
+    return max(1, len(word))
+
+
+def number_words(n):
+    ones = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen "
+            "eighteen nineteen").split()
+    tens = "twenty thirty forty fifty sixty seventy eighty ninety".split()
+    if n < 20:
+        return ones[n]
+    if n < 100:
+        return tens[n // 10 - 2] + ("" if n % 10 == 0 else " " + ones[n % 10])
+    if n < 1000:
+        return ones[n // 100] + " hundred" + ("" if n % 100 == 0 else " " + number_words(n % 100))
+    return number_words(n // 1000) + " thousand" + ("" if n % 1000 == 0 else " " + number_words(n % 1000))
 
 
 def caption_chunks(words, longest_pause=0.15):
