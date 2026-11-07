@@ -36,7 +36,41 @@ public class AiImportChunkIdTests
         new SpreadsheetImportService().ImportProcessedEntities(data, [chunks[0]!, chunks[1]!], "Customers");
 
         Assert.Equal(2, data.Customers.Count);
-        Assert.Equal("CUS-001-2", chunks[1]!.Entities[0].GetProperty("id").GetString());
+        Assert.Equal("CUS-001-c2", chunks[1]!.Entities[0].GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public void IdTheAiPrefixedFromACellOfTheSheet_IsKept()
+    {
+        List<List<List<string>>> rows = [[["1001", "Acme Ltd"]], [["1001", "Acme Ltd"]]];
+        LlmProcessedData?[] chunks =
+        [
+            Customers("{\"id\":\"INV-1001\",\"name\":\"Acme Ltd\"}"),
+            Customers("{\"id\":\"INV-1001\",\"name\":\"Acme Ltd\"}")
+        ];
+
+        SpreadsheetAnalysisService.MakeMadeUpIdsUniqueAcrossChunks(rows, chunks);
+
+        Assert.Equal("INV-1001", chunks[1]!.Entities[0].GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public void RenamedId_DoesNotMatchTheNumberedCopiesTheBackupImportMakes()
+    {
+        List<List<List<string>>> rows = [[["X", "a"], ["X", "b"]], [["Beta Inc"]]];
+        LlmProcessedData?[] chunks =
+        [
+            Customers("{\"id\":\"X\",\"name\":\"a\"}", "{\"id\":\"X\",\"name\":\"b\"}"),
+            Customers("{\"id\":\"X\",\"name\":\"Beta Inc\"}")
+        ];
+
+        SpreadsheetAnalysisService.MakeMadeUpIdsUniqueAcrossChunks(rows, chunks);
+        var idsSeen = new Dictionary<string, int>();
+        var ids = chunks.SelectMany(c => c!.Entities)
+            .Select(e => SpreadsheetAnalysisService.WithUniqueId(e, idsSeen).GetProperty("id").GetString())
+            .ToList();
+
+        Assert.Equal(ids.Count, ids.Distinct().Count());
     }
 
     [Fact]

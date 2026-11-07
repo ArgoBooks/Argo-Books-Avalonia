@@ -550,11 +550,12 @@ public class SpreadsheetAnalysisService(
                 {
                     cellsInChunk ??= new HashSet<string>(chunkRows[chunk].SelectMany(row => row).Select(cell => cell.Trim()),
                         StringComparer.OrdinalIgnoreCase);
-                    if (!cellsInChunk.Contains(id))
+                    if (!CameFromTheSheet(id, cellsInChunk))
                     {
-                        var newId = $"{id}-{chunk + 1}";
+                        // A letter in the suffix keeps it apart from the numbered copies the backup import adds for repeated ids.
+                        var newId = $"{id}-c{chunk + 1}";
                         for (var n = 2; chunkOfId.ContainsKey(newId); n++)
-                            newId = $"{id}-{chunk + 1}-{n}";
+                            newId = $"{id}-c{chunk + 1}-{n}";
 
                         var node = JsonNode.Parse(entity.GetRawText())!.AsObject();
                         node["id"] = newId;
@@ -568,6 +569,13 @@ public class SpreadsheetAnalysisService(
             }
         }
     }
+
+    /// <summary>True when the id is a cell of the chunk, or a cell the AI wrote with a prefix such as INV-1001 for 1001.</summary>
+    private static bool CameFromTheSheet(string id, HashSet<string> cellsInChunk) =>
+        cellsInChunk.Contains(id)
+        || cellsInChunk.Any(cell => cell.Length >= 3 && id.Length > cell.Length
+                                    && id.EndsWith(cell, StringComparison.OrdinalIgnoreCase)
+                                    && !char.IsLetterOrDigit(id[id.Length - cell.Length - 1]));
 
     #endregion
 
