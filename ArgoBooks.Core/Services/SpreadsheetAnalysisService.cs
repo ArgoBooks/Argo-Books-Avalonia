@@ -847,6 +847,17 @@ IMPORTANT:
         }
     }
 
+    /// <summary>Writes an id the AI gave as a number as text, because every step after this compares ids as text to keep records apart.</summary>
+    private static JsonElement WithTextId(JsonElement entity)
+    {
+        if (entity.ValueKind != JsonValueKind.Object || !entity.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.Number)
+            return entity;
+
+        var node = JsonNode.Parse(entity.GetRawText())!.AsObject();
+        node["id"] = id.GetRawText();
+        return JsonSerializer.SerializeToElement(node);
+    }
+
     internal static LlmProcessedData? ParseTier2Response(string response, SpreadsheetSheetType entityType, int sourceRowCount)
     {
         try
@@ -865,7 +876,7 @@ IMPORTANT:
             {
                 foreach (var entity in doc.RootElement.EnumerateArray())
                 {
-                    result.Entities.Add(entity.Clone());
+                    result.Entities.Add(WithTextId(entity.Clone()));
                 }
             }
             else if (doc.RootElement.TryGetProperty("entities", out var entitiesArray)
@@ -873,7 +884,7 @@ IMPORTANT:
             {
                 foreach (var entity in entitiesArray.EnumerateArray())
                 {
-                    result.Entities.Add(entity.Clone());
+                    result.Entities.Add(WithTextId(entity.Clone()));
                 }
             }
             else

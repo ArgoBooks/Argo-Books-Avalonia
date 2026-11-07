@@ -34,6 +34,30 @@ public class AiImportIdTests
     }
 
     [Fact]
+    public void NumberInATextField_IsImportedAsText()
+    {
+        var data = new CompanyData();
+
+        var result = new SpreadsheetImportService().ImportProcessedEntities(
+            data, [Customers("{\"id\":\"CUS-1\",\"name\":\"Acme\",\"companyName\":5551234}")], "Customers");
+
+        Assert.Equal(1, result.Inserted);
+        Assert.Equal("5551234", Assert.Single(data.Customers).CompanyName);
+    }
+
+    [Fact]
+    public void NumericIdsInTheAiReply_AreTextBeforeAnythingComparesThem()
+    {
+        var chunk = SpreadsheetAnalysisService.ParseTier2Response(
+            "[{\"id\":1001,\"name\":\"Line one\"},{\"id\":1001,\"name\":\"Line two\"}]", SpreadsheetSheetType.Customers, 2)!;
+
+        Assert.All(chunk.Entities, e => Assert.Equal(JsonValueKind.String, e.GetProperty("id").ValueKind));
+        var idsSeen = new Dictionary<string, int>();
+        var renamed = chunk.Entities.Select(e => SpreadsheetAnalysisService.WithUniqueId(e, idsSeen).GetProperty("id").GetString()).ToList();
+        Assert.Equal(["1001", "1001-2"], renamed);
+    }
+
+    [Fact]
     public void ReplyThatIsNotARecord_IsSkippedAndTheRestImported()
     {
         var data = new CompanyData();

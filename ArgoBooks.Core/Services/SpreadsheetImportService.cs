@@ -1113,7 +1113,7 @@ public class SpreadsheetImportService
     private static readonly JsonSerializerOptions ImportJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        Converters = { new LenientEnumConverterFactory() }
+        Converters = { new LenientEnumConverterFactory(), new TextFromNumberConverter() }
     };
 
     /// <summary>
@@ -5509,6 +5509,19 @@ Respond with ONLY a JSON array, one entry per product in the same order:
         sheet.Rows.Select(row => GetString(row, sheet.Headers, column));
 
     #endregion
+}
+
+/// <summary>
+/// Reads a number where a text field is expected as that number's text, because the AI writes a reference such as a customer or invoice number from a numeric column as a number.
+/// </summary>
+internal sealed class TextFromNumberConverter : JsonConverter<string>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TokenType == JsonTokenType.Number
+            ? System.Text.Encoding.UTF8.GetString(reader.HasValueSequence ? System.Buffers.BuffersExtensions.ToArray(reader.ValueSequence) : reader.ValueSpan)
+            : reader.GetString();
+
+    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) => writer.WriteStringValue(value);
 }
 
 /// <summary>
