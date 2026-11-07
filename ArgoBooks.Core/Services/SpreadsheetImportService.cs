@@ -614,7 +614,22 @@ public class SpreadsheetImportService
         foreach (var chunk in processedData)
         {
             foreach (var entityJson in chunk.Entities)
-                allEntities.Add((chunk.EntityType, entityJson));
+            {
+                if (entityJson.ValueKind != JsonValueKind.Object)
+                {
+                    var unreadableReason = $"The AI returned a row that is not a record ({chunk.EntityType})";
+                    sheetResult.Skipped++;
+                    sheetResult.SkipReasons.Add(unreadableReason);
+                    sheetResult.UnimportedRows.Add(new UnimportedRow { Sheet = sheetName, Reason = unreadableReason, RawValue = entityJson.GetRawText() });
+                    continue;
+                }
+
+                // Records are read with a text id, so a number the AI wrote for one is turned into text first.
+                var id = entityJson.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.Number
+                    ? idProp.GetRawText()
+                    : null;
+                allEntities.Add((chunk.EntityType, id != null ? WithId(entityJson, id) : entityJson));
+            }
         }
 
         // Walk backwards so the last occurrence of a duplicate ID wins
@@ -1106,9 +1121,15 @@ public class SpreadsheetImportService
     /// </summary>
     private static string? ExtractEntityId(JsonElement entityJson)
     {
-        if (entityJson.TryGetProperty("id", out var idProp))
-            return idProp.GetString();
-        return null;
+        if (entityJson.ValueKind != JsonValueKind.Object || !entityJson.TryGetProperty("id", out var idProp))
+            return null;
+        // The AI writes a number for an id taken from a numeric column, which is still that row's id.
+        return idProp.ValueKind switch
+        {
+            JsonValueKind.String => idProp.GetString(),
+            JsonValueKind.Number => idProp.GetRawText(),
+            _ => null
+        };
     }
 
     /// <summary>
