@@ -31,7 +31,7 @@ public static class LegacyXlsConverter
     /// <summary>
     /// Opens the given <c>.xls</c> file, copies every sheet/row/cell into a new
     /// <c>.xlsx</c> workbook, writes it to a fresh temp file and returns that path.
-    /// A file named <c>.xls</c> that is really an HTML page or an <c>.xlsx</c> is read as what it is.
+    /// A file named <c>.xls</c> that is really an HTML page, an <c>.xlsx</c> or delimited text is read as what it is.
     /// </summary>
     /// <param name="xlsPath">Path to the source legacy <c>.xls</c> file.</param>
     /// <returns>The path to the newly written temporary <c>.xlsx</c> file.</returns>
@@ -59,12 +59,43 @@ public static class LegacyXlsConverter
             return tempPath;
         }
 
-        using var output = !content.AsSpan().StartsWith(BinaryWorkbookSignature) && HtmlTableReader.LooksLikeHtmlTable(content)
-            ? FromHtml(content)
+        var isBinary = content.AsSpan().StartsWith(BinaryWorkbookSignature);
+        using var output = !isBinary && HtmlTableReader.LooksLikeHtmlTable(content) ? FromHtml(content)
+            : !isBinary && LooksLikeDelimitedText(content) ? FromDelimitedText(content)
             : FromBinaryWorkbook(content);
 
         output.SaveAs(tempPath);
         return tempPath;
+    }
+
+    /// <summary>Banks often save a comma or tab separated export under an .xls name, which is plain text with no markup and no binary bytes.</summary>
+    private static bool LooksLikeDelimitedText(byte[] content)
+    {
+        var sample = content.AsSpan(0, Math.Min(content.Length, 4096));
+        if (sample.IndexOf((byte)0) >= 0)
+            return false;
+        var start = sample.StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]) ? sample[3..] : sample;
+        var firstChar = start.TrimStart(" \t\r\n"u8);
+        return firstChar.Length > 0 && firstChar[0] != (byte)'<';
+    }
+
+    private static XLWorkbook FromDelimitedText(byte[] content)
+    {
+        var text = TextFileDecoder.Decode(content);
+        var rows = CsvReader.ParseRows(text, SpreadsheetAnalysisService.DetectCsvDelimiter(text.Split('\n')));
+
+        var output = new XLWorkbook();
+        var sheet = output.Worksheets.Add("Sheet1");
+        for (var r = 0; r < rows.Count; r++)
+        {
+            for (var c = 0; c < rows[r].Length; c++)
+            {
+                if (rows[r][c].Length > 0)
+                    sheet.Cell(r + 1, c + 1).Value = rows[r][c];
+            }
+        }
+
+        return output;
     }
 
     private static XLWorkbook FromHtml(byte[] content)

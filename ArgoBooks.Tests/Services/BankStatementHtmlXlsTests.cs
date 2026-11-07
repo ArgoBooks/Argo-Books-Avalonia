@@ -112,6 +112,23 @@ public class BankStatementHtmlXlsTests : IDisposable
         Assert.Equal("Date", result.Worksheet(1).Cell(1, 1).GetString());
     }
 
+    [Theory]
+    [InlineData(",")]
+    [InlineData("\t")]
+    public async Task DelimitedTextNamedXlsImportsItsTransactions(string separator)
+    {
+        var text = string.Join("\r\n",
+            string.Join(separator, "Date", "Description", "Amount"),
+            string.Join(separator, "2026-03-02", "OFFICE RENT", "-12500.00"),
+            string.Join(separator, "2026-03-05", "CLIENT PAYMENT", "40000.00"));
+        var path = Write(".xls", System.Text.Encoding.UTF8.GetBytes(text));
+
+        var lines = await new BankStatementImportService().ParseExcelAsync(path);
+
+        Assert.Equal(2, lines.Count);
+        Assert.Equal(-12500.00m, Assert.Single(lines, l => l.Description == "OFFICE RENT").Amount);
+    }
+
     [Fact]
     public void AnHtmlPageWithoutATableIsNotTakenForAStatement()
     {
