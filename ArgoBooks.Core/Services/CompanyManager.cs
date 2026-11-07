@@ -1384,34 +1384,48 @@ public class CompanyManager : IDisposable
             }
 
             // Sync company name with the new file name so they stay consistent
+            var originalName = CompanyData!.Settings.Company.Name;
             var newName = Path.GetFileNameWithoutExtension(newFilePath);
             if (!string.IsNullOrEmpty(newName) && ToCompanyFileName(CompanyData!.Settings.Company.Name) != newName)
             {
                 CompanyData.Settings.Company.Name = newName;
             }
 
-            // Save data to temp directory
-            var companyDir = GetCompanyDirectory(_currentTempDirectory);
-            await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
-
-            // Release file lock before saving, then re-acquire on new path
-            ReleaseFileLock();
+            var moved = false;
             try
             {
-                await PackTempDirectoryAsync(newFilePath, passwordToUse, cancellationToken);
+                // Save data to temp directory
+                var companyDir = GetCompanyDirectory(_currentTempDirectory);
+                await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
 
-                // Update current file path and password
-                CurrentFilePath = newFilePath;
-                _currentPassword = passwordToUse;
-                // Move the cross-instance lock onto the Save-As target so it guards the new file.
-                _instanceLock.TryAcquire(newFilePath);
-                // A deferred rename targeted the OLD path; once the working file has moved to a new
-                // path via Save As it no longer applies, so a later normal Save must not act on it.
-                PendingRenamePath = null;
+                // Release file lock before saving, then re-acquire on new path
+                ReleaseFileLock();
+                try
+                {
+                    await PackTempDirectoryAsync(newFilePath, passwordToUse, cancellationToken);
+
+                    // Update current file path and password
+                    CurrentFilePath = newFilePath;
+                    _currentPassword = passwordToUse;
+                    moved = true;
+                    // Move the cross-instance lock onto the Save-As target so it guards the new file.
+                    _instanceLock.TryAcquire(newFilePath);
+                    // A deferred rename targeted the OLD path; once the working file has moved to a new
+                    // path via Save As it no longer applies, so a later normal Save must not act on it.
+                    PendingRenamePath = null;
+                }
+                finally
+                {
+                    // The company's file is the new one only once it has been written, so a failed Save As locks the old one again.
+                    if (CurrentFilePath != null)
+                        AcquireFileLock(CurrentFilePath);
+                }
             }
-            finally
+            catch when (!moved)
             {
-                AcquireFileLock(newFilePath);
+                // The company stays in its old file, so it keeps the name that file has.
+                CompanyData!.Settings.Company.Name = originalName;
+                throw;
             }
 
             CompanyData!.MarkAsSaved(changeCount);

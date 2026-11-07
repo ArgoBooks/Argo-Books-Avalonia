@@ -230,6 +230,32 @@ public class CompanyManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveCompanyAs_ThatFails_LeavesTheCompanyAsItWas()
+    {
+        var originalPath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var unreachable = Path.Combine(Path.GetTempPath(), $"argo-missing-{Guid.NewGuid():N}", "Renamed Co.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(originalPath, "Acme");
+            await _manager.SaveCompanyAsync();
+            var nameBefore = _manager.CompanyData!.Settings.Company.Name;
+
+            await Assert.ThrowsAnyAsync<IOException>(() => _manager.SaveCompanyAsAsync(unreachable));
+
+            Assert.Equal(nameBefore, _manager.CompanyData!.Settings.Company.Name);
+            Assert.Equal(originalPath, _manager.CurrentFilePath);
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+            Assert.True(await _manager.OpenCompanyAsync(originalPath));
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(originalPath)) File.Delete(originalPath);
+        }
+    }
+
+    [Fact]
     public async Task SaveCompanyAs_ClearsPendingRename()
     {
         // A rename queued before a Save As must not survive it, since the target applied to the old path and a later save would move the new file.
