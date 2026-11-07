@@ -34,6 +34,10 @@ public sealed class VelopackUpdateService : IUpdateService
     /// <summary>The Windows installer every release publishes under the same name, which a copy from the old installer downloads to move over.</summary>
     private const string WindowsSetupFileName = PackId + "-win-Setup.exe";
 
+    /// <summary>What a Mac user is told when the copy they are running sits somewhere it cannot replace itself.</summary>
+    private const string MoveToApplicationsMessage =
+        "Argo Books cannot update itself from where it is. Move it to your Applications folder, open it from there, and check again.";
+
     private readonly IErrorLogger? _errorLogger;
     private readonly SignedWebSource _source;
     private readonly CleaningUpdateManager _manager;
@@ -109,6 +113,49 @@ public sealed class VelopackUpdateService : IUpdateService
             .Any(folder => folder.Length > 0 && exe.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Whether the running copy cannot replace itself. A Mac copy opened straight from a download runs from a
+    /// folder macOS keeps read-only, and one kept outside Applications can sit where the user cannot write.
+    /// </summary>
+    private static bool CannotReplaceItself()
+    {
+        if (!OperatingSystem.IsMacOS() || MacBundlePath() is not { } bundle)
+            return false;
+
+        // macOS runs a copy still marked as downloaded from a read-only mount of its own, which it calls App Translocation.
+        if (bundle.Contains("/AppTranslocation/", StringComparison.Ordinal))
+            return true;
+
+        if (Path.GetDirectoryName(bundle) is not { Length: > 0 } parent)
+            return false;
+
+        // Replacing the app writes in the folder holding it, so that folder is the one that has to be writable.
+        try
+        {
+            var probe = Path.Combine(parent, $".argobooks-update-check-{Guid.NewGuid():N}");
+            File.WriteAllBytes(probe, []);
+            File.Delete(probe);
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>The .app folder the running copy lives in, or null when it is not running from one.</summary>
+    private static string? MacBundlePath()
+    {
+        if (Environment.ProcessPath is not { Length: > 0 } exe)
+            return null;
+
+        for (var dir = new DirectoryInfo(Path.GetDirectoryName(exe)!); dir != null; dir = dir.Parent)
+            if (dir.Name.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+                return dir.FullName;
+
+        return null;
+    }
+
     /// <inheritdoc />
     public bool IsMoveToNewInstall => IsOldWindowsInstall;
 
@@ -150,6 +197,14 @@ public sealed class VelopackUpdateService : IUpdateService
             // A build run from the IDE, which Velopack did not install and cannot update.
             if (!_manager.IsInstalled)
                 return UpToDate();
+
+            // Offering an update the running copy cannot install would download it and fail at the last step.
+            if (CannotReplaceItself())
+            {
+                LastError = MoveToApplicationsMessage;
+                SetState(UpdateState.Error);
+                return null;
+            }
 
             var update = await _manager.CheckForUpdatesAsync();
             if (update == null)
