@@ -229,6 +229,48 @@ public class CompanyManagerTests : IDisposable
         }
     }
 
+    /// <summary>A receipts read that already failed by the time the first save asks for it is read again, so that save keeps the receipts.</summary>
+    [Fact]
+    public async Task DeferredReceipts_ReadThatFailedBeforeTheSave_IsReadAgainByThatSave()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var fileService = new FileService(new CompressionService(), new FooterService());
+        try
+        {
+            await _manager.CreateCompanyAsync(filePath, "Receipts Co");
+            _manager.CompanyData!.Receipts.Add(new Receipt { Id = "RCP-1", FileName = "r.jpg", FileData = "QUJD" });
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            var firstReadDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var reads = 0;
+            _manager.ReceiptsReaderOverride = directory =>
+            {
+                if (Interlocked.Increment(ref reads) == 1)
+                {
+                    firstReadDone.SetResult();
+                    throw new IOException("The file is in use by another process.");
+                }
+                return fileService.LoadReceiptsAsync(directory);
+            };
+
+            Assert.True(await _manager.OpenCompanyAsync(filePath));
+            await firstReadDone.Task;
+            await Task.Delay(50);
+
+            await _manager.SaveCompanyAsync();
+
+            Assert.Single(_manager.CompanyData!.Receipts);
+            Assert.Equal(2, reads);
+        }
+        finally
+        {
+            _manager.ReceiptsReaderOverride = null;
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
     [Fact]
     public async Task SaveCompanyAs_ThatFails_LeavesTheCompanyAsItWas()
     {

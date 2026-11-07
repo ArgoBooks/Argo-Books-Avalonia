@@ -1204,9 +1204,13 @@ public class CompanyManager : IDisposable
             if (_receiptsMerged)
                 return;
             // A read that failed, for example while antivirus held the file, is tried again, so one failure does not block every save for the rest of the session.
-            if (_receiptsLoadTask is { IsFaulted: true } && _receiptsLoadDirectory is { } directory
+            if (_receiptsLoadTask is { IsFaulted: true } failed && _receiptsLoadDirectory is { } directory
                 && ReferenceEquals(CompanyData, _receiptsLoadTarget))
+            {
+                // Read here so the replaced read's failure is handled, rather than reported later as a crash.
+                _ = failed.Exception;
                 _receiptsLoadTask = ReadReceiptsInBackground(directory);
+            }
             task = _receiptsLoadTask;
             target = _receiptsLoadTarget;
         }
