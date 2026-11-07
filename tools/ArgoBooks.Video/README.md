@@ -104,6 +104,24 @@ The takes are recorded from a copy of the released app, the same way as the Mac 
 
 The pages are captured with `node capture_pages.js work/qbvideo/pages accountedge_pricing accountedge_qb gnucash_download_win manager_download_win manager_cloud argo_downloads argo_pricing`. Sage's site refuses a headless browser and Intuit's refuses the connection, so their facts are on cards that name their source. GnuCash's features page is the one captured for video 15. The QuickBooks Online clip is video 14's, from `work/qb/clips`.
 
+## How to do your own bookkeeping (YouTube video 17)
+
+`bookkeeping_video.py` makes "How to Do Your Own Bookkeeping": a small business's routine in seven steps, from the first receipt to the reports at the end of the month, with the bank statement checked on the Bank Matching page. Its files go to `work/books/`, and the video to `work/videos/`.
+
+```
+python bookkeeping_video.py voice              fetches and measures the voice
+python bookkeeping_video.py frame 12 95        saves single frames to work/books/check/
+python bookkeeping_video.py                    renders the video
+```
+
+The takes are recorded from a copy of the released app, as for video 16. `receipt` goes into `work/books/takes`. `payment`, `matching` and `reports` go there too, and each opens a copy of the company the `quickbooks` take saved, given as the last argument (`work/qbvideo/takes/Cedar Ridge IT.argo`). It is a real company rather than the sample, so a payment can be recorded and the reports carry its own name.
+
+- `payment` records Priya Nair's overdue invoice as paid.
+- `matching` writes October's statement from the company's own records, as a bank's website would give it, and gives the company January to September as already checked. It then imports October's statement on camera, ignores a transfer to savings, points at a fuel stop that was never recorded, and accepts a suggested match. Each recording uses one of this computer's monthly bank imports.
+- `reports` shows the Income Statement for the year so far, then the Accounts Receivable Aging report.
+
+`welcome`, `tour`, `bill` and `salestax` are video 16's.
+
 ## The Shorts
 
 - `catches_short.py` makes "the catch in each" from the recap of the roundup, in Evan's own voice. Run `roundup.py` first.

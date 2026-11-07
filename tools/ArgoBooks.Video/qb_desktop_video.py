@@ -265,11 +265,11 @@ def shot_list(v):
     return shots
 
 
-def render(shots, path):
+def render(shots, path, load=load_take, pages=None):
     encoder = subprocess.Popen([mv.FFMPEG, "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-video_size", f"{SIZE[0]}x{SIZE[1]}",
                                 "-framerate", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", "17",
                                 "-pix_fmt", "yuv420p", str(path)], stdin=subprocess.PIPE)
-    pages, sprites = Pages(), {}
+    pages, sprites = pages or Pages(), {}
     last, spoken = None, []
     for shot, following in zip(shots, shots[1:]):
         first, stop = round(shot["at"] * FPS), round(following["at"] * FPS)
@@ -291,7 +291,7 @@ def render(shots, path):
             played = min(count, round((shot["until"] - shot["from"]) * FPS))
             source = qv.clip_frames(shot["clip"], shot["from"], played)
         if "take" in shot:
-            take = load_take(shot["take"])
+            take = load(shot["take"])
             painter = mv.Painter("wide", take, [], [])
             start = round((take["marks"][shot["from"][0]] + shot["from"][1]) * FPS)
             end = shot.get("until")
@@ -323,11 +323,11 @@ def render(shots, path):
     return spoken
 
 
-def frame_at(shots, second, pages, sprites):
+def frame_at(shots, second, pages, sprites, load=load_take):
     shot, following = next((s, f) for s, f in zip(shots, shots[1:]) if s["at"] <= second < f["at"])
     age = second - shot["at"]
     if "take" in shot:
-        take = load_take(shot["take"])
+        take = load(shot["take"])
         start = round((take["marks"][shot["from"][0]] + shot["from"][1]) * FPS)
         end = shot.get("until")
         played = 10 ** 6 if not end else round((take["marks"][end[0]] + end[1]) * FPS) - start
