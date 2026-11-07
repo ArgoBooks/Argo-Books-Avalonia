@@ -257,8 +257,8 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
             var balance = SpreadsheetRowReader.GetNullableDecimal(row, headers, ColBalance);
             var reference = SpreadsheetRowReader.GetString(row, headers, ColReference);
 
-            // Skip rows with neither a date nor any monetary value (e.g. blank/summary rows).
-            if (date == DateTime.MinValue && signedAmount is null && debit is null && credit is null)
+            // Every bank transaction has a date and an amount, so a row missing either, such as a total, a pending line or an opening balance, is not one.
+            if (date == DateTime.MinValue || (signedAmount is null && debit is null && credit is null))
                 continue;
 
             // Canonical signed amount: negative = money out, positive = money in.

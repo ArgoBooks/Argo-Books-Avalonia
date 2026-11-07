@@ -104,6 +104,25 @@ public class BankStatementImportServiceTests
     }
 
     [Fact]
+    public async Task ParseCsvAsync_RowsWithoutADateOrAnAmount_AreNotImported()
+    {
+        var path = await WriteTempCsvAsync(
+            "Date,Description,Amount\n" +
+            "2025-01-05,Coffee shop,-12.50\n" +
+            ",Total,-12.50\n" +
+            "Pending,Card hold,-3.00\n" +
+            "2025-01-06,Opening balance,\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            var line = Assert.Single(lines);
+            Assert.Equal("Coffee shop", line.Description);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task ParseCsvAsync_SignedAmountColumn_KeepsSignAndParses()
     {
         var path = await WriteTempCsvAsync(
