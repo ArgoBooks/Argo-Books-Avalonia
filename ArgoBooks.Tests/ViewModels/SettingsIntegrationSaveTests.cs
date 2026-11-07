@@ -93,6 +93,43 @@ public class SettingsIntegrationSaveTests : IDisposable
         Assert.Equal("rk_test_abc", stripe.ApiKey);
     }
 
+    /// <summary>A Stripe import not yet saved moves the import's progress on with records that are not in the file, so connecting the API must not write that progress.</summary>
+    [Fact]
+    public async Task IntegrationChange_LeavesUnsavedImportProgressOutOfTheFile()
+    {
+        await _manager.CreateCompanyAsync(_path, "Acme");
+        await _manager.SaveCompanyAsync();
+        _manager.CompanyData!.Settings.Integrations.Stripe.LastSyncCursor = "txn_from_an_unsaved_import";
+        var vm = new SettingsModalViewModel { StripeKeyInput = "rk_test_abc" };
+
+        await vm.ConnectStripeIntegrationCommand.ExecuteAsync(null);
+        await _manager.CloseCompanyAsync();
+
+        Assert.True(await _manager.OpenCompanyAsync(_path));
+        var stripe = _manager.CompanyData!.Settings.Integrations.Stripe;
+        Assert.True(stripe.Connected);
+        Assert.Null(stripe.LastSyncCursor);
+    }
+
+    /// <summary>After a Save As that failed, the working folder holds edits the user has not saved, so an integration change must not put them in the file.</summary>
+    [Fact]
+    public async Task IntegrationChange_AfterAFailedSaveAs_LeavesUnsavedRecordsOutOfTheFile()
+    {
+        await _manager.CreateCompanyAsync(_path, "Acme");
+        await _manager.SaveCompanyAsync();
+        _manager.CompanyData!.Customers.Add(new ArgoBooks.Core.Models.Entities.Customer { Id = "CUS-UNSAVED", Name = "Unsaved" });
+        _manager.MarkAsChanged();
+        var unreachable = Path.Combine(Path.GetTempPath(), $"argo-missing-{Guid.NewGuid():N}", "Other.argo");
+        await Assert.ThrowsAnyAsync<IOException>(() => _manager.SaveCompanyAsAsync(unreachable));
+        var vm = new SettingsModalViewModel { StripeKeyInput = "rk_test_abc" };
+
+        await vm.ConnectStripeIntegrationCommand.ExecuteAsync(null);
+        await _manager.CloseCompanyAsync();
+
+        Assert.True(await _manager.OpenCompanyAsync(_path));
+        Assert.DoesNotContain(_manager.CompanyData!.Customers, c => c.Id == "CUS-UNSAVED");
+    }
+
     [Fact]
     public async Task DisconnectingStripe_IsKept_WhenTheCompanyClosesWithoutSaving()
     {

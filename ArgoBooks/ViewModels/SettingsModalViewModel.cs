@@ -1670,24 +1670,27 @@ public partial class SettingsModalViewModel : ViewModelBase
             await SaveIntegrationChangeAsync();
     }
 
-    /// <summary>Saves an integration change at once, because it already took effect with Stripe or the server and closing without saving would otherwise forget it without asking.</summary>
+    /// <summary>Saves an integration change at once, because closing asks only about changes that can be undone and this one cannot; when it cannot be saved now, it waits for the next save.</summary>
     private static async Task SaveIntegrationChangeAsync()
     {
         if (App.CompanyManager is not { } manager)
             return;
 
-        manager.MarkAsChanged();
-        if (manager.IsSampleCompany)
-            return;
+        var saved = false;
+        if (!manager.IsSampleCompany)
+        {
+            try
+            {
+                saved = await manager.SaveSettingsOnlyAsync();
+            }
+            catch (Exception ex)
+            {
+                App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save an integration change");
+            }
+        }
 
-        try
-        {
-            await manager.SaveSettingsOnlyAsync();
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save an integration change");
-        }
+        if (!saved)
+            manager.MarkAsChanged();
     }
 
     [RelayCommand]
