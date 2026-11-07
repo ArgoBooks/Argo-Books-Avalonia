@@ -257,6 +257,7 @@ public class TelemetryUploadService : ITelemetryUploadService
             ["uploadTime"] = DateTime.UtcNow,
             ["appVersion"] = _appVersion,
             ["platform"] = first.Platform,
+            ["osVersion"] = TelemetryPlatform.Version,
             ["eventCount"] = events.Count,
             ["events"] = events,
         };
