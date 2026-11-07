@@ -491,6 +491,54 @@ public class CompanyManagerTests : IDisposable
 
     #endregion
 
+    #region Logo Tests
+
+    private static void WriteImage(string path, SkiaSharp.SKColor color, SkiaSharp.SKEncodedImageFormat format)
+    {
+        using var bitmap = new SkiaSharp.SKBitmap(8, 8);
+        bitmap.Erase(color);
+        using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(format, 100);
+        File.WriteAllBytes(path, data.ToArray());
+    }
+
+    /// <summary>
+    /// A logo replaced by one of another file type must not linger, or the thumbnail on the
+    /// recent-companies list can show the old one.
+    /// </summary>
+    [Fact]
+    public async Task ReplacingTheLogoWithAnotherFileType_ShowsTheNewLogoInTheThumbnail()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var jpg = Path.Combine(Path.GetTempPath(), $"argo-logo-{Guid.NewGuid():N}.jpg");
+        var png = Path.Combine(Path.GetTempPath(), $"argo-logo-{Guid.NewGuid():N}.png");
+        try
+        {
+            WriteImage(jpg, SkiaSharp.SKColors.Red, SkiaSharp.SKEncodedImageFormat.Jpeg);
+            WriteImage(png, SkiaSharp.SKColors.Blue, SkiaSharp.SKEncodedImageFormat.Png);
+            await _manager.CreateCompanyAsync(path, "Acme");
+            await _manager.SetCompanyLogoAsync(jpg);
+            await _manager.SaveCompanyAsync();
+
+            await _manager.SetCompanyLogoAsync(png);
+            await _manager.SaveCompanyAsync();
+
+            var logos = Directory.GetFiles(Path.GetDirectoryName(_manager.CurrentCompanyLogoPath!)!, "logo.*");
+            Assert.Equal("logo.png", Path.GetFileName(Assert.Single(logos)));
+            var footer = await new FooterService().ReadFooterAsync(path);
+            using var thumbnail = SkiaSharp.SKBitmap.Decode(Convert.FromBase64String(footer!.LogoThumbnail!));
+            Assert.Equal(SkiaSharp.SKColors.Blue, thumbnail.GetPixel(0, 0));
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            foreach (var p in new[] { path, jpg, png })
+                if (File.Exists(p)) File.Delete(p);
+        }
+    }
+
+    #endregion
+
     #region Payment Sync Save Tests
 
     /// <summary>

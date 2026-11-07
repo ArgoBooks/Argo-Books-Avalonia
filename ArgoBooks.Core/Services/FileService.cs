@@ -274,7 +274,7 @@ public class FileService(
             ModifiedAt = DateTime.UtcNow,
             // Biometric unlock substitutes for typing the password, so it is meaningless without one.
             BiometricEnabled = !string.IsNullOrEmpty(password) && GetBiometricEnabledFromDirectory(cachedSettings),
-            LogoThumbnail = GenerateLogoThumbnail(tempDirectory)
+            LogoThumbnail = GenerateLogoThumbnail(tempDirectory, cachedSettings?.Company?.LogoFileName)
         };
 
         // Check if file exists to preserve created date
@@ -700,9 +700,10 @@ public class FileService(
 
     private const int ThumbnailMaxSize = 64;
 
-    private static string? GenerateLogoThumbnail(string tempDirectory)
+    private static string? GenerateLogoThumbnail(string tempDirectory, string? logoFileName)
     {
-        var logoPath = FindLogoFileInDirectory(tempDirectory);
+        // The logo the company settings name, because an earlier logo of another file type can still be in the folder.
+        var logoPath = string.IsNullOrEmpty(logoFileName) ? null : FindFileInDirectory(tempDirectory, logoFileName);
         if (logoPath == null)
             return null;
 
@@ -749,35 +750,6 @@ public class FileService(
         {
             return null;
         }
-    }
-
-    private static string? FindLogoFileInDirectory(string directory, int maxDepth = 3)
-    {
-        try
-        {
-            foreach (var file in Directory.GetFiles(directory))
-            {
-                var name = Path.GetFileName(file);
-                if (name.StartsWith("logo.", StringComparison.OrdinalIgnoreCase))
-                    return file;
-            }
-
-            if (maxDepth <= 0)
-                return null;
-
-            foreach (var subDir in Directory.GetDirectories(directory))
-            {
-                var result = FindLogoFileInDirectory(subDir, maxDepth - 1);
-                if (result != null)
-                    return result;
-            }
-        }
-        catch
-        {
-            // Directory may be inaccessible
-        }
-
-        return null;
     }
 
     private async Task<List<string>> GetAccountantNamesAsync(

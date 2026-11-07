@@ -1552,6 +1552,15 @@ public class CompanyManager : IDisposable
             // Copy the logo file to the temp directory
             await Task.Run(() => File.Copy(logoPath, destPath, overwrite: true));
 
+            // A logo of another file type is not written over, so it is removed to keep it out of the saved file.
+            foreach (var earlier in Directory.GetFiles(_currentTempDirectory!, "logo.*"))
+            {
+                if (string.Equals(Path.GetFileName(earlier), logoFileName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try { File.Delete(earlier); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* left behind, it is no longer the logo the company names */ }
+            }
+
             // Update settings
             CompanyData!.Settings.Company.LogoFileName = logoFileName;
             CompanyData.ChangesMade = true;
