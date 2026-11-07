@@ -18,6 +18,9 @@ public interface ITelemetryManager
     /// </summary>
     Task EndSessionAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Starts a new session after one was ended for an update that then did not start, so the rest of the run is still recorded.</summary>
+    Task ResumeSessionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     /// <summary>
     /// Note that the user just did something. Called from the window's input handlers, so
     /// it has to stay cheap and synchronous: it runs on the UI thread ahead of every key

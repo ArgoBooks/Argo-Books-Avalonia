@@ -233,7 +233,7 @@ public class TelemetryManager : ITelemetryManager
         if (!_isInitialized)
             return;
 
-        // One run files one SessionEnd: applying an update ends the session before the installer, and closing the window ends it again if the install did not happen.
+        // One session files one SessionEnd, because applying an update ends it before the installer and closing the window ends it too.
         if (Interlocked.Exchange(ref _sessionEnded, 1) != 0)
             return;
 
@@ -290,6 +290,33 @@ public class TelemetryManager : ITelemetryManager
             // Complete() is reported as the unclean exit it was.
             _sentinel?.Dispose();
             _sentinel = null;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task ResumeSessionAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_isInitialized || Interlocked.CompareExchange(ref _sessionEnded, 0, 1) != 1)
+            return;
+
+        _sessionStartTime = DateTime.UtcNow;
+        lock (_activityLock)
+        {
+            _lastActivityUtc = _sessionStartTime;
+            _activeTicks = 0;
+        }
+
+        try
+        {
+            _sentinel = SessionSentinel.Begin(_platformService, _sessionStartTime, _appVersion, _errorLogger);
+            var sessionEvent = await CreateEventAsync<SessionEvent>(cancellationToken);
+            sessionEvent.Action = SessionAction.SessionStart;
+            await _storageService.RecordEventAsync(sessionEvent, cancellationToken);
+            StartHeartbeat();
+        }
+        catch (Exception ex)
+        {
+            _errorLogger.LogError(ex, ErrorCategory.Unknown, "Failed to resume telemetry session");
         }
     }
 
