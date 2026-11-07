@@ -991,7 +991,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     private BalanceFigures BalancesAtEnd()
     {
         // An opening balance dated after the report has not happened yet as far as the report is concerned.
-        var opening = companyData.Settings.OpeningBalance is { } ob && IsOnOrBeforeEndDate(ob.Date) ? ob : null;
+        var opening = companyData!.Settings.OpeningBalance is { } ob && IsOnOrBeforeEndDate(ob.Date) ? ob : null;
         decimal? openingConverted = opening == null
             ? 0m
             : DisplayCurrency.FromNative(opening.Amount, opening.Currency, DisplayCode, opening.Date.Date);
