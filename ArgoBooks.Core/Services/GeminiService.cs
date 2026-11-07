@@ -49,13 +49,15 @@ public class GeminiService : IGeminiService, IDisposable
         {
             var prompt = BuildPrompt(request);
             // A thinking model spends hidden tokens out of maxOutputTokens, so the budget has to cover thinking plus the JSON or the answer comes back truncated.
-            var response = (await SendApiRequestAsync(
+            var reply = await SendApiRequestAsync(
                 "You are a helpful assistant that categorizes business expenses. Always respond with valid JSON only, no markdown.",
                 prompt,
                 4000,
                 0.3,
                 cancellationToken: cancellationToken,
-                operation: OperationKind.SupplierCategory)).Content;
+                operation: OperationKind.SupplierCategory);
+            reply.Failure?.Report(_errorLogger);
+            var response = reply.Content;
 
             if (string.IsNullOrEmpty(response))
                 return null;
@@ -144,14 +146,16 @@ public class GeminiService : IGeminiService, IDisposable
             var prompt = BuildBankLinePrompt(batchRequest);
             // A thinking model spends hidden tokens out of maxOutputTokens, so the budget has to cover thinking plus the JSON or the answer comes back truncated.
             var maxTokens = Math.Min(16000, 4000 + lines.Count * 250);
-            var response = (await SendApiRequestAsync(
+            var reply = await SendApiRequestAsync(
                 "You categorize business bank statement lines. Always respond with valid JSON only, no markdown.",
                 prompt,
                 maxTokens,
                 0.2,
                 cancellationToken: cancellationToken,
                 operation: OperationKind.BankCategorize,
-                sizeFeature: lines.Count)).Content;
+                sizeFeature: lines.Count);
+            reply.Failure?.Report(_errorLogger);
+            var response = reply.Content;
 
             if (string.IsNullOrEmpty(response))
                 return null;
@@ -192,7 +196,8 @@ public class GeminiService : IGeminiService, IDisposable
         double temperature = 0.1,
         CancellationToken cancellationToken = default,
         OperationKind operation = OperationKind.Completion,
-        long? sizeFeature = null)
+        long? sizeFeature = null,
+        bool reportFailure = true)
     {
         if (!IsConfigured)
             return new AiChatResult(null, false);
@@ -206,13 +211,17 @@ public class GeminiService : IGeminiService, IDisposable
             var response = await SendApiRequestAsync(systemPrompt, userPrompt, maxTokens, temperature, cancellationToken: cancellationToken, operation: operation, sizeFeature: sizeFeature);
             if (!string.IsNullOrEmpty(response.Content))
                 success = true;
+            if (reportFailure)
+                response.Failure?.Report(_errorLogger);
             return response;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Api, "Gemini API call failed");
-            return new AiChatResult(null, false);
+            var failure = new AiChatFailure(ex.Message, ex.GetType().Name, false, "Gemini API call failed", ex);
+            if (reportFailure)
+                failure.Report(_errorLogger);
+            return new AiChatResult(null, false, failure);
         }
         finally
         {
@@ -312,16 +321,14 @@ Respond with JSON only.";
 
         if (!response.IsHttpSuccess)
         {
-            var failure = $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}";
-            if (response.IsExpectedRefusal)
-                _errorLogger?.LogWarning(failure, "AI chat completion", ErrorCategory.Api, response.FailureCode);
-            else
-                _errorLogger?.LogError(failure, ErrorCategory.Api, "AI chat completion", response.FailureCode);
+            var failure = new AiChatFailure(
+                $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
+                response.FailureCode, response.IsExpectedRefusal, "AI chat completion");
 
             // RATE_LIMITED is Argo's own limiter; UPSTREAM_RATE_LIMITED is the model provider
             // having a moment, which a short wait does fix, so only the first counts.
             var rateLimited = response.StatusCode == HttpStatusCode.TooManyRequests && response.Code == "RATE_LIMITED";
-            return new AiChatResult(null, rateLimited);
+            return new AiChatResult(null, rateLimited, failure);
         }
 
         // Feeds the server-measured time into the shared timing service so progress estimates
@@ -334,13 +341,12 @@ Respond with JSON only.";
 
         if (!response.Succeeded)
         {
-            if (response.Message != null || response.Code != null)
-            {
-                _errorLogger?.LogError(
+            var failure = response.Message != null || response.Code != null
+                ? new AiChatFailure(
                     $"AI proxy returned success=false ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
-                    ErrorCategory.Api, "AI chat completion", response.Code ?? "AiProxyNoSuccess");
-            }
-            return new AiChatResult(null, false);
+                    response.Code ?? "AiProxyNoSuccess", false, "AI chat completion")
+                : null;
+            return new AiChatResult(null, false, failure);
         }
 
         return new AiChatResult(response.Content, false);

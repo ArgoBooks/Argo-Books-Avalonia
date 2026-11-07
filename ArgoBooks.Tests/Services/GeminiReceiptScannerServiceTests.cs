@@ -22,6 +22,26 @@ public class GeminiReceiptScannerServiceTests
 
     #region ParseResponse Tests
 
+    // "Not a receipt" is about the photo, and a reply that will not parse is about our prompt or the model, so they are reported apart.
+
+    [Fact]
+    public void ParseResponse_UnreadableReply_IsMarkedAsSuch()
+    {
+        var result = GeminiReceiptScannerService.ParseResponse("{ \"supplierName\": \"Walm");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(GeminiReceiptScannerService.UnreadableReplyCode, result.ErrorCode);
+    }
+
+    [Fact]
+    public void ParseResponse_ModelSaysNotAReceipt_IsNotMarkedUnreadable()
+    {
+        var result = GeminiReceiptScannerService.ParseResponse("{ \"error\": \"This image does not appear to be a receipt.\" }");
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(result.ErrorCode);
+    }
+
     [Fact]
     public void ParseResponse_ValidJson_ReturnsCorrectResult()
     {

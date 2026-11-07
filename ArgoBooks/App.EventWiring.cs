@@ -505,7 +505,10 @@ public partial class App
                 _appShellViewModel.HeaderViewModel.ShowSavingIndicator = true;
                 try
                 {
-                    await CompanyManager.SaveCompanyAsync(kind: "manual");
+                    // The same path as the header's Save button, so a save blocked by antivirus offers Retry or another folder here too.
+                    var saved = await SaveCompanyWithSecurityGuidanceAsync();
+                    if (!saved)
+                        _appShellViewModel.HeaderViewModel.ShowSavingIndicator = false;
                 }
                 catch (Exception ex)
                 {

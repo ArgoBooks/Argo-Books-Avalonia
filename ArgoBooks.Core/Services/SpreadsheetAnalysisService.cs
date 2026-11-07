@@ -333,11 +333,15 @@ public class SpreadsheetAnalysisService(
     {
         for (var attempt = 1; ; attempt++)
         {
-            var (result, answered) = await TryProcessChunkAsync(headers, rows, entityType, cancellationToken);
+            var (result, answered, failure) = await TryProcessChunkAsync(headers, rows, entityType, cancellationToken);
 
             // An unreadable reply isn't retried: the same rows at temperature 0 would most likely come back the same, and every answered call counts against the server's rate limit.
             if (result != null || answered || attempt >= MaxChunkAttempts)
+            {
+                // Only the attempt that settles the chunk is reported, since one a later attempt recovered from cost the user nothing.
+                failure?.Report(errorLogger);
                 return result;
+            }
 
             await Task.Delay(ChunkRetryDelay * attempt, cancellationToken);
         }
@@ -347,7 +351,7 @@ public class SpreadsheetAnalysisService(
     /// One LLM call for a chunk. <c>Answered</c> is false when no reply came back, the transient
     /// case worth retrying.
     /// </summary>
-    private async Task<(LlmProcessedData? Result, bool Answered)> TryProcessChunkAsync(
+    private async Task<(LlmProcessedData? Result, bool Answered, AiChatFailure? Failure)> TryProcessChunkAsync(
         List<string> headers,
         List<List<string>> rows,
         SpreadsheetSheetType entityType,
@@ -355,32 +359,35 @@ public class SpreadsheetAnalysisService(
     {
         var schema = ImportSchemaDefinition.GetSchemaForType(entityType, country);
         if (schema == null)
-            return (null, true);
+            return (null, true, null);
 
         var systemPrompt = BuildTier2SystemPrompt(entityType, schema);
         var userPrompt = BuildTier2UserPrompt(headers, rows);
 
         string? response;
+        AiChatFailure? failure;
         try
         {
             var reply = await geminiService.SendChatWithStatusAsync(
                 systemPrompt, userPrompt, maxTokens: 16000, temperature: 0.0, cancellationToken,
-                operation: OperationKind.SpreadsheetProcess, sizeFeature: rows.Count);
+                operation: OperationKind.SpreadsheetProcess, sizeFeature: rows.Count, reportFailure: false);
             if (reply.RateLimited)
-                return (null, true);
+                return (null, true, reply.Failure);
             response = reply.Content;
+            failure = reply.Failure;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             // HttpClient reports its own timeout as a cancellation. Left to propagate, one slow
             // chunk ended the whole import as though the user had pressed Cancel.
             response = null;
+            failure = new AiChatFailure("The AI request for a chunk of rows timed out", "Timeout", true, "Spreadsheet extraction");
         }
 
         if (string.IsNullOrEmpty(response))
-            return (null, false);
+            return (null, false, failure);
 
-        return (ParseTier2Response(response, entityType, rows.Count), true);
+        return (ParseTier2Response(response, entityType, rows.Count), true, null);
     }
 
     /// <summary>

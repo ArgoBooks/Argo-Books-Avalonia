@@ -140,9 +140,20 @@ Rules:
 
             // A scan can come back unusable without anything throwing, which is why these
             // report themselves.
-            if (!result.IsSuccess)
+            if (!result.IsSuccess && result.ErrorCode == UnreadableReplyCode)
             {
-                // Covers both "the model says this is not a receipt" and "the response would not parse". The code groups them; the message says which, since it carries the model's own words.
+                // The photo is not to blame for a reply we cannot read; a change in the prompt or the model is.
+                errorLogger?.LogError(
+                    "Receipt scan reply could not be read",
+                    ErrorCategory.Parsing,
+                    "GeminiReceiptScannerService.ScanReceiptAsync",
+                    "ReceiptScanUnreadableReply");
+                _ = telemetryManager?.TrackFeatureAsync(
+                    FeatureName.ReceiptScanFailed, "unreadable-reply", cancellationToken: cancellationToken);
+            }
+            else if (!result.IsSuccess)
+            {
+                // The model looked at the image and said it is not a receipt, in its own words.
                 errorLogger?.LogWarning(
                     $"Receipt scan returned no usable data: {result.ErrorMessage}",
                     "GeminiReceiptScannerService.ScanReceiptAsync",
@@ -395,6 +406,9 @@ If nothing was missed, return: {{""missingItems"": []}}";
         return response;
     }
 
+    /// <summary>A reply that could not be read, which points at the prompt or the model rather than at the photo.</summary>
+    public const string UnreadableReplyCode = "UNREADABLE_REPLY";
+
     // IMPORTANT: Make this internal so tests can call it
     public static ReceiptScanResult ParseResponse(string response)
     {
@@ -507,11 +521,11 @@ If nothing was missed, return: {{""missingItems"": []}}";
         }
         catch (JsonException ex)
         {
-            return ReceiptScanResult.Failed($"Failed to parse AI response: {ex.Message}");
+            return ReceiptScanResult.Failed($"Failed to parse AI response: {ex.Message}", UnreadableReplyCode);
         }
         catch (Exception)
         {
-            return ReceiptScanResult.Failed("Failed to process the scan result.");
+            return ReceiptScanResult.Failed("Failed to process the scan result.", UnreadableReplyCode);
         }
     }
 

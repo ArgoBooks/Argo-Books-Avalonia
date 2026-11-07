@@ -1,3 +1,5 @@
+using ArgoBooks.Core.Models.Telemetry;
+
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
@@ -33,6 +35,10 @@ public interface IGeminiService
     /// rate limit. A caller that retries failures must not retry that one: every retry is
     /// another request against the same exhausted budget.
     /// </summary>
+    /// <param name="reportFailure">
+    /// False for a caller that retries, which reports <see cref="AiChatResult.Failure"/> itself once
+    /// it knows the call is not going to be tried again.
+    /// </param>
     async Task<AiChatResult> SendChatWithStatusAsync(
         string systemPrompt,
         string userPrompt,
@@ -40,9 +46,27 @@ public interface IGeminiService
         double temperature = 0.1,
         CancellationToken cancellationToken = default,
         OperationKind operation = OperationKind.Completion,
-        long? sizeFeature = null)
+        long? sizeFeature = null,
+        bool reportFailure = true)
         => new(await SendChatAsync(systemPrompt, userPrompt, maxTokens, temperature, cancellationToken, operation, sizeFeature), false);
 }
 
-/// <summary>A chat reply, or null, and whether the null was a rate limit.</summary>
-public readonly record struct AiChatResult(string? Content, bool RateLimited);
+/// <summary>A chat reply, or null, whether the null was a rate limit, and why it failed when it did.</summary>
+public readonly record struct AiChatResult(string? Content, bool RateLimited, AiChatFailure? Failure = null);
+
+/// <summary>Why a chat call came back empty, held so a caller that retries can report only the attempt that settles it.</summary>
+public sealed record AiChatFailure(string Message, string Code, bool Expected, string Context, Exception? Exception = null)
+{
+    public void Report(IErrorLogger? errorLogger)
+    {
+        if (errorLogger == null)
+            return;
+
+        if (Exception != null)
+            errorLogger.LogError(Exception, ErrorCategory.Api, Context);
+        else if (Expected)
+            errorLogger.LogWarning(Message, Context, ErrorCategory.Api, Code);
+        else
+            errorLogger.LogError(Message, ErrorCategory.Api, Context, Code);
+    }
+}
