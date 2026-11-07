@@ -67,24 +67,47 @@ public class ExchangeRateFetchTests : IDisposable
         Assert.Equal(1, server.SingleDateRequests);
     }
 
+    [Fact]
+    public async Task RatesThatArrivedBeforeTheServerSaidStop_AreKeptOnDisk()
+    {
+        var server = new FakeRateServer { RefusesBatches = true, RateLimitsAfterFirstSingleDate = true };
+        var dates = Days(20);
+        var service = new ExchangeRateService(new TempPlatform(_folder, onDisk: true), new HttpClient(server));
+
+        await Assert.ThrowsAsync<RateLimitedException>(() => service.PreloadRatesAsync(dates));
+
+        var afterRestart = new ExchangeRateService(new TempPlatform(_folder, onDisk: true), new HttpClient(server));
+        await afterRestart.InitializeAsync();
+        Assert.Contains(dates, date => afterRestart.GetExchangeRate("USD", "EUR", date) > 0);
+    }
+
     /// <summary>A fake of the two rate endpoints, keyed on the request path.</summary>
     private sealed class FakeRateServer : HttpMessageHandler
     {
+        private const string Priced = """{ "success": true, "base": "USD", "rates": { "EUR": 0.9 } }""";
+        private int _batchRequests;
+        private int _singleDateRequests;
+
         public int NewDatesPricedPerRequest { get; init; } = int.MaxValue;
-        public (HttpStatusCode Status, string Body) SingleDateAnswer { get; init; } =
-            (HttpStatusCode.OK, """{ "success": true, "base": "USD", "rates": { "EUR": 0.9 } }""");
-        public int BatchRequests { get; private set; }
-        public int SingleDateRequests { get; private set; }
+        public bool RefusesBatches { get; init; }
+        public (HttpStatusCode Status, string Body) SingleDateAnswer { get; init; } = (HttpStatusCode.OK, Priced);
+        public bool RateLimitsAfterFirstSingleDate { get; init; }
+        public int BatchRequests => _batchRequests;
+        public int SingleDateRequests => _singleDateRequests;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (!request.RequestUri!.AbsolutePath.EndsWith("exchange-rates-batch.php", StringComparison.Ordinal))
             {
-                SingleDateRequests++;
+                var number = Interlocked.Increment(ref _singleDateRequests);
+                if (RateLimitsAfterFirstSingleDate && number > 1)
+                    return Json(HttpStatusCode.TooManyRequests, """{ "success": false, "errorCode": "RATE_LIMITED" }""");
                 return Json(SingleDateAnswer.Status, SingleDateAnswer.Body);
             }
 
-            BatchRequests++;
+            Interlocked.Increment(ref _batchRequests);
+            if (RefusesBatches)
+                return Json(HttpStatusCode.InternalServerError, """{ "success": false, "errorCode": "DB_ERROR" }""");
             var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
             var dates = body.RootElement.GetProperty("dates").EnumerateArray().Select(d => d.GetString()!).ToList();
             if (dates.Count > 500)

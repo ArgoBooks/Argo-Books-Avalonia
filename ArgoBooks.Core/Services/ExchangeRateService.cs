@@ -261,6 +261,19 @@ public class ExchangeRateService
 
         _errorLogger?.LogInfo($"[RatePreload] {total} dates needed, {datesToFetch.Count} to fetch ({cached} already cached).");
 
+        // Rates go into the cache as they arrive, and the cache is saved however this ends, so a cancel or a refused request does not throw away rates that already came back.
+        try
+        {
+            await FetchAndStoreAsync(datesToFetch, total, cached, progress, cancellationToken);
+        }
+        finally
+        {
+            await _cache.SaveAsync();
+        }
+    }
+
+    private async Task FetchAndStoreAsync(List<DateTime> datesToFetch, int total, int cached, IProgress<int>? progress, CancellationToken cancellationToken)
+    {
         var fetched = await FetchAllBatchesAsync(datesToFetch, cancellationToken);
         if (fetched == null)
             _errorLogger?.LogWarning(
@@ -271,10 +284,8 @@ public class ExchangeRateService
         foreach (var date in datesToFetch)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var dateKey = DateKey(date);
-            if (fetched != null && fetched.TryGetValue(dateKey, out var rates))
+            if (fetched != null && fetched.ContainsKey(DateKey(date)))
             {
-                _cache.SetRatesFromBase(rates, BaseCurrency, date);
                 cached++;
                 progress?.Report(cached * 100 / total);
             }
@@ -328,9 +339,6 @@ public class ExchangeRateService
 
             var repaired = await Task.WhenAll(failedDates.Select(FetchOneAsync));
 
-            // A caller-requested cancel still wins over anything the fetches reported.
-            cancellationToken.ThrowIfCancellationRequested();
-
             foreach (var (date, rates) in repaired.OrderBy(r => r.Date))
             {
                 if (rates != null)
@@ -344,6 +352,9 @@ public class ExchangeRateService
                     stillFailed.Add(date);
                 }
             }
+
+            // A caller-requested cancel still wins over anything the fetches reported.
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (rateLimited)
                 throw new RateLimitedException();
@@ -364,8 +375,6 @@ public class ExchangeRateService
                 $"Batch returned {fetched!.Count} dates but {failedDates.Count} of {datesToFetch.Count} were absent from that response; " +
                 "the per-date repair recovered them. The server answered, so this should be rare and is worth investigating.",
                 "ExchangeRate", ErrorCategory.Api, "RatesBatchIncomplete");
-
-        await _cache.SaveAsync();
     }
 
     /// <summary>The most dates the server accepts in one batch request.</summary>
@@ -386,8 +395,13 @@ public class ExchangeRateService
                 if (results == null)
                     return all;
                 all ??= [];
-                foreach (var (dateKey, rates) in results)
-                    all[dateKey] = rates;
+                foreach (var date in chunk)
+                {
+                    if (!results.TryGetValue(DateKey(date), out var rates))
+                        continue;
+                    all[DateKey(date)] = rates;
+                    _cache.SetRatesFromBase(rates, BaseCurrency, date);
+                }
             }
 
             // The server fetches only so many new dates per request and lists the rest as failed, so another round prices those.
