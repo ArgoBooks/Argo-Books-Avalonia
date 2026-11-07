@@ -93,7 +93,7 @@ public class FileService(
         if (footer.IsEncrypted)
         {
             if (string.IsNullOrEmpty(password))
-                throw new UnauthorizedAccessException("Password is required for this file.");
+                throw new CompanyPasswordException("Password is required for this file.");
 
             if (encryptionService == null)
                 throw new InvalidOperationException("Encryption service not available.");
@@ -155,7 +155,7 @@ public class FileService(
             // Constant-time check first, so a wrong password reports itself as a wrong password rather than as a GCM tag mismatch, which the caller could not tell apart from a corrupt file.
             var expected = Convert.FromBase64String(footer.PasswordHash);
             if (!CryptographicOperations.FixedTimeEquals(verifyHash, expected))
-                throw new UnauthorizedAccessException("Invalid password.");
+                throw new CompanyPasswordException("Invalid password.");
 
             dataKey = KeyEnvelope.Unwrap(
                 Convert.FromBase64String(footer.WrappedKey),

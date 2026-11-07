@@ -907,7 +907,7 @@ public class CompanyManager : IDisposable
             opened = true;
             return true;
         }
-        catch (UnauthorizedAccessException)
+        catch (CompanyPasswordException)
         {
             // Invalid password - let UI handle retry. The finally releases the instance lock so the
             // retry (a fresh OpenCompanyAsync) can re-acquire it instead of colliding with our hold.

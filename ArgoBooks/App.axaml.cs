@@ -4428,7 +4428,7 @@ public partial class App : Application
                 CancelCompanyOpenTiming();
             }
         }
-        catch (UnauthorizedAccessException)
+        catch (CompanyPasswordException)
         {
             // Wrong password - show error and retry
             _isOpeningCompany = false;
@@ -4550,7 +4550,7 @@ public partial class App : Application
                 return false;
             }
         }
-        catch (UnauthorizedAccessException)
+        catch (CompanyPasswordException)
         {
             // Wrong password again - show error and retry
             _mainWindowViewModel.HideLoading();
