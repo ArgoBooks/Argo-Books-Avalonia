@@ -873,13 +873,14 @@ IMPORTANT:
     private static int FindHeaderRow(IXLWorksheet worksheet)
     {
         var lastRow = Math.Min(worksheet.LastRowUsed()?.RowNumber() ?? 1, 10);
-        var colCount = worksheet.ColumnsUsed().Count();
+        // The last column, not the number of columns with data, so a sheet with a blank column is read to its end.
+        var lastColumn = worksheet.LastColumnUsed()?.ColumnNumber() ?? 0;
 
         for (int rowNum = 1; rowNum <= lastRow; rowNum++)
         {
             var row = worksheet.Row(rowNum);
             int nonEmpty = 0;
-            for (int col = 1; col <= colCount; col++)
+            for (int col = 1; col <= lastColumn; col++)
             {
                 if (!row.Cell(col).IsEmpty()) nonEmpty++;
                 if (nonEmpty >= 2) return rowNum;
@@ -898,9 +899,9 @@ IMPORTANT:
     {
         var headers = new List<string>();
         var row = worksheet.Row(headerRow);
-        var colCount = worksheet.ColumnsUsed().Count();
+        var lastColumn = worksheet.LastColumnUsed()?.ColumnNumber() ?? 0;
         var trailingEmpty = 0;
-        for (int col = 1; col <= colCount; col++)
+        for (int col = 1; col <= lastColumn; col++)
         {
             var cell = row.Cell(col);
             if (cell.IsEmpty())
