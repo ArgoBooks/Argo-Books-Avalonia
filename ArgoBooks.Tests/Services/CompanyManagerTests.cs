@@ -182,6 +182,53 @@ public class CompanyManagerTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// A receipts read that fails once, as when antivirus holds the file at open, must not block
+    /// every later save: the next save reads again and keeps the receipts.
+    /// </summary>
+    [Fact]
+    public async Task DeferredReceipts_FailedRead_IsRetriedByTheNextSave()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var fileService = new FileService(new CompressionService(), new FooterService());
+        try
+        {
+            await _manager.CreateCompanyAsync(filePath, "Receipts Co");
+            _manager.CompanyData!.Receipts.Add(new Receipt { Id = "RCP-1", FileName = "r.jpg", FileData = "QUJD" });
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var reads = 0;
+            _manager.ReceiptsReaderOverride = async directory =>
+            {
+                if (Interlocked.Increment(ref reads) == 1)
+                {
+                    await gate.Task;
+                    throw new IOException("The file is in use by another process.");
+                }
+                return await fileService.LoadReceiptsAsync(directory);
+            };
+
+            Assert.True(await _manager.OpenCompanyAsync(filePath));
+            var firstSave = _manager.SaveCompanyAsync();
+            gate.SetResult();
+            await Assert.ThrowsAsync<IOException>(() => firstSave);
+
+            await _manager.SaveCompanyAsync();
+
+            Assert.Single(_manager.CompanyData!.Receipts);
+            Assert.Equal("RCP-1", _manager.CompanyData.Receipts[0].Id);
+            Assert.Equal(2, reads);
+        }
+        finally
+        {
+            _manager.ReceiptsReaderOverride = null;
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
     [Fact]
     public async Task SaveCompanyAs_ClearsPendingRename()
     {

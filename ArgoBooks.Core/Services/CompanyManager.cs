@@ -44,7 +44,11 @@ public class CompanyManager : IDisposable
     // The CompanyData the in-flight load belongs to. The merge only proceeds if this is still the
     // current company, so a company switch during the load can't merge old receipts into the new one.
     private CompanyData? _receiptsLoadTarget;
+    private string? _receiptsLoadDirectory;
     private bool _receiptsMerged;
+
+    /// <summary>Reads receipts.json from a working directory. Tests replace it to make a read fail.</summary>
+    internal Func<string, Task<List<Models.Tracking.Receipt>>>? ReceiptsReaderOverride { get; set; }
 
     /// <summary>
     /// Gets whether a company is currently open.
@@ -1169,8 +1173,15 @@ public class CompanyManager : IDisposable
         {
             _receiptsMerged = false;
             _receiptsLoadTarget = target;
-            _receiptsLoadTask = Task.Run(() => _fileService.LoadReceiptsAsync(tempDirectory));
+            _receiptsLoadDirectory = tempDirectory;
+            _receiptsLoadTask = ReadReceiptsInBackground(tempDirectory);
         }
+    }
+
+    private Task<List<Models.Tracking.Receipt>> ReadReceiptsInBackground(string tempDirectory)
+    {
+        var reader = ReceiptsReaderOverride;
+        return Task.Run(() => reader != null ? reader(tempDirectory) : _fileService.LoadReceiptsAsync(tempDirectory));
     }
 
     /// <summary>
@@ -1192,6 +1203,10 @@ public class CompanyManager : IDisposable
         {
             if (_receiptsMerged)
                 return;
+            // A read that failed, for example while antivirus held the file, is tried again, so one failure does not block every save for the rest of the session.
+            if (_receiptsLoadTask is { IsFaulted: true } && _receiptsLoadDirectory is { } directory
+                && ReferenceEquals(CompanyData, _receiptsLoadTarget))
+                _receiptsLoadTask = ReadReceiptsInBackground(directory);
             task = _receiptsLoadTask;
             target = _receiptsLoadTarget;
         }
@@ -1444,6 +1459,7 @@ public class CompanyManager : IDisposable
             {
                 _receiptsLoadTask = null;
                 _receiptsLoadTarget = null;
+                _receiptsLoadDirectory = null;
                 _receiptsMerged = false;
             }
         }
