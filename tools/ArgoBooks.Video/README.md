@@ -131,6 +131,7 @@ The takes are recorded from a copy of the released app, as for video 16. `receip
 - `mac_short.py` makes "Free accounting software for Mac" from the Mac takes and pages, with the same voice. Make those for `mac_video.py` first.
 - `invoice_short.py` makes "Free invoice generator" from argorobots.com's free invoice generator, and `estimate_short.py` makes "Free estimate generator for contractors" from the estimate generator, both with the same voice. Record each take first with `node record_generator.js invoice work/invoice/takes` or `node record_generator.js estimate work/estimate/takes`: it opens the live page in Edge, types the document into it and downloads the PDF, saving every change with the hand's path, and the Short turns that into a take like the app's. The recording blocks the page's own statistics, so it does not count as a visit or a download.
 - `qb_desktop_short.py` makes "QuickBooks Desktop alternatives" from the pages and takes of `qb_desktop_video.py`, with the same voice. Make those first. Sage's facts and the import's totals are drawn as cards, since Sage's site refuses a headless browser and the app's Income Statement is too small to read in a Short.
+- `bank_matching_short.py` makes "The bookkeeping step most people skip" from the `matching` take of `bookkeeping_video.py`, with the same voice. Record that take first.
 - `render_thumbnail.js` saves a thumbnail's HTML as a PNG: `node render_thumbnail.js thumbnail.html 1280 720`.
 
 ## Credits

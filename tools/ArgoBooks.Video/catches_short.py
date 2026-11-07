@@ -219,6 +219,20 @@ def caption_chunks(words, longest_pause=0.15):
     return chunks
 
 
+def balanced_chunks(words, longest_pause=0.4, most=4):
+    """Groups each phrase's words into lines of about the same length, so a phrase never ends on a line of one word."""
+    chunks, run = [], []
+    for n, word in enumerate(words):
+        run.append(word)
+        pause = n + 1 == len(words) or words[n + 1]["at"] - word["end"] > longest_pause
+        if pause or word["text"].endswith((",", ".", "?", ":")):
+            parts = -(-len(run) // most)
+            size = len(run) / parts
+            chunks += [run[round(k * size):round((k + 1) * size)] for k in range(parts)]
+            run = []
+    return chunks
+
+
 def logo(name, height):
     file = {"Wave": "wave.png", "Zoho Books": "zoho.png", "Argo Books": "argo.png", "ZipBooks": "zipbooks.png"}[name]
     image = Image.open(r.WORK / "logos" / file).convert("RGBA")
