@@ -130,6 +130,25 @@ public class BankStatementHtmlXlsTests : IDisposable
     }
 
     [Fact]
+    public async Task UnicodeTextNamedXlsImportsItsTransactions()
+    {
+        var text = "Date\tDescription\tAmount\r\n2026-03-02\tOFFICE RENT\t-12500.00\r\n2026-03-05\tCLIENT PAYMENT\t40000.00\r\n";
+        var path = Write(".xls", [.. System.Text.Encoding.Unicode.GetPreamble(), .. System.Text.Encoding.Unicode.GetBytes(text)]);
+
+        var lines = await new BankStatementImportService().ParseExcelAsync(path);
+
+        Assert.Equal(2, lines.Count);
+    }
+
+    [Fact]
+    public async Task PlainTextWithoutColumnsNamedXls_IsStillUnreadable()
+    {
+        var path = Write(".xls", "OFXHEADER:100\r\nDATA:OFXSGML\r\nVERSION:102\r\n"u8.ToArray());
+
+        await Assert.ThrowsAsync<UnreadableStatementFileException>(() => new BankStatementImportService().ParseExcelAsync(path));
+    }
+
+    [Fact]
     public void AnHtmlPageWithoutATableIsNotTakenForAStatement()
     {
         Assert.False(HtmlTableReader.LooksLikeHtmlTable("<html><body>Session expired</body></html>"u8.ToArray()));
