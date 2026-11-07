@@ -127,20 +127,11 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         try
         {
             var text = await Task.Run(() => TextFileDecoder.ReadAllText(filePath), cancellationToken);
-            var collected = new List<string>();
-            using (var reader = new StringReader(text))
-            {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
-                    collected.Add(line);
-            }
-            var lines = collected.ToArray();
-            if (lines.Length < 2) return [];
-
-            var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(lines);
-            var parsed = lines
-                .Where(l => !string.IsNullOrWhiteSpace(l))
-                .Select(l => SpreadsheetAnalysisService.ParseCsvLine(l, delimiter))
+            var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(text.Split('\n'));
+            // Parsed as a whole rather than line by line, because a bank can put a line break inside a quoted description.
+            var parsed = CsvReader.ParseRows(text, delimiter)
+                .Where(row => row.Any(field => !string.IsNullOrWhiteSpace(field)))
+                .Select(row => row.ToList())
                 .ToList();
             if (parsed.Count < 2) return [];
 

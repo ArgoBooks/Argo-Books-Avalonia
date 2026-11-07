@@ -123,6 +123,25 @@ public class BankStatementImportServiceTests
     }
 
     [Fact]
+    public async Task ParseCsvAsync_LineBreakInsideAQuotedDescription_KeepsTheRowWhole()
+    {
+        var path = await WriteTempCsvAsync(
+            "Date,Description,Amount\n" +
+            "2025-03-05,\"ACME STORE\nBRANCH 12\",-45.00\n" +
+            "2025-03-06,Client deposit,250.00\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            Assert.Equal(2, lines.Count);
+            Assert.Equal(-45.00m, lines[0].Amount);
+            Assert.Equal("ACME STORE\nBRANCH 12", lines[0].Description);
+            Assert.Equal(250.00m, lines[1].Amount);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task ParseCsvAsync_SignedAmountColumn_KeepsSignAndParses()
     {
         var path = await WriteTempCsvAsync(
