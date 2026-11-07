@@ -46,6 +46,32 @@ public class BankStatementImportSwapSignsTests : ModalViewModelTestBase
     }
 
     [Fact]
+    public void Swapping_ChoosesTheSupplierAgainForWhatIsNowAPurchase()
+    {
+        Company.Customers.Add(new ArgoBooks.Core.Models.Entities.Customer { Id = "CUS-1", Name = "Loblaws" });
+        Company.Suppliers.Add(new ArgoBooks.Core.Models.Entities.Supplier { Id = "SUP-1", Name = "Loblaws" });
+        var vm = Open(Line(45.50m, "LOBLAWS 1234"));
+        Assert.Equal("CUS-1", vm.Rows[0].ResolvedCounterpartyId);
+
+        vm.SwapMoneyInAndOutCommand.Execute(null);
+
+        Assert.Equal("SUP-1", vm.Rows[0].ResolvedCounterpartyId);
+        Assert.Null(vm.Rows[0].NewCounterpartyName);
+    }
+
+    [Fact]
+    public void Swapping_DropsAProductChosenForTheOtherDirection()
+    {
+        Company.Products.Add(new ArgoBooks.Core.Models.Entities.Product { Id = "PRD-1", Name = "Grocer Sales", Type = ArgoBooks.Core.Enums.CategoryType.Revenue });
+        var vm = Open(Line(45.50m, "GROCER SALES"));
+        Assert.Equal("PRD-1", vm.Rows[0].ResolvedProductId);
+
+        vm.SwapMoneyInAndOutCommand.Execute(null);
+
+        Assert.Null(vm.Rows[0].ResolvedProductId);
+    }
+
+    [Fact]
     public void Swapping_ChecksAgainWhichLinesAreAlreadyInTheBooks()
     {
         Company.Expenses.Add(new Expense { Id = "EXP-1", Date = Day, Total = 45.50m, Description = "GROCER" });

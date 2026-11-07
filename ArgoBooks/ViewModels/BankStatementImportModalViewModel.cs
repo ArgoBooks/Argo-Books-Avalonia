@@ -248,11 +248,18 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     [RelayCommand]
     private void SwapMoneyInAndOut()
     {
+        var data = App.CompanyManager?.CompanyData;
         foreach (var row in Rows)
+        {
             row.Amount = -row.Amount;
+            // The product, category and supplier or customer were chosen for the other direction, so they are chosen again, from your rules and names, for this one.
+            row.ClearPicks();
+            if (data != null)
+                ApplyDeterministicPrefill(data, row);
+        }
 
         // Whether a line is already in the books depends on whether it is money in or out, so it is checked again.
-        if (App.CompanyManager?.CompanyData is { } data)
+        if (data != null)
         {
             foreach (var row in Rows)
                 row.AlreadyImported = false;
@@ -1187,6 +1194,39 @@ public partial class ImportLineRow : ObservableObject
         CounterpartySearchText = customer.Name;
         HasCounterpartyError = false;
         OnPropertyChanged(nameof(ResolvedCustomerObject));
+        OnPropertyChanged(nameof(HasCounterparty));
+    }
+
+    /// <summary>Empties the product, category and supplier or customer, for a line whose direction changed after they were chosen for the other one.</summary>
+    public void ClearPicks()
+    {
+        _settingFromCode = true;
+        try
+        {
+            _resolvedProductObject = null;
+            _resolvedCategoryObject = null;
+            _resolvedSupplierObject = null;
+            _resolvedCustomerObject = null;
+            OnPropertyChanged(nameof(ResolvedProductObject));
+            OnPropertyChanged(nameof(ResolvedCategoryObject));
+            OnPropertyChanged(nameof(ResolvedSupplierObject));
+            OnPropertyChanged(nameof(ResolvedCustomerObject));
+            ResolvedProductId = null;
+            IsNewProduct = false;
+            NewProductName = null;
+            NewProductCategoryId = null;
+            NewProductCategoryName = null;
+            ProductSearchText = null;
+            CategorySearchText = null;
+            ResolvedCounterpartyId = null;
+            NewCounterpartyName = null;
+            CounterpartySearchText = null;
+        }
+        finally
+        {
+            _settingFromCode = false;
+        }
+        RaiseProductStateChanged();
         OnPropertyChanged(nameof(HasCounterparty));
     }
 
