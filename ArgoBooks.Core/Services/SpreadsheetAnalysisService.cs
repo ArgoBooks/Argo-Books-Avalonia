@@ -498,6 +498,8 @@ public class SpreadsheetAnalysisService(
 
         await Task.WhenAll(tasks);
 
+        MakeMadeUpIdsUniqueAcrossChunks(chunks.Select(c => c.Rows).ToList(), chunkResults);
+
         var results = new List<LlmProcessedData>();
         var failedRows = 0;
         for (int i = 0; i < chunkResults.Length; i++)
@@ -525,6 +527,46 @@ public class SpreadsheetAnalysisService(
         }
 
         return results;
+    }
+
+    /// <summary>Renames an id an earlier chunk already used when this chunk's rows do not contain it, because the ids the AI makes up restart in every chunk and the import keeps one record per id.</summary>
+    internal static void MakeMadeUpIdsUniqueAcrossChunks(IReadOnlyList<List<List<string>>> chunkRows, IList<LlmProcessedData?> chunkResults)
+    {
+        var chunkOfId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var chunk = 0; chunk < chunkResults.Count; chunk++)
+        {
+            if (chunkResults[chunk] is not { } result)
+                continue;
+
+            HashSet<string>? cellsInChunk = null;
+            for (var i = 0; i < result.Entities.Count; i++)
+            {
+                var entity = result.Entities[i];
+                if (entity.ValueKind != JsonValueKind.Object || !entity.TryGetProperty("id", out var idElement)
+                    || idElement.ValueKind != JsonValueKind.String || idElement.GetString() is not { Length: > 0 } id)
+                    continue;
+
+                if (chunkOfId.TryGetValue(id, out var firstChunk) && firstChunk != chunk)
+                {
+                    cellsInChunk ??= new HashSet<string>(chunkRows[chunk].SelectMany(row => row).Select(cell => cell.Trim()),
+                        StringComparer.OrdinalIgnoreCase);
+                    if (!cellsInChunk.Contains(id))
+                    {
+                        var newId = $"{id}-{chunk + 1}";
+                        for (var n = 2; chunkOfId.ContainsKey(newId); n++)
+                            newId = $"{id}-{chunk + 1}-{n}";
+
+                        var node = JsonNode.Parse(entity.GetRawText())!.AsObject();
+                        node["id"] = newId;
+                        result.Entities[i] = JsonSerializer.SerializeToElement(node);
+                        chunkOfId[newId] = chunk;
+                        continue;
+                    }
+                }
+
+                chunkOfId.TryAdd(id, chunk);
+            }
+        }
     }
 
     #endregion
