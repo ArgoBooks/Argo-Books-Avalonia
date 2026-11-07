@@ -1135,42 +1135,6 @@ IMPORTANT:
         return count;
     }
 
-    internal static List<string> ParseCsvLine(string line, char delimiter)
-    {
-        var fields = new List<string>();
-        var current = new StringBuilder();
-        var inQuotes = false;
-
-        for (int i = 0; i < line.Length; i++)
-        {
-            var c = line[i];
-            if (c == '"')
-            {
-                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
-                {
-                    current.Append('"');
-                    i++; // skip escaped quote
-                }
-                else
-                {
-                    inQuotes = !inQuotes;
-                }
-            }
-            else if (c == delimiter && !inQuotes)
-            {
-                fields.Add(current.ToString().Trim());
-                current.Clear();
-            }
-            else
-            {
-                current.Append(c);
-            }
-        }
-
-        fields.Add(current.ToString().Trim());
-        return fields;
-    }
-
     #endregion
 
     #region Rescue Fallback
