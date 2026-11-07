@@ -295,6 +295,9 @@ public class FileService(
                 contentStream.Position = 0;
                 await contentStream.CopyToAsync(fileStream, cancellationToken);
                 await footerService.WriteFooterAsync(fileStream, footer, cancellationToken);
+                // The new file reaches the disk before it replaces the old one, so a power cut straight after a save cannot leave an empty file.
+                await fileStream.FlushAsync(cancellationToken);
+                fileStream.Flush(flushToDisk: true);
             }
             await AtomicFile.ReplaceAsync(tempPath, filePath, overwrite: true, cancellationToken);
         }
