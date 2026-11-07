@@ -55,10 +55,24 @@ public class ExchangeRateFetchTests : IDisposable
         Assert.True(service.GetExchangeRate("USD", "EUR", new DateTime(2016, 2, 4)) > 0);
     }
 
+    [Fact]
+    public async Task DateTheServerCannotPrice_IsAskedForOnce()
+    {
+        var server = new FakeRateServer { SingleDateAnswer = (HttpStatusCode.BadGateway, """{ "success": false, "errorCode": "UPSTREAM_ERROR" }""") };
+        var service = new ExchangeRateService(new TempPlatform(_folder, onDisk: false), new HttpClient(server));
+
+        var rate = await service.GetExchangeRateAsync("USD", "EUR", new DateTime(2010, 7, 28));
+
+        Assert.Equal(-1m, rate);
+        Assert.Equal(1, server.SingleDateRequests);
+    }
+
     /// <summary>A fake of the two rate endpoints, keyed on the request path.</summary>
     private sealed class FakeRateServer : HttpMessageHandler
     {
         public int NewDatesPricedPerRequest { get; init; } = int.MaxValue;
+        public (HttpStatusCode Status, string Body) SingleDateAnswer { get; init; } =
+            (HttpStatusCode.OK, """{ "success": true, "base": "USD", "rates": { "EUR": 0.9 } }""");
         public int BatchRequests { get; private set; }
         public int SingleDateRequests { get; private set; }
 
@@ -67,7 +81,7 @@ public class ExchangeRateFetchTests : IDisposable
             if (!request.RequestUri!.AbsolutePath.EndsWith("exchange-rates-batch.php", StringComparison.Ordinal))
             {
                 SingleDateRequests++;
-                return Json(HttpStatusCode.OK, """{ "success": true, "base": "USD", "rates": { "EUR": 0.9 } }""");
+                return Json(SingleDateAnswer.Status, SingleDateAnswer.Body);
             }
 
             BatchRequests++;

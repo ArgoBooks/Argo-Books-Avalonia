@@ -521,8 +521,10 @@ public class ExchangeRateService
                         throw new RateLimitedException();
                     // A 4xx is the server rejecting the request itself, so sending it again gets the
                     // same answer at three times the cost. 408 is a timeout wearing a 4xx code.
-                    var willNotRetry = (int)response.StatusCode is >= 400 and < 500
-                        && response.StatusCode != System.Net.HttpStatusCode.RequestTimeout;
+                    var willNotRetry = ((int)response.StatusCode is >= 400 and < 500
+                            && response.StatusCode != System.Net.HttpStatusCode.RequestTimeout)
+                        // The server has already tried every source it has when it says the date cannot be priced, so asking again only uses up the rate limit.
+                        || (await response.Content.ReadAsStringAsync(cancellationToken)).Contains("\"UPSTREAM_ERROR\"", StringComparison.Ordinal);
                     if (willNotRetry || lastAttempt)
                         _errorLogger?.LogError($"Exchange rate API returned {response.StatusCode} (attempt {attempt + 1}/{maxRetries + 1})", ErrorCategory.Api, $"Date: {DateKey(date)}", "RatesHttpError");
                     if (willNotRetry)
