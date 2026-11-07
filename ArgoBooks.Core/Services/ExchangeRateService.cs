@@ -261,8 +261,7 @@ public class ExchangeRateService
 
         _errorLogger?.LogInfo($"[RatePreload] {total} dates needed, {datesToFetch.Count} to fetch ({cached} already cached).");
 
-        // Try batch endpoint first (one POST for all dates)
-        var fetched = await FetchBatchRatesAsync(datesToFetch, cancellationToken);
+        var fetched = await FetchAllBatchesAsync(datesToFetch, cancellationToken);
         if (fetched == null)
             _errorLogger?.LogWarning(
                 $"Batch rate fetch returned nothing for {datesToFetch.Count} dates; falling back to slow per-date requests.",
@@ -367,6 +366,36 @@ public class ExchangeRateService
                 "ExchangeRate", ErrorCategory.Api, "RatesBatchIncomplete");
 
         await _cache.SaveAsync();
+    }
+
+    /// <summary>The most dates the server accepts in one batch request.</summary>
+    private const int MaxDatesPerBatch = 500;
+
+    /// <summary>Asks the batch endpoint for every date, a limited number per request, and asks again for the dates a round left out while each round prices more.</summary>
+    private async Task<Dictionary<string, Dictionary<string, decimal>>?> FetchAllBatchesAsync(
+        List<DateTime> dates, CancellationToken cancellationToken)
+    {
+        Dictionary<string, Dictionary<string, decimal>>? all = null;
+        var remaining = dates;
+        while (remaining.Count > 0)
+        {
+            var pricedBefore = all?.Count ?? 0;
+            foreach (var chunk in remaining.Chunk(MaxDatesPerBatch))
+            {
+                var results = await FetchBatchRatesAsync(chunk.ToList(), cancellationToken);
+                if (results == null)
+                    return all;
+                all ??= [];
+                foreach (var (dateKey, rates) in results)
+                    all[dateKey] = rates;
+            }
+
+            // The server fetches only so many new dates per request and lists the rest as failed, so another round prices those.
+            if (all!.Count == pricedBefore)
+                break;
+            remaining = remaining.Where(date => !all.ContainsKey(DateKey(date))).ToList();
+        }
+        return all;
     }
 
     /// <summary>A short, log-safe prefix of a response body for diagnostics.</summary>
