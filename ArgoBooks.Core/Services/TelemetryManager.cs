@@ -132,6 +132,9 @@ public class TelemetryManager : ITelemetryManager
 
     /// <summary>Set once this session's SessionEnd is on its way, so a second call is a no-op.</summary>
     private int _sessionEnded;
+
+    // The page on screen when the session ended, which a resumed session goes on timing.
+    private string? _pageAtSessionEnd;
     private Timer? _heartbeatTimer;
     private int _heartbeatTicks;
     private int _uploadInFlight;
@@ -247,6 +250,7 @@ public class TelemetryManager : ITelemetryManager
         {
             finalPage = _currentPage;
         }
+        _pageAtSessionEnd = finalPage;
         FlushCurrentPage();
 
         try
@@ -305,6 +309,7 @@ public class TelemetryManager : ITelemetryManager
             _lastActivityUtc = _sessionStartTime;
             _activeTicks = 0;
         }
+        NoteCurrentPage(_pageAtSessionEnd);
 
         try
         {

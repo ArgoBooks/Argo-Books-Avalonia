@@ -156,6 +156,21 @@ public class TelemetrySessionEndTests : IDisposable
     }
 
     [Fact]
+    public async Task ResumedSession_GoesOnTimingThePageOnScreen()
+    {
+        var (manager, storage) = Build();
+        await manager.InitializeAsync();
+        manager.NoteCurrentPage("Expenses");
+        await manager.EndSessionAsync();
+
+        await manager.ResumeSessionAsync();
+        await manager.EndSessionAsync();
+
+        var lastEnd = storage.Events.OfType<SessionEvent>().Last(e => e.Action == SessionAction.SessionEnd);
+        Assert.Equal("Expenses", lastEnd.LastPage);
+    }
+
+    [Fact]
     public async Task ResumingASessionThatIsStillRunning_ChangesNothing()
     {
         var (manager, storage) = Build();
