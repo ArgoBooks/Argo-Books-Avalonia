@@ -9,9 +9,8 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// How the app asks the server for exchange rates when an import needs many dates. The fake server
-/// below behaves like the real one: it refuses a batch of more than 500 dates, and prices only a
-/// limited number of new dates per batch request, listing the rest as failed.
+/// How the app asks for exchange rates when an import needs many dates, against a fake server that
+/// refuses over 500 dates per batch and prices only so many new ones per request, like the real one.
 /// </summary>
 public class ExchangeRateFetchTests : IDisposable
 {

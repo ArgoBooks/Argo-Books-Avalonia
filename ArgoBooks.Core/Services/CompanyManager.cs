@@ -1402,7 +1402,7 @@ public class CompanyManager : IDisposable
                 var companyDir = GetCompanyDirectory(_currentTempDirectory);
                 await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
 
-                // Release file lock before saving, then re-acquire on new path
+                // The file lock is let go while the new file is written, and taken again in the finally below.
                 ReleaseFileLock();
                 try
                 {
