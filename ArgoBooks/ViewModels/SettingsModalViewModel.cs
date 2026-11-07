@@ -1667,11 +1667,31 @@ public partial class SettingsModalViewModel : ViewModelBase
 
         var client = new StripeApiClient(App.SharedHttpClient);
         if (await TryConnectStripeAsync(client, stripe))
-            App.CompanyManager?.MarkAsChanged();
+            await SaveIntegrationChangeAsync();
+    }
+
+    /// <summary>Saves an integration change at once, because it already took effect with Stripe or the server and closing without saving would otherwise forget it without asking.</summary>
+    private static async Task SaveIntegrationChangeAsync()
+    {
+        if (App.CompanyManager is not { } manager)
+            return;
+
+        manager.MarkAsChanged();
+        if (manager.IsSampleCompany)
+            return;
+
+        try
+        {
+            await manager.SaveSettingsOnlyAsync();
+        }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save an integration change");
+        }
     }
 
     [RelayCommand]
-    private void DisconnectStripeIntegration()
+    private async Task DisconnectStripeIntegration()
     {
         var stripe = App.CompanyManager?.CompanyData?.Settings.Integrations.Stripe;
         if (stripe == null) return;
@@ -1688,7 +1708,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         StripeIntegrationAccountLabel = null;
         StripeIntegrationError = null;
         StripeLastSyncedDisplay = null;
-        App.CompanyManager?.MarkAsChanged();
+        await SaveIntegrationChangeAsync();
     }
 
     [RelayCommand]
@@ -1839,7 +1859,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             api.Enabled = true;
 
             ArgoApiEnabled = true;
-            App.CompanyManager?.MarkAsChanged();
+            await SaveIntegrationChangeAsync();
             await RefreshArgoApiKeysAsync();
         }
         catch (Exception ex)
@@ -1920,7 +1940,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         ArgoApiKeys.Clear();
         HasNoArgoApiKeys = true;
         ArgoApiPendingSummary = null;
-        App.CompanyManager?.MarkAsChanged();
+        await SaveIntegrationChangeAsync();
     }
 
     [RelayCommand]
