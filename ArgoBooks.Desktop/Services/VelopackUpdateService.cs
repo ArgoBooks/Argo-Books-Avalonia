@@ -44,6 +44,7 @@ public sealed class VelopackUpdateService : IUpdateService
     private readonly Task _cleanup;
     private Velopack.UpdateInfo? _pending;
     private string? _setupPath;
+    private string? _installedCopyPath;
 
     /// <inheritdoc />
     public UpdateState State { get; private set; } = UpdateState.Idle;
@@ -246,9 +247,11 @@ public sealed class VelopackUpdateService : IUpdateService
             }
             else
             {
-                // A user who kept the old copy already has the new one, so it is opened instead of downloading and running the installer again.
-                _setupPath = InstalledCopyUnder(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData))
-                             ?? await DownloadWindowsSetupAsync();
+                // A user who kept the old copy may already have the new one at this version or later, so it is opened instead of downloading and running the installer again.
+                _installedCopyPath = InstalledCopyUnder(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AvailableUpdate.Version);
+                if (_installedCopyPath == null)
+                    _setupPath = await DownloadWindowsSetupAsync();
             }
 
             DownloadProgressChanged?.Invoke(this, 100);
@@ -294,7 +297,7 @@ public sealed class VelopackUpdateService : IUpdateService
         }
 
         // Setup installs the Velopack copy for this user and opens it, or the copy already installed is opened, and that copy then removes this one.
-        using var setup = Process.Start(new ProcessStartInfo(_setupPath!) { UseShellExecute = true })
+        using var setup = Process.Start(new ProcessStartInfo(_installedCopyPath ?? _setupPath!) { UseShellExecute = true })
             ?? throw new InvalidOperationException("The Argo Books installer did not start.");
         Environment.Exit(0);
     }
@@ -313,12 +316,30 @@ public sealed class VelopackUpdateService : IUpdateService
             .MaxBy(asset => asset.Version);
     }
 
-    /// <summary>The app of the Velopack copy installed for this user under <paramref name="localAppData"/>, or null when there is none.</summary>
-    internal static string? InstalledCopyUnder(string localAppData)
+    /// <summary>The app of the Velopack copy installed for this user under <paramref name="localAppData"/> at <paramref name="minimumVersion"/> or later, or null when there is none.</summary>
+    internal static string? InstalledCopyUnder(string localAppData, string minimumVersion)
     {
         var current = Path.Combine(localAppData, PackId, "current");
         var app = Path.Combine(current, "Argo Books.exe");
-        return File.Exists(Path.Combine(current, "sq.version")) && File.Exists(app) ? app : null;
+        var manifest = Path.Combine(current, "sq.version");
+        if (!File.Exists(manifest) || !File.Exists(app))
+            return null;
+
+        try
+        {
+            // The manifest Velopack keeps beside the app names the version installed.
+            var match = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(manifest), "<version>([^<]+)</version>");
+            return match.Success
+                   && SemanticVersion.TryParse(match.Groups[1].Value.Trim(), out var installed)
+                   && SemanticVersion.TryParse(minimumVersion, out var wanted)
+                   && installed >= wanted
+                ? app
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
