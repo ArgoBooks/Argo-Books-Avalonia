@@ -256,7 +256,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Quote.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Quote.OpenDeleteConfirm");
         }
     }
 
@@ -1069,6 +1069,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
 
             if (!response.Success)
             {
+                SendFailure.Report(App.ErrorLogger, response.ErrorCode, response.Message, "Quote.Send");
                 SendError = SendFailureMessage(response);
                 return;
             }
@@ -1093,7 +1094,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Quote.Send");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Quote.Send");
             SendError = "Failed to send: {0}".TranslateFormat(ex.Message);
         }
         finally
@@ -1152,6 +1153,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
 
             if (!response.Success)
             {
+                SendFailure.Report(App.ErrorLogger, response.ErrorCode, response.Message, "Quote.Resend");
                 if (response.MayHavePublished)
                 {
                     MarkMaybePublished(quote, companyData, recipient);
@@ -1186,7 +1188,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Quote.Resend");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Quote.Resend");
             await App.ShowErrorDialogAsync("Failed to resend quote".Translate(), ex.Message);
         }
         finally

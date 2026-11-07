@@ -110,7 +110,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to parse bank statement ({Path.GetExtension(filePath)})");
+            UserFileFailure.Report(errorLogger, ex, $"Failed to parse bank statement ({Path.GetExtension(filePath)})", ErrorCategory.Import, "StatementFileUnreadable");
             throw new UnreadableStatementFileException(Path.GetFileName(filePath), ex);
         }
         finally
@@ -155,7 +155,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to parse bank statement CSV");
+            UserFileFailure.Report(errorLogger, ex, "Failed to parse bank statement CSV", ErrorCategory.Import, "StatementFileUnreadable");
             throw new UnreadableStatementFileException(Path.GetFileName(filePath), ex);
         }
     }

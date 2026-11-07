@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
 using ArgoBooks.Core.Platform;
+using ArgoBooks.Core.Models.Telemetry;
 
 namespace ArgoBooks.Core.Services;
 
@@ -115,9 +116,10 @@ public sealed class FirstRunReporter
             else
             {
                 IncrementAttemptCount(attemptsPath, attempts + 1);
-                _errorLogger?.LogWarning(
+                // Our endpoint answered with a failure, which is ours to fix.
+                _errorLogger?.LogError(
                     $"FirstRunReporter received HTTP {(int)response.StatusCode}",
-                    context: "FirstRunReporter.ReportIfFirstRunAsync");
+                    ErrorCategory.Api, "FirstRunReporter.ReportIfFirstRunAsync", $"Http{(int)response.StatusCode}");
             }
         }
         catch (OperationCanceledException)

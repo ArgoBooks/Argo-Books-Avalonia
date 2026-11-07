@@ -60,6 +60,7 @@ public class SpreadsheetAnalysisService(
         CancellationToken cancellationToken = default,
         IProgress<(string detail, double percent)>? progress = null)
     {
+        var opened = false;
         try
         {
             // Report initial progress so the UI shows the loading overlay immediately
@@ -68,6 +69,7 @@ public class SpreadsheetAnalysisService(
 
             using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var workbook = new XLWorkbook(fileStream);
+            opened = true;
 
             var sheetsData = new List<(string Name, List<string> Headers, List<List<string>> SampleRows, int TotalRows)>();
 
@@ -92,7 +94,9 @@ public class SpreadsheetAnalysisService(
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to analyze spreadsheet with AI");
+            // A file that will not open is reported once, by the rescue import that reads it next.
+            if (opened)
+                errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to analyze spreadsheet with AI");
             return null;
         }
     }
@@ -105,6 +109,7 @@ public class SpreadsheetAnalysisService(
         CancellationToken cancellationToken = default,
         IProgress<(string detail, double percent)>? progress = null)
     {
+        var opened = false;
         try
         {
             // Report initial progress so the UI shows the loading overlay immediately
@@ -112,6 +117,7 @@ public class SpreadsheetAnalysisService(
             await Task.Yield();
 
             var allDataRows = CsvReader.ReadAllRows(filePath, out var headers);
+            opened = true;
             if (headers.Count == 0)
                 return null;
 
@@ -133,7 +139,9 @@ public class SpreadsheetAnalysisService(
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to analyze CSV with AI");
+            // A file that will not open is reported once, by the rescue import that reads it next.
+            if (opened)
+                errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to analyze CSV with AI");
             return null;
         }
     }
@@ -303,7 +311,7 @@ public class SpreadsheetAnalysisService(
             errorLogger?.LogError(
                 $"AI analysis response could not be parsed (length {response.Length}, " +
                 $"{batch.Count} sheet(s), {totalColumns} columns, maxTokens {maxTokens}); response likely truncated.",
-                ErrorCategory.Parsing, "Spreadsheet analysis");
+                ErrorCategory.Parsing, "Spreadsheet analysis", "AnalysisUnparseable");
         }
 
         return result;
@@ -503,8 +511,10 @@ public class SpreadsheetAnalysisService(
 
         if (failedRows > 0)
         {
+            // Rows the AI reply did not cover are lost from the import, so the count is uploaded; the sheet name is the user's and stays out of it.
             errorLogger?.LogWarning(
-                $"AI processing: {failedRows} of {total} rows failed to process for sheet '{sheetAnalysis.SourceSheetName}'");
+                $"AI processing: {failedRows} of {total} rows failed to process",
+                "Spreadsheet extraction", ErrorCategory.Import, "ExtractionRowsFailed");
         }
 
         return results;
@@ -1462,7 +1472,7 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
         catch (Exception ex)
         {
             // Deliberate UX choice: a read failure here (corrupt/locked/unreadable file) surfaces as a friendly rejection instead of throwing and crashing the import flow.
-            errorLogger?.LogError(ex, ErrorCategory.Import, "Rescue import: failed to read the file");
+            UserFileFailure.Report(errorLogger, ex, "Rescue import: failed to read the file", ErrorCategory.Import, "ImportFileUnreadable");
             return new ImportRescueResult
             {
                 Outcome = ImportRescueOutcome.Rejected,

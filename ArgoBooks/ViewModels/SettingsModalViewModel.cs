@@ -1845,12 +1845,27 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             ArgoApiError = ex.Message;
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Enabling the Argo Books API failed");
+            ReportArgoApiFailure(ex, "Enabling the Argo Books API failed");
         }
         finally
         {
             IsEnablingArgoApi = false;
         }
+    }
+
+    /// <summary>
+    /// The server turning a request down on purpose (the key limit, its rate limit, a lapsed plan) is
+    /// a warning with the server's code, so only a real failure shows as an error.
+    /// </summary>
+    private static void ReportArgoApiFailure(Exception ex, string context)
+    {
+        if (ex is ArgoApiException { Code: "KEY_LIMIT_REACHED" or "RATE_LIMITED" or "PREMIUM_REQUIRED" or "API_NOT_ENABLED" } refusal)
+        {
+            App.ErrorLogger?.LogWarning(refusal.Message, context, ErrorCategory.Api, refusal.Code);
+            return;
+        }
+
+        App.ErrorLogger?.LogError(ex, ErrorCategory.Api, context);
     }
 
     /// <summary>
@@ -1895,7 +1910,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         {
             // Local state is still cleared below: the merchant asked to turn it off, and leaving it half-on because the network hiccuped is worse than a key that outlives the setting.
             ArgoApiError = "Some keys could not be revoked: {0}".TranslateFormat(ex.Message);
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Revoking Argo Books API keys failed");
+            ReportArgoApiFailure(ex, "Revoking Argo Books API keys failed");
         }
 
         api.Enabled = false;
@@ -1981,14 +1996,14 @@ public partial class SettingsModalViewModel : ViewModelBase
                 catch (Exception ex)
                 {
                     // Tidying is not worth surfacing or failing the panel over.
-                    App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Retiring a leftover desktop key failed");
+                    ReportArgoApiFailure(ex, "Retiring a leftover desktop key failed");
                 }
             }
         }
         catch (Exception ex)
         {
             ArgoApiError = ex.Message;
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Listing Argo Books API keys failed");
+            ReportArgoApiFailure(ex, "Listing Argo Books API keys failed");
         }
     }
 
@@ -2059,7 +2074,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             ArgoApiError = ex.Message;
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Creating an Argo Books API key failed");
+            ReportArgoApiFailure(ex, "Creating an Argo Books API key failed");
         }
     }
 
@@ -2103,7 +2118,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             ArgoApiError = ex.Message;
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Deleting an Argo Books API key failed");
+            ReportArgoApiFailure(ex, "Deleting an Argo Books API key failed");
         }
     }
 
@@ -2170,7 +2185,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             ArgoApiError = ex.Message;
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Renaming an Argo Books API key failed");
+            ReportArgoApiFailure(ex, "Renaming an Argo Books API key failed");
         }
     }
 
@@ -4025,7 +4040,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         if (App.CompanyManager != null)
         {
             try { await App.CompanyManager.SaveSettingsOnlyAsync(); }
-            catch (Exception ex) { App.ErrorLogger?.LogWarning($"Failed to persist reconciled owner email: {ex.Message}", "OwnerEmail"); }
+            catch (Exception ex) { App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to persist reconciled owner email"); }
         }
     }
 

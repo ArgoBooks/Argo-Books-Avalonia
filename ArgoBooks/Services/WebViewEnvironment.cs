@@ -115,11 +115,8 @@ public static class WebViewEnvironment
             }
             catch (Exception ex)
             {
-                errorLogger?.LogWarning(
-                    $"WebView fallback notification failed: {ex.Message}",
-                    "WebView",
-                    ErrorCategory.UI,
-                    FailureCode);
+                // The subscribers are our own fallback code, so this is our fault and not the missing runtime.
+                errorLogger?.LogError(ex, ErrorCategory.UI, "WebView fallback notification failed");
             }
         };
     }

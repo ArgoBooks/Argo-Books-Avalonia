@@ -312,9 +312,11 @@ Respond with JSON only.";
 
         if (!response.IsHttpSuccess)
         {
-            _errorLogger?.LogError(
-                $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
-                ErrorCategory.Api, "AI chat completion");
+            var failure = $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}";
+            if (response.IsExpectedRefusal)
+                _errorLogger?.LogWarning(failure, "AI chat completion", ErrorCategory.Api, response.FailureCode);
+            else
+                _errorLogger?.LogError(failure, ErrorCategory.Api, "AI chat completion", response.FailureCode);
 
             // RATE_LIMITED is Argo's own limiter; UPSTREAM_RATE_LIMITED is the model provider
             // having a moment, which a short wait does fix, so only the first counts.
@@ -336,7 +338,7 @@ Respond with JSON only.";
             {
                 _errorLogger?.LogError(
                     $"AI proxy returned success=false ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
-                    ErrorCategory.Api, "AI chat completion");
+                    ErrorCategory.Api, "AI chat completion", response.Code ?? "AiProxyNoSuccess");
             }
             return new AiChatResult(null, false);
         }

@@ -60,6 +60,7 @@ public sealed class LayoutNormalizationService(IGeminiService geminiService, IEr
         // Best-effort sweep of temp files left by previous imports so they don't accumulate.
         CleanupStaleTempFiles();
 
+        var opened = false;
         try
         {
             // First pass: open the source and decide which sheets (if any) are messy.
@@ -68,6 +69,7 @@ public sealed class LayoutNormalizationService(IGeminiService geminiService, IEr
             using (var probeStream = SharedFileReader.OpenRead(xlsxPath))
             using (var probe = new XLWorkbook(probeStream))
             {
+                opened = true;
                 sheets = new List<(IXLWorksheet, SheetGrid, bool)>();
                 foreach (var ws in probe.Worksheets)
                 {
@@ -143,8 +145,10 @@ public sealed class LayoutNormalizationService(IGeminiService geminiService, IEr
         {
             // Whole-operation failure: degrade to "return original path" so the existing
             // pipeline still runs on the unmodified file. Never lose the import.
-            errorLogger?.LogError(ex, ErrorCategory.Import,
-                "Layout normalization failed; returning original path unchanged");
+            // A file that will not open is reported once, by the import step that reads it next.
+            if (opened)
+                errorLogger?.LogError(ex, ErrorCategory.Import,
+                    "Layout normalization failed; returning original path unchanged");
             return xlsxPath;
         }
     }

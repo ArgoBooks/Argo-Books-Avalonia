@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
 using Velopack;
 using Velopack.Logging;
@@ -166,9 +167,8 @@ public sealed class VelopackUpdateService : IUpdateService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogWarning($"Update check failed: {ex.Message}", "AutoUpdate");
             // An update check is an HTTP fetch of the update list, so a failure is almost always a connectivity problem.
-            LastError = await ConnectivityMessage.ResolveAsync();
+            LastError = await NetworkFailure.ResolveAndReportAsync(_errorLogger, ex, "Update check failed");
             SetState(UpdateState.Error);
             return null;
         }
@@ -199,9 +199,17 @@ public sealed class VelopackUpdateService : IUpdateService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogWarning($"Update download failed: {ex.Message}", "AutoUpdate");
             // A failed signature check has its own message, since telling the user to check their connection would be wrong.
-            LastError = ex is UpdateSignatureException ? UpdateSignatureException.UserMessage : await ConnectivityMessage.ResolveAsync();
+            if (ex is UpdateSignatureException)
+            {
+                // A release whose signature does not match is our release process at fault, or tampering; a signature that never downloaded is still classified as the connection.
+                _errorLogger?.LogError(ex, ErrorCategory.Unknown, "Update signature check failed");
+                LastError = UpdateSignatureException.UserMessage;
+            }
+            else
+            {
+                LastError = await NetworkFailure.ResolveAndReportAsync(_errorLogger, ex, "Update download failed");
+            }
             SetState(UpdateState.Error);
             throw;
         }

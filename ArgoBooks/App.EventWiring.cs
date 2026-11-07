@@ -145,7 +145,7 @@ public partial class App
                 catch (Exception ex)
                 {
                     samplePrepareError = ex;
-                    ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open sample company");
+                    ErrorLogger?.LogError(ex, ErrorCategory.Unknown, "Failed to prepare sample company");
                 }
             }
 
@@ -788,7 +788,7 @@ public partial class App
                         {
                             // Don't close on a failed save: CloseCompanyAsync discards unsaved edits.
                             // Abort the restart and keep the company open to protect the user's data.
-                            ErrorLogger?.LogWarning($"Save before tutorial restart failed: {ex.Message}", "AutoSave");
+                            ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save before tutorial restart failed");
                             if (_welcomeScreenViewModel != null)
                                 _welcomeScreenViewModel.IsTutorialMode = false;
                             _appShellViewModel.AddNotification(
@@ -1102,7 +1102,7 @@ public partial class App
             catch (Exception ex)
             {
                 settings.HasPassword = false;
-                ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to set password");
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to set password");
                 await ShowErrorDialogAsync("Error".Translate(), "Failed to set password: {0}".TranslateFormat(ex.Message));
             }
         };
@@ -1133,7 +1133,7 @@ public partial class App
             catch (Exception ex)
             {
                 settings.OnPasswordVerificationFailed();
-                ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to change password");
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to change password");
                 await ShowErrorDialogAsync("Error".Translate(), "Failed to change password: {0}".TranslateFormat(ex.Message));
             }
         };
@@ -1165,7 +1165,7 @@ public partial class App
             catch (Exception ex)
             {
                 settings.OnPasswordVerificationFailed();
-                ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to remove password");
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to remove password");
                 await ShowErrorDialogAsync("Error".Translate(), "Failed to remove password: {0}".TranslateFormat(ex.Message));
             }
         };
@@ -1746,7 +1746,7 @@ public partial class App
                     catch (Exception ex)
                     {
                         _mainWindowViewModel?.HideLoading();
-                        ErrorLogger?.LogWarning($"Auto-save before lock failed: {ex.Message}", "AutoSave");
+                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Auto-save before lock failed");
                         // Do NOT close on a failed save: CloseCompanyAsync discards the working copy and every unsaved edit.
                         _appShellViewModel.AddNotification(
                             "Auto-lock postponed",

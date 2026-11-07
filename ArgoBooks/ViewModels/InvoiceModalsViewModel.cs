@@ -1,4 +1,4 @@
-﻿using ArgoBooks.Data;
+using ArgoBooks.Data;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
@@ -1189,7 +1189,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Invoice.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Invoice.OpenDeleteConfirm");
         }
     }
 

@@ -368,10 +368,11 @@ If nothing was missed, return: {{""missingItems"": []}}";
 
         if (!response.IsHttpSuccess)
         {
-            errorLogger?.LogError(
-                $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
-                ErrorCategory.Api,
-                "Receipt scan completion");
+            var failure = $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}";
+            if (response.IsExpectedRefusal)
+                errorLogger?.LogWarning(failure, "Receipt scan completion", ErrorCategory.Api, response.FailureCode);
+            else
+                errorLogger?.LogError(failure, ErrorCategory.Api, "Receipt scan completion", response.FailureCode);
 
             return response;
         }
@@ -387,7 +388,8 @@ If nothing was missed, return: {{""missingItems"": []}}";
             errorLogger?.LogError(
                 $"AI proxy returned success=false ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
                 ErrorCategory.Api,
-                "Receipt scan completion");
+                "Receipt scan completion",
+                response.Code ?? "AiProxyNoSuccess");
         }
 
         return response;

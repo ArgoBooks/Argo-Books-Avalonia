@@ -796,7 +796,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "RentalRecord.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "RentalRecord.OpenDeleteConfirm");
         }
     }
 

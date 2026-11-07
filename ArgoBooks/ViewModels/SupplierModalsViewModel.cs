@@ -1,4 +1,4 @@
-﻿using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Data;
 using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Core.Enums;
@@ -516,7 +516,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Supplier.ApplyAvatarChange");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Supplier.ApplyAvatarChange");
         }
     }
 
@@ -809,7 +809,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Supplier.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Supplier.OpenDeleteConfirm");
         }
     }
 

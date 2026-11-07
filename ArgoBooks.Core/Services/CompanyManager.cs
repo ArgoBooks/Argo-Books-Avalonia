@@ -915,7 +915,7 @@ public class CompanyManager : IDisposable
             ReleaseFileLock();
             // The app asks the user to update instead, so an older copy opening a newer file is not a fault.
             if (ex is not CompanyFileTooNewException)
-                _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company");
+                UserFileFailure.Report(_errorLogger, ex, "Failed to open company", ErrorCategory.FileSystem, "CompanyFileUnreadable");
             DeleteTempDirectoryAfterFailure();
             CompanyData = null;
             throw;
@@ -2234,9 +2234,10 @@ public class CompanyManager : IDisposable
                 tempDirectory,
                 ToCompanyFileName(CompanyData?.Settings.Company.Name ?? string.Empty));
             Directory.CreateDirectory(rebuilt);
+            // Receipts and avatars that were in it are gone, and the next save writes the company without them, so this is worth seeing on the dashboard.
             _errorLogger?.LogWarning(
-                $"The open company's working directory was gone and has been rebuilt: {tempDirectory}",
-                "CompanyManager");
+                "The open company's working directory was gone and has been rebuilt",
+                "CompanyManager", ErrorCategory.FileSystem, "WorkingDirectoryRebuilt");
             return rebuilt;
         }
 

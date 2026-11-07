@@ -313,7 +313,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
                 if (App.CompanyManager != null)
                 {
                     try { await App.CompanyManager.SaveSettingsOnlyAsync(); }
-                    catch (Exception ex) { App.ErrorLogger?.LogWarning($"Failed to persist email change: {ex.Message}", "OwnerEmail"); }
+                    catch (Exception ex) { App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.FileSystem, "Failed to persist email change"); }
                 }
             }
 

@@ -418,7 +418,7 @@ public partial class RoeModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Payroll.RoeXml");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Payroll.RoeXml");
             StatusMessage = "Could not save the file: {0}".TranslateFormat(ex.Message);
         }
     }

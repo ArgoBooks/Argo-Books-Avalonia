@@ -480,7 +480,7 @@ public partial class LocationsModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Location.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Location.OpenDeleteConfirm");
         }
     }
 

@@ -62,6 +62,17 @@ public partial class ErrorLogger : IErrorLogger
         if (exception is OperationCanceledException)
             return;
 
+        // A failure rethrown up the stack passes through several catch blocks, and only the first one reports it.
+        if (WasReported(exception))
+            return;
+        MarkReported(exception);
+
+        if (EnvironmentFailure.Classify(exception) is { } cause)
+        {
+            LogWarning(cause.Description, context, cause.Category, cause.Code, callerFile, callerLine, callerMember);
+            return;
+        }
+
         var entry = CreateLogEntry(LogLevel.Error, category, context, callerFile, callerLine, callerMember);
         entry.ErrorCode = exception.GetType().Name;
         entry.Message = SanitizeMessage(exception.Message);
@@ -96,12 +107,14 @@ public partial class ErrorLogger : IErrorLogger
         string message,
         ErrorCategory category,
         string? context = null,
+        string? code = null,
         [CallerFilePath] string callerFile = "",
         [CallerLineNumber] int callerLine = 0,
         [CallerMemberName] string callerMember = "")
     {
         var entry = CreateLogEntry(LogLevel.Error, category, context, callerFile, callerLine, callerMember);
         entry.Message = SanitizeMessage(message);
+        entry.ErrorCode = code;
 
         AddEntry(entry);
         Debug.WriteLine($"[ERROR] [{category}] {message}");
@@ -202,6 +215,37 @@ public partial class ErrorLogger : IErrorLogger
         {
             _ = TelemetryManager.TrackErrorAsync(entry);
         }
+    }
+
+    private const string ReportedKey = "ArgoBooks.Reported";
+
+    /// <summary>
+    /// Marks <paramref name="exception"/> as reported, so a catch block further up the stack that
+    /// logs it again, or logs an exception wrapping it, adds nothing.
+    /// </summary>
+    internal static void MarkReported(Exception exception)
+    {
+        try
+        {
+            exception.Data[ReportedKey] = true;
+        }
+        catch
+        {
+            // An exception type with read-only data is reported again rather than not at all.
+        }
+    }
+
+    private static bool WasReported(Exception exception)
+    {
+        for (Exception? ex = exception; ex != null; ex = ex.InnerException)
+        {
+            if (ex.Data.Contains(ReportedKey))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

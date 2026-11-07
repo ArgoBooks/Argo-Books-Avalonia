@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using ArgoBooks.Core.Models.Telemetry;
 
 namespace ArgoBooks.Core.Services;
 
@@ -91,9 +92,9 @@ public sealed class SourceSurveyOptionsService
             using var response = await _httpClient.GetAsync(url, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _errorLogger?.LogWarning(
+                _errorLogger?.LogError(
                     $"SourceSurveyOptionsService received HTTP {(int)response.StatusCode}",
-                    context: "SourceSurveyOptionsService.GetChoicesAsync");
+                    ErrorCategory.Api, "SourceSurveyOptionsService.GetChoicesAsync", $"Http{(int)response.StatusCode}");
                 return Defaults;
             }
 

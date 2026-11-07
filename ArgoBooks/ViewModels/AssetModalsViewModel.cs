@@ -598,7 +598,7 @@ public partial class AssetModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Asset.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Asset.OpenDeleteConfirm");
         }
     }
 

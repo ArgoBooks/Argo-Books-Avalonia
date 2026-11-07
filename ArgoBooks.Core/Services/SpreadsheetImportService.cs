@@ -606,6 +606,9 @@ public class SpreadsheetImportService
         // Deduplicate entities across chunks by ID, later chunks win on conflict. The LLM processes chunks independently and may produce duplicate IDs, especially at chunk boundaries.
         var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // One fault repeats on every row it touches, so each kind is reported once rather than once per row.
+        var reportedFailures = new HashSet<string>(StringComparer.Ordinal);
+
         // Collect all (chunk, entityJson) pairs, then reverse-iterate to keep the last occurrence of each ID
         var allEntities = new List<(SpreadsheetSheetType EntityType, JsonElement Entity)>();
         foreach (var chunk in processedData)
@@ -766,8 +769,9 @@ public class SpreadsheetImportService
                     Reason = errorReason,
                     RawValue = ExtractEntityId(entityJson) ?? entityJson.GetRawText()
                 });
-                _errorLogger?.LogError(ex, ErrorCategory.Import,
-                    $"Failed to import {chunkEntityType} entity from AI processing");
+                if (reportedFailures.Add($"{chunkEntityType}|{ex.GetType().FullName}"))
+                    _errorLogger?.LogError(ex, ErrorCategory.Import,
+                        $"Failed to import {chunkEntityType} entity from AI processing");
             }
         }
 

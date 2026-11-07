@@ -112,7 +112,17 @@ public class ExchangeRateService
         // Fetch from API if allowed
         if (fetchIfMissing && !IsUnpricedFutureDate(date))
         {
-            var rates = await FetchRatesForDateAsync(date, cancellationToken: cancellationToken);
+            Dictionary<string, decimal>? rates;
+            try
+            {
+                rates = await FetchRatesForDateAsync(date, cancellationToken: cancellationToken);
+            }
+            catch (RateLimitedException)
+            {
+                // Our server's limiter answered, which means "try later", so the caller gets "unavailable" like any other miss.
+                _errorLogger?.LogWarning("Rate-limited by the exchange rate server", "ExchangeRate", ErrorCategory.Api, "RateLimited");
+                return -1m;
+            }
             if (rates != null)
             {
                 _cache.SetRatesFromBase(rates, BaseCurrency, date);
@@ -340,18 +350,21 @@ public class ExchangeRateService
                 throw new RateLimitedException();
         }
 
+        // Each date that failed was already reported where it failed, so this only leaves a note for the in-app log.
         if (stillFailed.Count > 0)
-            _errorLogger?.LogError(
+            _errorLogger?.LogWarning(
                 $"Rate fetch incomplete: {stillFailed.Count}/{datesToFetch.Count} dates unpriced after batch + per-date fallback: " +
                 $"{string.Join(", ", stillFailed.OrderBy(d => d).Take(40).Select(DateKey))}",
-                ErrorCategory.Api, "ExchangeRate");
+                "ExchangeRate");
+        else if (failedDates.Count > 0 && fetched == null)
+            _errorLogger?.LogWarning(
+                $"Batch returned nothing; the per-date repair priced all {failedDates.Count} dates.",
+                "ExchangeRate");
         else if (failedDates.Count > 0)
             _errorLogger?.LogWarning(
-                fetched == null
-                    ? $"Batch returned nothing; the per-date repair priced all {failedDates.Count} dates."
-                    : $"Batch returned {fetched.Count} dates but {failedDates.Count} of {datesToFetch.Count} were absent from that response; " +
-                      "the per-date repair recovered them. The server answered, so this should be rare and is worth investigating.",
-                "ExchangeRate");
+                $"Batch returned {fetched!.Count} dates but {failedDates.Count} of {datesToFetch.Count} were absent from that response; " +
+                "the per-date repair recovered them. The server answered, so this should be rare and is worth investigating.",
+                "ExchangeRate", ErrorCategory.Api, "RatesBatchIncomplete");
 
         await _cache.SaveAsync();
     }
@@ -380,13 +393,14 @@ public class ExchangeRateService
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _errorLogger?.LogError(
-                    $"Batch exchange rate API returned {(int)response.StatusCode} for {dates.Count} dates. Body[{body.Length}]: {Snippet(body)}",
-                    ErrorCategory.Api);
                 // 429 = the server's rate limiter. Surface it so the caller backs off instead of
                 // fanning out to one request per date (which only digs the rate-limit hole deeper).
+                // Whoever catches it reports it, since only they know whether anyone was waiting.
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                     throw new RateLimitedException();
+                _errorLogger?.LogError(
+                    $"Batch exchange rate API returned {(int)response.StatusCode} for {dates.Count} dates. Body[{body.Length}]: {Snippet(body)}",
+                    ErrorCategory.Api, code: "RatesBatchHttpError");
                 return null;
             }
 
@@ -416,7 +430,7 @@ public class ExchangeRateService
 
             _errorLogger?.LogError(
                 $"Batch exchange rate response unusable for {dates.Count} dates (success={result?.Success}, results={(result?.Results == null ? "null" : result.Results.Count.ToString())}). Body[{body.Length}]: {Snippet(body)}",
-                ErrorCategory.Api);
+                ErrorCategory.Api, code: "RatesBatchUnusable");
             return null;
         }
         catch (OperationCanceledException)
@@ -452,6 +466,8 @@ public class ExchangeRateService
             cancellationToken.ThrowIfCancellationRequested();
             var stopwatch = Stopwatch.StartNew();
             var success = false;
+            // A failure the next attempt recovers from is not worth a report, so only the last one files it.
+            var lastAttempt = attempt == maxRetries;
 
             try
             {
@@ -470,15 +486,17 @@ public class ExchangeRateService
                 using var response = await _httpClient.SendAsync(request, cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
-                    _errorLogger?.LogError($"Exchange rate API returned {response.StatusCode} (attempt {attempt + 1}/{maxRetries + 1})", ErrorCategory.Api, $"Date: {DateKey(date)}");
                     // Don't retry a rate-limit: hammering it 3x per date is exactly what causes the
                     // lockout. Surface it so the whole preload backs off.
                     if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                         throw new RateLimitedException();
                     // A 4xx is the server rejecting the request itself, so sending it again gets the
                     // same answer at three times the cost. 408 is a timeout wearing a 4xx code.
-                    if ((int)response.StatusCode is >= 400 and < 500
-                        && response.StatusCode != System.Net.HttpStatusCode.RequestTimeout)
+                    var willNotRetry = (int)response.StatusCode is >= 400 and < 500
+                        && response.StatusCode != System.Net.HttpStatusCode.RequestTimeout;
+                    if (willNotRetry || lastAttempt)
+                        _errorLogger?.LogError($"Exchange rate API returned {response.StatusCode} (attempt {attempt + 1}/{maxRetries + 1})", ErrorCategory.Api, $"Date: {DateKey(date)}", "RatesHttpError");
+                    if (willNotRetry)
                         return null;
                     continue; // retry other transient errors
                 }
@@ -490,7 +508,8 @@ public class ExchangeRateService
                     return result.Rates;
                 }
 
-                _errorLogger?.LogError($"Exchange rate API returned invalid data (attempt {attempt + 1}/{maxRetries + 1})", ErrorCategory.Api, $"Date: {DateKey(date)}");
+                if (lastAttempt)
+                    _errorLogger?.LogError($"Exchange rate API returned invalid data (attempt {attempt + 1}/{maxRetries + 1})", ErrorCategory.Api, $"Date: {DateKey(date)}", "RatesInvalidData");
             }
             catch (RateLimitedException)
             {
@@ -504,8 +523,11 @@ public class ExchangeRateService
             }
             catch (Exception ex)
             {
-                _errorLogger?.LogError(ex, ErrorCategory.Api, $"Failed to fetch exchange rates for {DateKey(date)} (attempt {attempt + 1}/{maxRetries + 1})");
-                if (attempt == maxRetries) return null;
+                if (lastAttempt)
+                {
+                    _errorLogger?.LogError(ex, ErrorCategory.Api, $"Failed to fetch exchange rates for {DateKey(date)} (attempt {attempt + 1}/{maxRetries + 1})");
+                    return null;
+                }
             }
             finally
             {

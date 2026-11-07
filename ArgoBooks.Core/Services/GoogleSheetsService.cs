@@ -101,29 +101,41 @@ public class GoogleSheetsService
             response = await _httpClient.SendAsync(request, cancellationToken);
             responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            throw new InvalidOperationException(await ConnectivityMessage.ResolveAsync());
+            throw new InvalidOperationException(await ConnectivityMessage.ResolveAsync(), ex);
         }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new InvalidOperationException(await ConnectivityMessage.ResolveAsync());
+            throw new InvalidOperationException(await ConnectivityMessage.ResolveAsync(), ex);
         }
 
         if (!response.IsSuccessStatusCode)
         {
             // Extract server error message
             var errorMsg = "Google Sheets export failed.";
+            string? errorCode = null;
             try
             {
                 using var errorDoc = JsonDocument.Parse(responseBody);
                 if (errorDoc.RootElement.TryGetProperty("message", out var msg))
                     errorMsg = msg.GetString() ?? errorMsg;
+                if (errorDoc.RootElement.TryGetProperty("errorCode", out var code) && code.ValueKind == JsonValueKind.String)
+                    errorCode = code.GetString();
             }
             catch { /* ignore parse errors */ }
 
-            _errorLogger?.LogError($"Google Sheets export proxy error {response.StatusCode}: {errorMsg}", ErrorCategory.Api, "Google Sheets export");
-            throw new InvalidOperationException(errorMsg);
+            var report = $"Google Sheets export proxy error {response.StatusCode}: {errorMsg}";
+            var reportCode = errorCode ?? $"Http{(int)response.StatusCode}";
+            // The user's own Google connection missing or expired, or our rate limit, is something they fix by reconnecting or waiting.
+            if (errorCode is "NOT_AUTHENTICATED" or "TOKEN_EXPIRED" or "RATE_LIMITED")
+                _errorLogger?.LogWarning(report, "Google Sheets export", ErrorCategory.Api, reportCode);
+            else
+                _errorLogger?.LogError(report, ErrorCategory.Api, "Google Sheets export", reportCode);
+
+            var failure = new InvalidOperationException(errorMsg);
+            ErrorLogger.MarkReported(failure);
+            throw failure;
         }
 
         using var doc = JsonDocument.Parse(responseBody);
