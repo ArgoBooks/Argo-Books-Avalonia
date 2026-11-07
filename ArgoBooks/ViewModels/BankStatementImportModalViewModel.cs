@@ -244,6 +244,24 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         IsOpen = false;
     }
 
+    /// <summary>Turns every line's money in into money out and back, for a card statement that lists purchases as positive amounts.</summary>
+    [RelayCommand]
+    private void SwapMoneyInAndOut()
+    {
+        foreach (var row in Rows)
+            row.Amount = -row.Amount;
+
+        // Whether a line is already in the books depends on whether it is money in or out, so it is checked again.
+        if (App.CompanyManager?.CompanyData is { } data)
+        {
+            foreach (var row in Rows)
+                row.AlreadyImported = false;
+            FlagAlreadyImported(data);
+        }
+
+        RefreshState();
+    }
+
     [RelayCommand]
     private async Task Cancel()
     {
