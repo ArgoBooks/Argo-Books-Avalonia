@@ -235,6 +235,9 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         // as 15 March in the same UK/EU file.
         var dateOrder = SpreadsheetRowReader.DetectDateOrder(rows, headers, ColDate);
 
+        // A row without a readable date is a total or a pending line only when other rows' dates read, since otherwise the dates are in a form not recognised and every row would go.
+        var datesRead = rows.Any(row => SpreadsheetRowReader.GetDateTime(row, headers, ColDate, dateOrder) != DateTime.MinValue);
+
         for (int i = 0; i < rows.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -248,8 +251,8 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
             var balance = SpreadsheetRowReader.GetNullableDecimal(row, headers, ColBalance);
             var reference = SpreadsheetRowReader.GetString(row, headers, ColReference);
 
-            // Every bank transaction has a date and an amount, so a row missing either, such as a total, a pending line or an opening balance, is not one.
-            if (date == DateTime.MinValue || (signedAmount is null && debit is null && credit is null))
+            // Every bank transaction has an amount, so a row without one, such as an opening balance, is not one.
+            if ((date == DateTime.MinValue && datesRead) || (signedAmount is null && debit is null && credit is null))
                 continue;
 
             // Canonical signed amount: negative = money out, positive = money in.

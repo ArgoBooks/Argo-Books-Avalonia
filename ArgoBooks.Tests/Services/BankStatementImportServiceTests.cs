@@ -123,6 +123,23 @@ public class BankStatementImportServiceTests
     }
 
     [Fact]
+    public async Task ParseCsvAsync_DatesInAFormNotRecognised_StillGiveTheRows()
+    {
+        var path = await WriteTempCsvAsync(
+            "Date,Description,Amount\n" +
+            "5 janv. 2025,Coffee shop,-12.50\n" +
+            "6 janv. 2025,Client deposit,250.00\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            Assert.Equal(2, lines.Count);
+            Assert.All(lines, line => Assert.Equal(DateTime.MinValue, line.Date));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task ParseCsvAsync_LineBreakInsideAQuotedDescription_KeepsTheRowWhole()
     {
         var path = await WriteTempCsvAsync(
