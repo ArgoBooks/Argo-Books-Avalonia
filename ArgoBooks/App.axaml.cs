@@ -2088,9 +2088,12 @@ public partial class App : Application
                     .GetAwaiter().GetResult();
             }
 
-            // Recorded only once the work is saved, since a failed save cancels the update.
-            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied,
-                UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown"));
+            // Recorded only once the work is saved, since a failed save cancels the update, and waited for, since the installer ends the process next.
+            if (TelemetryManager is { } telemetry)
+            {
+                var context = UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown");
+                Task.Run(() => telemetry.TrackFeatureAsync(FeatureName.UpdateApplied, context)).GetAwaiter().GetResult();
+            }
         }
         catch (Exception ex)
         {
