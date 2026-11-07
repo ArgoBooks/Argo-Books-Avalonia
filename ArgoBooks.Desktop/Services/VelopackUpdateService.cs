@@ -246,7 +246,9 @@ public sealed class VelopackUpdateService : IUpdateService
             }
             else
             {
-                _setupPath = await DownloadWindowsSetupAsync();
+                // A user who kept the old copy already has the new one, so it is opened instead of downloading and running the installer again.
+                _setupPath = InstalledCopyUnder(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData))
+                             ?? await DownloadWindowsSetupAsync();
             }
 
             DownloadProgressChanged?.Invoke(this, 100);
@@ -291,7 +293,7 @@ public sealed class VelopackUpdateService : IUpdateService
             return;
         }
 
-        // Setup installs the Velopack copy for this user and opens it, and that copy then removes this one.
+        // Setup installs the Velopack copy for this user and opens it, or the copy already installed is opened, and that copy then removes this one.
         using var setup = Process.Start(new ProcessStartInfo(_setupPath!) { UseShellExecute = true })
             ?? throw new InvalidOperationException("The Argo Books installer did not start.");
         Environment.Exit(0);
@@ -309,6 +311,14 @@ public sealed class VelopackUpdateService : IUpdateService
         return feed.Assets
             .Where(asset => asset.Type == VelopackAssetType.Full)
             .MaxBy(asset => asset.Version);
+    }
+
+    /// <summary>The app of the Velopack copy installed for this user under <paramref name="localAppData"/>, or null when there is none.</summary>
+    internal static string? InstalledCopyUnder(string localAppData)
+    {
+        var current = Path.Combine(localAppData, PackId, "current");
+        var app = Path.Combine(current, "Argo Books.exe");
+        return File.Exists(Path.Combine(current, "sq.version")) && File.Exists(app) ? app : null;
     }
 
     /// <summary>
