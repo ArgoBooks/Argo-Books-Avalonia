@@ -219,16 +219,25 @@ def caption_chunks(words, longest_pause=0.15):
     return chunks
 
 
+LEADING_WORDS = {"a", "an", "the", "to", "of", "and", "or", "for", "in", "on", "at", "is", "it's", "your", "my", "from", "with", "by"}
+
+
 def balanced_chunks(words, longest_pause=0.4, most=4):
-    """Groups each phrase's words into lines of about the same length, so a phrase never ends on a line of one word."""
+    """Groups each phrase's words into lines of about the same length, so a phrase never ends on a line of one word, and a
+    line never ends on a word like "the" that leads into the next one."""
     chunks, run = [], []
     for n, word in enumerate(words):
         run.append(word)
         pause = n + 1 == len(words) or words[n + 1]["at"] - word["end"] > longest_pause
         if pause or word["text"].endswith((",", ".", "?", ":")):
             parts = -(-len(run) // most)
-            size = len(run) / parts
-            chunks += [run[round(k * size):round((k + 1) * size)] for k in range(parts)]
+            cuts = [0]
+            for k in range(1, parts):
+                even = int(k * len(run) / parts + 0.5)
+                options = [c for c in (even, even + 1, even - 1) if cuts[-1] < c < len(run) and c - cuts[-1] <= most + 1]
+                cuts.append(next((c for c in options if run[c - 1]["text"].lower() not in LEADING_WORDS), even))
+            cuts.append(len(run))
+            chunks += [run[a:b] for a, b in zip(cuts, cuts[1:])]
             run = []
     return chunks
 
