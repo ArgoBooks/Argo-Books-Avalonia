@@ -52,26 +52,21 @@ sudo apt install libgtk-3-0 libwebkit2gtk-4.0-37 libsecret-tools policykit-1
 
 ## macOS
 
-**This whole section has to be done on a Mac.** The tools it needs only exist there, so none of it can be done from Windows the way the Linux build can. Clone the repo on the Mac and work there.
+The macOS build also runs in the cloud via GitHub Actions, on GitHub's Mac machines, so no Mac is needed. It builds Apple Silicon and Intel, signs and notarizes both with the Apple secrets from [One-time release setup](setup/OneTimeReleaseSetup.md#signing-and-notarizing-on-macos), and packages them with `packaging/macos/build-app.sh`.
 
 ### Build and package
 
-`packaging/macos/build-app.sh` does the whole thing: publishes, assembles the `.app`, generates the `.icns` from `ArgoBooks/Assets/argo-logo.png`, signs, notarizes and zips it.
+1. Make sure the version branch with your changes is pushed to GitHub.
+2. Go to the repo's **Actions** tab on github.com and select **Build macOS app** in the left sidebar.
+3. Click **Run workflow**, choose the branch to build from, and click the green **Run workflow** button.
+4. Wait for the run to finish (about 6 minutes, plus a few minutes per chip while Apple notarizes), then open the run's **Summary** page and scroll to the **Artifacts** section at the bottom.
+5. Download the artifact `.zip` and extract it into the repo's `publish\` folder. It holds `ArgoBooks-<version>-osx-arm64.zip`, `ArgoBooks-<version>-osx-x64.zip` and the `velopack\osx-arm64` and `velopack\osx-x64` folders.
 
-Both Apple Silicon and Intel ship, so there are two builds. The script builds Apple Silicon by default, and setting `RID=osx-x64` makes it build Intel instead. From the repo root:
+If the artifact's name ends in `-UNSIGNED`, the Apple secrets were missing, and the Summary page says so at the top. macOS reports a downloaded copy of it as damaged, so it is only for testing and must never be shipped. If only some of the secrets are set, the run stops and names the missing ones.
 
-```bash
-export APPLE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-export APPLE_NOTARY_PROFILE="argo-notary"
-./packaging/macos/build-app.sh
-RID=osx-x64 ./packaging/macos/build-app.sh
-```
+To build Linux and macOS in one go, run **Build release** instead. It runs both workflows, and its `ArgoBooks-<version>-linux-and-macos` artifact holds everything for `publish\` apart from Windows. The Linux and macOS artifacts listed beside it hold the same files split by platform.
 
-Notarization normally takes a few minutes per build and the script waits for it.
-
-When both are done, copy the two `.zip` files and the `velopack` folder from the Mac's `publish/` into `publish\` on the Windows PC.
-
-With neither environment variable set the script still produces a bundle. That is fine for testing on the build Mac itself, but a downloaded copy is blocked on every other machine, so never ship one.
+To build it on a Mac by hand instead, see [macOS manual build](setup/MacManualBuild.md).
 
 ### What the .app bundle is
 
