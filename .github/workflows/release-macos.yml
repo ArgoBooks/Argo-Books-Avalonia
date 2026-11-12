@@ -1,0 +1,131 @@
+name: Build macOS app
+
+# Manual trigger only: Actions tab -> "Build macOS app" -> Run workflow.
+# Runs packaging/macos/build-app.sh for Apple silicon and Intel and uploads both zips and the update files as one artifact.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install vpk
+        run: |
+          # The packaging tool must match the Velopack library the app ships with.
+          VELOPACK_VERSION=$(sed -n 's/.*<PackageVersion Include="Velopack" Version="\([^"]*\)".*/\1/p' Directory.Packages.props)
+          dotnet tool install --global vpk --version "$VELOPACK_VERSION"
+
+      - name: Check signing secrets
+        id: secrets
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          names=(MACOS_CERTIFICATE_P12 MACOS_CERTIFICATE_PASSWORD APPLE_API_KEY_P8 APPLE_API_KEY_ID APPLE_API_ISSUER_ID APPLE_TEAM_ID)
+          missing=()
+          for name in "${names[@]}"; do
+            [ -n "${!name:-}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -eq ${#names[@]} ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          elif [ ${#missing[@]} -gt 0 ]; then
+            echo "::error title=Apple secrets incomplete::Missing: ${missing[*]} (docs/setup/OneTimeReleaseSetup.md)"
+            exit 1
+          else
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up signing keychain
+        if: steps.secrets.outputs.signed == 'true'
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/argo-signing.keychain-db"
+          P12="$RUNNER_TEMP/certificate.p12"
+          P8="$RUNNER_TEMP/AuthKey.p8"
+          trap 'rm -f "$P12" "$P8"' EXIT
+
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode > "$P12"
+          printf '%s' "$APPLE_API_KEY_P8" | base64 --decode > "$P8"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$P12" -k "$KEYCHAIN" -P "$MACOS_CERTIFICATE_PASSWORD" -f pkcs12 -T /usr/bin/codesign >/dev/null
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          # codesign only looks in keychains on the search list, and notarytool reads its saved profile from the default keychain.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -d user -s "$KEYCHAIN"
+
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | grep "Developer ID Application" | grep "($APPLE_TEAM_ID)" | head -1 | sed 's/^[^"]*"\(.*\)"$/\1/')"
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::The certificate holds no Developer ID Application identity for team $APPLE_TEAM_ID"
+            exit 1
+          fi
+
+          xcrun notarytool store-credentials argo-notary \
+            --key "$P8" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" \
+            --keychain "$KEYCHAIN"
+
+          echo "APPLE_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "APPLE_NOTARY_PROFILE=argo-notary" >> "$GITHUB_ENV"
+
+      - name: Build Apple silicon app
+        run: ./packaging/macos/build-app.sh
+
+      - name: Build Intel app
+        env:
+          RID: osx-x64
+        run: ./packaging/macos/build-app.sh
+
+      - name: Remove signing keychain
+        if: always() && steps.secrets.outputs.signed == 'true'
+        run: |
+          security default-keychain -d user -s login.keychain || true
+          security delete-keychain "$RUNNER_TEMP/argo-signing.keychain-db" || true
+
+      - name: Read version
+        id: version
+        run: echo "version=$(sed -n 's/.*<Version>\([^<]*\)<\/Version>.*/\1/p' Directory.Build.props | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Warn that the build is unsigned
+        if: steps.secrets.outputs.signed != 'true'
+        run: |
+          echo "::warning title=macOS build is unsigned::The Apple secrets are not set, so this build is not signed or notarized. Do not ship it."
+          {
+            echo "## Unsigned build: do not ship"
+            echo ""
+            echo "The Apple signing secrets are not set, so neither app is signed or notarized. macOS reports a downloaded copy as damaged and refuses to open it. Use this build for testing only."
+            echo ""
+            echo "The secrets are described in docs/setup/OneTimeReleaseSetup.md."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload zips and update files
+        uses: actions/upload-artifact@v7
+        with:
+          name: ArgoBooks-${{ steps.version.outputs.version }}-macos${{ steps.secrets.outputs.signed != 'true' && '-UNSIGNED' || '' }}
+          path: |
+            publish/ArgoBooks-*-osx-arm64.zip
+            publish/ArgoBooks-*-osx-x64.zip
+            publish/velopack/osx-arm64/
+            publish/velopack/osx-x64/
+          if-no-files-found: error
