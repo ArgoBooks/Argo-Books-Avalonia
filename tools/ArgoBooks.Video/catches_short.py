@@ -184,6 +184,47 @@ def retimed_amounts(words, path):
     return words
 
 
+def phrase_timed_words(words, path, shortest_pause=0.15):
+    """Times each phrase that holds an amount from the voice itself. Azure can give an amount it writes as "$1,400" almost no
+    time and stretch the word before it, so when the voice has exactly one stretch of speech per phrase of the script, the
+    words of those phrases are spread over their stretch by how long each takes to say."""
+    voice = mv.decode(path, channels=1)[:, 0]
+    frame = RATE // 100
+    quiet = 20 * np.log10(np.sqrt(np.mean(voice[: len(voice) // frame * frame].reshape(-1, frame) ** 2, axis=1) + 1e-12)) < -45
+    spans, start, run = [], None, 0
+    for i, q in enumerate(quiet):
+        if not q:
+            if start is None:
+                start = i
+            elif run >= shortest_pause * 100:
+                spans.append((start / 100, (i - run) / 100))
+                start = i
+            run = 0
+        else:
+            run += 1
+    spans.append((start / 100, (len(quiet) - run) / 100))
+    phrases, current = [], []
+    for word in words:
+        current.append(word)
+        if word["text"].endswith((",", ".", "?", ":")):
+            phrases.append(current)
+            current = []
+    if current:
+        phrases.append(current)
+    if len(phrases) != len(spans):
+        print(f"phrase timing skipped: {len(phrases)} phrases, {len(spans)} stretches of speech")
+        return words
+    for phrase, (begin, end) in zip(phrases, spans):
+        if not any(c.isdigit() for w in phrase for c in w["text"]):
+            continue
+        lengths = [said_length(w["text"]) for w in phrase]
+        step, t = (end - begin) / sum(lengths), begin
+        for word, length in zip(phrase, lengths):
+            word["at"], word["end"] = t, t + step * length
+            t += step * length
+    return words
+
+
 def said_length(text):
     """Roughly how long a word takes to say, in letters, with numbers and initials counted as they are said."""
     word = text.strip(".,?!$%")
@@ -234,7 +275,7 @@ def balanced_chunks(words, longest_pause=0.4, most=4):
             cuts = [0]
             for k in range(1, parts):
                 even = int(k * len(run) / parts + 0.5)
-                options = [c for c in (even, even + 1, even - 1) if cuts[-1] < c < len(run) and c - cuts[-1] <= most + 1]
+                options = [c for c in (even, even - 1, even + 1) if cuts[-1] < c < len(run) and c - cuts[-1] <= most + 1]
                 cuts.append(next((c for c in options if run[c - 1]["text"].lower() not in LEADING_WORDS), even))
             cuts.append(len(run))
             chunks += [run[a:b] for a, b in zip(cuts, cuts[1:])]

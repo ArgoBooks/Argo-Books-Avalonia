@@ -1,16 +1,22 @@
 // Records argorobots.com's free invoice or estimate generator as a take, the way Takes.cs records the app: a hand moves,
 // clicks and types through the page while every change is saved. The take keeps its own clock, so it plays at an even
 // speed however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
-// Usage: node record_generator.js invoice|estimate OUT_FOLDER   (run "npm install" in this folder first)
+// Usage: node record_generator.js invoice|estimate|taxcalc|mileage OUT_FOLDER   (run "npm install" in this folder first)
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
 
 const EDGE = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
-const PAGES = { invoice: "https://argorobots.com/invoice-generator/", estimate: "https://argorobots.com/estimate-generator/" };
+const PAGES = {
+  invoice: "https://argorobots.com/invoice-generator/",
+  estimate: "https://argorobots.com/estimate-generator/",
+  taxcalc: "https://argorobots.com/self-employed-tax-calculator/",
+  mileage: "https://argorobots.com/mileage-deduction-calculator/",
+};
 const SCALE = 2;
-// Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short.
-const VIEWPORT = { width: 1600, height: 1000 };
+// Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short. The tax calculator
+// goes into a 16:9 video beside the app's takes, so it is recorded at the app's own window size.
+const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 } };
 
 class Take {
   constructor(page, folder) {
@@ -265,6 +271,93 @@ const RECORDINGS = {
     await templates(take, page, ["elegant", "ribbon", "modern"]);
     await download(take, page, "invoice.pdf");
   },
+  // The worked example of the video on setting money aside for tax: the US first, then Canada and Ontario.
+  async taxcalc(page, take) {
+    await take.scrollTo(250, 0.01);
+    await take.snap();
+    take.mark("top");
+    await take.place("form", ".taxcalc-form");
+    await take.place("results", "[data-tc-results]");
+    take.hold(1.2);
+    await take.moveInto("income", "#tc-income", 0, 0.9, 120);
+    take.mark("click_income");
+    await take.click();
+    await take.type("90000", 0.11);
+    take.mark("income_done");
+    take.hold(0.5);
+    await take.moveInto("expenses", "#tc-expenses", 0, 0.6, 120);
+    take.mark("click_expenses");
+    await take.click();
+    await take.type("18000", 0.11);
+    take.mark("expenses_done");
+    await take.place("setaside", '[data-tc="setaside"]');
+    await take.place("breakdown", ".taxcalc-breakdown");
+    take.hold(0.6);
+    const amount = await take.place("setaside", '[data-tc="setaside"]');
+    await take.moveTo(amount.x + amount.width + 30, amount.y + amount.height / 2 + 20, 0.8);
+    take.mark("look_us");
+    take.hold(4.5);
+    await take.moveInto("country", "#tc-country", 0, 0.8);
+    take.mark("click_country");
+    await take.click(false);
+    await page.selectOption("#tc-country", "CA");
+    await page.waitForTimeout(300);
+    await take.snap();
+    take.mark("canada");
+    take.hold(0.8);
+    await take.moveInto("province", "#tc-province", 0, 0.6);
+    take.mark("click_province");
+    await take.click(false);
+    await page.selectOption("#tc-province", "ON");
+    await page.waitForTimeout(300);
+    await take.snap();
+    take.mark("ontario");
+    const canada = await take.place("setaside", '[data-tc="setaside"]');
+    take.hold(0.4);
+    await take.moveTo(canada.x + canada.width + 30, canada.y + canada.height / 2 + 20, 0.8);
+    take.mark("look_ca");
+    take.hold(5.0);
+    take.mark("end");
+  },
+  // The tax deductions video's example: a year of US business driving either side of the IRS's July rate change, and what
+  // the claim saves at a 30 percent rate.
+  async mileage(page, take) {
+    await take.scrollTo(250, 0.01);
+    await take.snap();
+    take.mark("top");
+    await take.place("form", ".calc-form");
+    await take.place("results", "[data-mc-results]");
+    take.hold(1.2);
+    await take.moveInto("first_half", "#mc-d0", 0, 0.9, 120);
+    take.mark("click_first");
+    await take.click();
+    await take.type("4000", 0.12);
+    take.mark("first_done");
+    take.hold(0.6);
+    await take.moveInto("second_half", "#mc-d1", 0, 0.6, 120);
+    take.mark("click_second");
+    await take.click();
+    await take.type("4000", 0.12);
+    take.mark("second_done");
+    await take.place("bands", "[data-mc-bands]");
+    take.hold(0.5);
+    const deduction = await take.place("deduction", '[data-mc="deduction"]');
+    await take.moveTo(deduction.x + deduction.width + 30, deduction.y + deduction.height / 2 + 20, 0.8);
+    take.mark("look_deduction");
+    take.hold(4.0);
+    await take.moveInto("taxrate", "#mc-taxrate", 0, 0.8, 120);
+    take.mark("click_rate");
+    await take.click();
+    await take.type("30", 0.14);
+    take.mark("rate_done");
+    await take.place("worth", "[data-mc-worth]");
+    take.hold(0.5);
+    const saved = await take.place("saved", '[data-mc="taxSaved"]');
+    await take.moveTo(saved.x + saved.width + 30, saved.y + saved.height / 2 + 20, 0.8);
+    take.mark("look_saved");
+    take.hold(5.0);
+    take.mark("end");
+  },
   async estimate(page, take) {
     await opening(take, 3.0);
     await parties(take, "Northline Decks", "Northline Decks\n214 Harbor Road\nPortland, ME 04102", "Linda Park\n88 Maple Avenue\nPortland, ME 04103");
@@ -279,12 +372,13 @@ const RECORDINGS = {
 
 (async () => {
   const [kind, folder] = process.argv.slice(2);
-  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate OUT_FOLDER");
+  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage OUT_FOLDER");
+  const viewport = VIEWPORTS[kind];
   fs.rmSync(path.join(folder, "frames"), { recursive: true, force: true });
   fs.mkdirSync(path.join(folder, "frames"), { recursive: true });
   const browser = await chromium.launch({ executablePath: EDGE, headless: true });
   const context = await browser.newContext({
-    viewport: VIEWPORT, deviceScaleFactor: SCALE, locale: "en-US", timezoneId: "America/New_York", acceptDownloads: true,
+    viewport, deviceScaleFactor: SCALE, locale: "en-US", timezoneId: "America/New_York", acceptDownloads: true,
   });
   const page = await context.newPage();
   // The recording would otherwise count as visits and downloads in the site's own tool statistics.
@@ -294,7 +388,7 @@ const RECORDINGS = {
   await page.waitForTimeout(800);
   const take = new Take(page, folder);
   await RECORDINGS[kind](page, take);
-  const session = { size: [VIEWPORT.width * SCALE, VIEWPORT.height * SCALE], scale: SCALE, shots: take.shots, path: take.path, marks: take.marks, events: take.events, places: take.places };
+  const session = { size: [viewport.width * SCALE, viewport.height * SCALE], scale: SCALE, shots: take.shots, path: take.path, marks: take.marks, events: take.events, places: take.places };
   fs.writeFileSync(path.join(folder, `${kind}_session.json`), JSON.stringify(session, null, 1));
   console.log(`${take.shots.length} pictures over ${take.t.toFixed(1)} s; marks: ${Object.entries(take.marks).map(([k, v]) => `${k} ${v}`).join(", ")}`);
   await browser.close();

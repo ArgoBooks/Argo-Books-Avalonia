@@ -122,6 +122,30 @@ The takes are recorded from a copy of the released app, as for video 16. `receip
 
 `welcome`, `tour`, `bill` and `salestax` are video 16's.
 
+## How much to set aside for taxes (YouTube video 18)
+
+`taxes_video.py` makes "How Much to Set Aside for Taxes When You're Self-Employed": the 25 to 30 percent rule, the three things it covers, a worked example added up on screen, the free self-employed tax calculator on argorobots.com, and the habit of moving a share of every payment into its own account. Its files go to `work/taxes/`, and the video to `work/videos/`.
+
+```
+python taxes_video.py voice              fetches and measures the voice
+python taxes_video.py frame 12 95        saves single frames to work/taxes/check/
+python taxes_video.py                    renders the video
+```
+
+The calculator is recorded with `node record_generator.js taxcalc work/taxes/takes`, at the app's window size so it sits beside the app's takes. It types the example's income and expenses for the US, then switches to Canada and Ontario. The figures on the cards are the calculator's for the 2026 tax year, so record again and update them when its rates change. The app's takes are video 16's `salestax` and video 17's `receipt` and `reports`.
+
+## Small business tax deductions (YouTube video 19)
+
+`deductions_video.py` makes "Small Business Tax Deductions: What You Can Actually Write Off": what a write-off really saves, the test a cost has to pass in the US and Canada, the small costs people miss, the 2026 mileage rates on the free mileage calculator, the home office, the mistakes to avoid, and keeping the proof. Its files go to `work/deductions/`, and the video to `work/videos/`.
+
+```
+python deductions_video.py voice              fetches and measures the voice
+python deductions_video.py frame 12 95        saves single frames to work/deductions/check/
+python deductions_video.py                    renders the video
+```
+
+The calculator is recorded with `node record_generator.js mileage work/deductions/takes`. It types 4,000 US miles either side of the IRS's July 2026 rate change, then a 30 percent tax rate to show what the claim saves. The rates on the cards are the IRS's and the CRA's for 2026, so update them, and record again, when the rates change. The app's takes are video 17's `receipt` and `reports`.
+
 ## The Shorts
 
 - `catches_short.py` makes "the catch in each" from the recap of the roundup, in Evan's own voice. Run `roundup.py` first.
@@ -133,6 +157,8 @@ The takes are recorded from a copy of the released app, as for video 16. `receip
 - `qb_desktop_short.py` makes "QuickBooks Desktop alternatives" from the pages and takes of `qb_desktop_video.py`, with the same voice. Make those first. Sage's facts and the import's totals are drawn as cards, since Sage's site refuses a headless browser and the app's Income Statement is too small to read in a Short.
 - `bank_matching_short.py` makes "The bookkeeping step most people skip" from the `matching` take of `bookkeeping_video.py`, with the same voice. Record that take first.
 - `fading_receipt_short.py` makes "Your receipts are fading": the receipt photo in `work/` fading as thermal print does, how long the IRS and the CRA can ask for records, and the `receipt` take of `bookkeeping_video.py`, with the same voice.
+- `bank_balance_short.py` makes "Your bank balance is lying to you": an example balance counting down as the sales tax, the unpaid bills and the income tax come off it, then the `salestax` and `bill` takes of `qb_desktop_video.py`, with the same voice.
+- `pnl_short.py` makes "How to read a profit and loss statement": the example company's year so far as a waterfall of revenue, expenses and net profit, what one forgotten expense does to it, then the `receipt` take of `bookkeeping_video.py`, with the same voice. The figures are the ones the Income Statement in the `reports` take shows.
 - `render_thumbnail.js` saves a thumbnail's HTML as a PNG: `node render_thumbnail.js thumbnail.html 1280 720`.
 
 ## Credits
