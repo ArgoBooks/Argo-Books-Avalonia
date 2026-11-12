@@ -1,0 +1,25 @@
+name: Build release
+
+# Manual trigger only: Actions tab -> "Build release" -> Run workflow.
+# Builds Linux and macOS together and uploads one artifact laid out like publish\, ready to extract there on Windows.
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    uses: ./.github/workflows/release-linux.yml
+
+  macos:
+    uses: ./.github/workflows/release-macos.yml
+    secrets: inherit
+
+  combine:
+    needs: [linux, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge into one artifact
+        uses: actions/upload-artifact/merge@v7
+        with:
+          name: ArgoBooks-${{ needs.macos.outputs.version }}-linux-and-macos${{ needs.macos.outputs.signed != 'true' && '-UNSIGNED' || '' }}
+          pattern: ArgoBooks-*
+          delete-merged: true

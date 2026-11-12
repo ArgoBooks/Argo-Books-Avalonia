@@ -4,10 +4,19 @@ name: Build macOS app
 # Runs packaging/macos/build-app.sh for Apple silicon and Intel and uploads both zips and the update files as one artifact.
 on:
   workflow_dispatch:
+  workflow_call:
+    outputs:
+      version:
+        value: ${{ jobs.build.outputs.version }}
+      signed:
+        value: ${{ jobs.build.outputs.signed }}
 
 jobs:
   build:
     runs-on: macos-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      signed: ${{ steps.secrets.outputs.signed }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
