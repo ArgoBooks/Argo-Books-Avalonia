@@ -4257,14 +4257,7 @@ public partial class App : Application
         {
             Title = "Open Company".Translate(),
             AllowMultiple = false,
-            FileTypeFilter =
-            [
-                Utilities.FilePickerTypes.CompanyFileType,
-                new FilePickerFileType("All Files")
-                {
-                    Patterns = ["*.*"]
-                }
-            ]
+            FileTypeFilter = [Utilities.FilePickerTypes.CompanyFileType]
         });
 
         if (files.Count > 0)
