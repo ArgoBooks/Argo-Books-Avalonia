@@ -889,7 +889,7 @@ public class CompanyManager : IDisposable
 
             // Sync the company name from the file name so that external renames (e.g., via the OS file explorer) are reflected in the app.
             var fileBaseName = Path.GetFileNameWithoutExtension(filePath);
-            if (!string.IsNullOrEmpty(fileBaseName) && ToCompanyFileName(CompanyData.Settings.Company.Name) != fileBaseName)
+            if (!string.IsNullOrEmpty(fileBaseName) && !IsFileNameFor(CompanyData.Settings.Company.Name, fileBaseName))
             {
                 CompanyData.Settings.Company.Name = fileBaseName;
             }
@@ -1395,7 +1395,7 @@ public class CompanyManager : IDisposable
             // Sync company name with the new file name so they stay consistent
             var originalName = CompanyData!.Settings.Company.Name;
             var newName = Path.GetFileNameWithoutExtension(newFilePath);
-            if (!string.IsNullOrEmpty(newName) && ToCompanyFileName(CompanyData!.Settings.Company.Name) != newName)
+            if (!string.IsNullOrEmpty(newName) && !IsFileNameFor(CompanyData!.Settings.Company.Name, newName))
             {
                 CompanyData.Settings.Company.Name = newName;
             }
@@ -1674,6 +1674,23 @@ public class CompanyManager : IDisposable
     /// typed; only its file is named this.
     /// </summary>
     public static string ToCompanyFileName(string companyName) => SafeFileName.Create(companyName, "Company");
+
+    /// <summary>
+    /// The full file name, ".argo" included, to offer for a company called <paramref name="companyName"/>.
+    /// A name ending in a dot, such as "Acme Inc.", would otherwise give "Acme Inc..argo".
+    /// </summary>
+    public static string ToCompanyFileNameWithExtension(string companyName) =>
+        ToCompanyFileName(companyName).TrimEnd('.') + FileFormatConstants.CompanyFileExtension;
+
+    /// <summary>
+    /// Whether <paramref name="fileBaseName"/> is the file name this company is given, with or without the
+    /// dot at the end of a name like "Acme Inc.", since files named both ways exist.
+    /// </summary>
+    private static bool IsFileNameFor(string companyName, string fileBaseName)
+    {
+        var expected = ToCompanyFileName(companyName);
+        return fileBaseName == expected || fileBaseName == expected.TrimEnd('.');
+    }
 
     /// <summary>
     /// Renames a customer's Id, cascading to every reference inside the open company

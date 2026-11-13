@@ -4788,7 +4788,7 @@ public partial class App : Application
         return await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save Company".Translate(),
-            SuggestedFileName = CompanyManager.ToCompanyFileName(suggestedFileName) + FileFormatConstants.CompanyFileExtension,
+            SuggestedFileName = CompanyManager.ToCompanyFileNameWithExtension(suggestedFileName),
             DefaultExtension = FileFormatConstants.CompanyFileExtension.TrimStart('.'),
             FileTypeChoices =
             [

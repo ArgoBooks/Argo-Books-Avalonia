@@ -671,6 +671,66 @@ public class CompanyManagerTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("Acme Inc.", "Acme Inc.argo")]
+    [InlineData("Acme Inc", "Acme Inc.argo")]
+    [InlineData("St. John's", "St. John's.argo")]
+    [InlineData("...", "Company.argo")]
+    public void FileNameWithExtension_HasOneDotBeforeArgo(string companyName, string expected) =>
+        Assert.Equal(expected, CompanyManager.ToCompanyFileNameWithExtension(companyName));
+
+    /// <summary>
+    /// "Acme Inc." is saved as "Acme Inc.argo", and the dot the user typed must still be in the
+    /// company's name when the file is opened again.
+    /// </summary>
+    [Fact]
+    public async Task CreateCompany_NameEndingInDot_KeepsTheDotAfterReopen()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, CompanyManager.ToCompanyFileNameWithExtension("Acme Inc."));
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme Inc.");
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            Assert.True(await _manager.OpenCompanyAsync(path));
+            Assert.Equal("Acme Inc.", _manager.CompanyData!.Settings.Company.Name);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Files saved before the dot was dropped are named "Acme Inc..argo", and opening one must not
+    /// change the company's name either.
+    /// </summary>
+    [Fact]
+    public async Task OpenCompany_OlderFileWithTheDotKept_KeepsTheName()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "Acme Inc..argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme Inc.");
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            Assert.True(await _manager.OpenCompanyAsync(path));
+            Assert.Equal("Acme Inc.", _manager.CompanyData!.Settings.Company.Name);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     /// <summary>
     /// A rename that can't be done must not stop the data being saved, or leave itself pending so
     /// that every later save fails the same way.

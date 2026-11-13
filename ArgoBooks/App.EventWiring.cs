@@ -898,7 +898,7 @@ public partial class App
                     {
                         var currentPath = CompanyManager.CurrentFilePath;
                         var directory = Path.GetDirectoryName(currentPath);
-                        var newFileName = CompanyManager.ToCompanyFileName(args.CompanyName) + FileFormatConstants.CompanyFileExtension;
+                        var newFileName = CompanyManager.ToCompanyFileNameWithExtension(args.CompanyName);
                         var newPath = Path.Combine(directory!, newFileName);
 
                         if (CompanyManager.CanRenameTo(newPath))
@@ -1477,7 +1477,7 @@ public partial class App
             var file = await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
                 Title = "Export Data".Translate(),
-                SuggestedFileName = $"{CompanyManager.CurrentCompanyName ?? "Export"}-{DateTime.Now:yyyy-MM-dd}.{extension}",
+                SuggestedFileName = $"{CompanyManager.ToCompanyFileName(CompanyManager.CurrentCompanyName ?? "Export")}-{DateTime.Now:yyyy-MM-dd}.{extension}",
                 DefaultExtension = extension,
                 FileTypeChoices =
                 [
