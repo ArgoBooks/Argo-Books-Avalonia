@@ -44,7 +44,14 @@ public class CompanyManager : IDisposable
     // The CompanyData the in-flight load belongs to. The merge only proceeds if this is still the
     // current company, so a company switch during the load can't merge old receipts into the new one.
     private CompanyData? _receiptsLoadTarget;
+    private string? _receiptsLoadDirectory;
     private bool _receiptsMerged;
+
+    // True while the working folder holds records the company's file does not, after a save that failed part way or a backup of unsaved edits.
+    private bool _workingFolderAheadOfFile;
+
+    /// <summary>Reads receipts.json from a working directory. Tests replace it to make a read fail.</summary>
+    internal Func<string, Task<List<Models.Tracking.Receipt>>>? ReceiptsReaderOverride { get; set; }
 
     /// <summary>
     /// Gets whether a company is currently open.
@@ -882,7 +889,7 @@ public class CompanyManager : IDisposable
 
             // Sync the company name from the file name so that external renames (e.g., via the OS file explorer) are reflected in the app.
             var fileBaseName = Path.GetFileNameWithoutExtension(filePath);
-            if (!string.IsNullOrEmpty(fileBaseName) && ToCompanyFileName(CompanyData.Settings.Company.Name) != fileBaseName)
+            if (!string.IsNullOrEmpty(fileBaseName) && !IsFileNameFor(CompanyData.Settings.Company.Name, fileBaseName))
             {
                 CompanyData.Settings.Company.Name = fileBaseName;
             }
@@ -903,7 +910,7 @@ public class CompanyManager : IDisposable
             opened = true;
             return true;
         }
-        catch (UnauthorizedAccessException)
+        catch (CompanyPasswordException)
         {
             // Invalid password - let UI handle retry. The finally releases the instance lock so the
             // retry (a fresh OpenCompanyAsync) can re-acquire it instead of colliding with our hold.
@@ -915,7 +922,7 @@ public class CompanyManager : IDisposable
             ReleaseFileLock();
             // The app asks the user to update instead, so an older copy opening a newer file is not a fault.
             if (ex is not CompanyFileTooNewException)
-                _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company");
+                UserFileFailure.Report(_errorLogger, ex, "Failed to open company", ErrorCategory.FileSystem, "CompanyFileUnreadable");
             DeleteTempDirectoryAfterFailure();
             CompanyData = null;
             throw;
@@ -1169,8 +1176,15 @@ public class CompanyManager : IDisposable
         {
             _receiptsMerged = false;
             _receiptsLoadTarget = target;
-            _receiptsLoadTask = Task.Run(() => _fileService.LoadReceiptsAsync(tempDirectory));
+            _receiptsLoadDirectory = tempDirectory;
+            _receiptsLoadTask = ReadReceiptsInBackground(tempDirectory);
         }
+    }
+
+    private Task<List<Models.Tracking.Receipt>> ReadReceiptsInBackground(string tempDirectory)
+    {
+        var reader = ReceiptsReaderOverride;
+        return Task.Run(() => reader != null ? reader(tempDirectory) : _fileService.LoadReceiptsAsync(tempDirectory));
     }
 
     /// <summary>
@@ -1192,6 +1206,14 @@ public class CompanyManager : IDisposable
         {
             if (_receiptsMerged)
                 return;
+            // A read that failed, for example while antivirus held the file, is tried again, so one failure does not block every save for the rest of the session.
+            if (_receiptsLoadTask is { IsFaulted: true } failed && _receiptsLoadDirectory is { } directory
+                && ReferenceEquals(CompanyData, _receiptsLoadTarget))
+            {
+                // Read here so the replaced read's failure is handled, rather than reported later as a crash.
+                _ = failed.Exception;
+                _receiptsLoadTask = ReadReceiptsInBackground(directory);
+            }
             task = _receiptsLoadTask;
             target = _receiptsLoadTarget;
         }
@@ -1257,6 +1279,7 @@ public class CompanyManager : IDisposable
             // Save data to temp directory
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
             await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
+            _workingFolderAheadOfFile = true;
 
             // Apply pending rename before saving so the file is saved at the new path.
             var wasRenamed = false;
@@ -1309,6 +1332,7 @@ public class CompanyManager : IDisposable
             {
                 AcquireFileLock(CurrentFilePath);
             }
+            _workingFolderAheadOfFile = false;
 
             CompanyData!.MarkAsSaved(changeCount);
 
@@ -1369,34 +1393,50 @@ public class CompanyManager : IDisposable
             }
 
             // Sync company name with the new file name so they stay consistent
+            var originalName = CompanyData!.Settings.Company.Name;
             var newName = Path.GetFileNameWithoutExtension(newFilePath);
-            if (!string.IsNullOrEmpty(newName) && ToCompanyFileName(CompanyData!.Settings.Company.Name) != newName)
+            if (!string.IsNullOrEmpty(newName) && !IsFileNameFor(CompanyData!.Settings.Company.Name, newName))
             {
                 CompanyData.Settings.Company.Name = newName;
             }
 
-            // Save data to temp directory
-            var companyDir = GetCompanyDirectory(_currentTempDirectory);
-            await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
-
-            // Release file lock before saving, then re-acquire on new path
-            ReleaseFileLock();
+            var moved = false;
             try
             {
-                await PackTempDirectoryAsync(newFilePath, passwordToUse, cancellationToken);
+                // Save data to temp directory
+                var companyDir = GetCompanyDirectory(_currentTempDirectory);
+                await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
+                _workingFolderAheadOfFile = true;
 
-                // Update current file path and password
-                CurrentFilePath = newFilePath;
-                _currentPassword = passwordToUse;
-                // Move the cross-instance lock onto the Save-As target so it guards the new file.
-                _instanceLock.TryAcquire(newFilePath);
-                // A deferred rename targeted the OLD path; once the working file has moved to a new
-                // path via Save As it no longer applies, so a later normal Save must not act on it.
-                PendingRenamePath = null;
+                // The file lock is let go while the new file is written, and taken again in the finally below.
+                ReleaseFileLock();
+                try
+                {
+                    await PackTempDirectoryAsync(newFilePath, passwordToUse, cancellationToken);
+
+                    // Update current file path and password
+                    CurrentFilePath = newFilePath;
+                    _currentPassword = passwordToUse;
+                    moved = true;
+                    _workingFolderAheadOfFile = false;
+                    // Move the cross-instance lock onto the Save-As target so it guards the new file.
+                    _instanceLock.TryAcquire(newFilePath);
+                    // A deferred rename targeted the OLD path; once the working file has moved to a new
+                    // path via Save As it no longer applies, so a later normal Save must not act on it.
+                    PendingRenamePath = null;
+                }
+                finally
+                {
+                    // The company's file is the new one only once it has been written, so a failed Save As locks the old one again.
+                    if (CurrentFilePath != null)
+                        AcquireFileLock(CurrentFilePath);
+                }
             }
-            finally
+            catch when (!moved)
             {
-                AcquireFileLock(newFilePath);
+                // The company stays in its old file, so it keeps the name that file has.
+                CompanyData!.Settings.Company.Name = originalName;
+                throw;
             }
 
             CompanyData!.MarkAsSaved(changeCount);
@@ -1438,12 +1478,14 @@ public class CompanyManager : IDisposable
             CurrentFilePath = null;
             _currentPassword = null;
             PendingRenamePath = null;
+            _workingFolderAheadOfFile = false;
 
             // Drop any in-flight receipts load so it can't merge into the next company.
             lock (_receiptsLock)
             {
                 _receiptsLoadTask = null;
                 _receiptsLoadTarget = null;
+                _receiptsLoadDirectory = null;
                 _receiptsMerged = false;
             }
         }
@@ -1521,6 +1563,15 @@ public class CompanyManager : IDisposable
 
             // Copy the logo file to the temp directory
             await Task.Run(() => File.Copy(logoPath, destPath, overwrite: true));
+
+            // A logo of another file type is not written over, so it is removed to keep it out of the saved file.
+            foreach (var earlier in Directory.GetFiles(_currentTempDirectory!, "logo.*"))
+            {
+                if (string.Equals(Path.GetFileName(earlier), logoFileName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try { File.Delete(earlier); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* left behind, it is no longer the logo the company names */ }
+            }
 
             // Update settings
             CompanyData!.Settings.Company.LogoFileName = logoFileName;
@@ -1623,6 +1674,23 @@ public class CompanyManager : IDisposable
     /// typed; only its file is named this.
     /// </summary>
     public static string ToCompanyFileName(string companyName) => SafeFileName.Create(companyName, "Company");
+
+    /// <summary>
+    /// The full file name, ".argo" included, to offer for a company called <paramref name="companyName"/>.
+    /// A name ending in a dot, such as "Acme Inc.", would otherwise give "Acme Inc..argo".
+    /// </summary>
+    public static string ToCompanyFileNameWithExtension(string companyName) =>
+        ToCompanyFileName(companyName).TrimEnd('.') + FileFormatConstants.CompanyFileExtension;
+
+    /// <summary>
+    /// Whether <paramref name="fileBaseName"/> is the file name this company is given, with or without the
+    /// dot at the end of a name like "Acme Inc.", since files named both ways exist.
+    /// </summary>
+    private static bool IsFileNameFor(string companyName, string fileBaseName)
+    {
+        var expected = ToCompanyFileName(companyName);
+        return fileBaseName == expected || fileBaseName == expected.TrimEnd('.');
+    }
 
     /// <summary>
     /// Renames a customer's Id, cascading to every reference inside the open company
@@ -2051,6 +2119,8 @@ public class CompanyManager : IDisposable
             // Save current data to temp directory
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
             await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
+            if (HasUnsavedChanges)
+                _workingFolderAheadOfFile = true;
 
             // Export the entire temp directory as-is (includes receipts/).
             await PackTempDirectoryAsync(backupPath, _currentPassword, cancellationToken);
@@ -2094,6 +2164,7 @@ public class CompanyManager : IDisposable
 
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
             await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
+            _workingFolderAheadOfFile = true;
 
             // Repackage the .argo file so changes persist across restarts
             ReleaseFileLock();
@@ -2105,6 +2176,7 @@ public class CompanyManager : IDisposable
             {
                 AcquireFileLock(CurrentFilePath);
             }
+            _workingFolderAheadOfFile = false;
 
             return true;
         }
@@ -2112,6 +2184,18 @@ public class CompanyManager : IDisposable
         {
             _saveLock.Release();
         }
+    }
+
+    /// <summary>Keeps how far the Stripe and API imports have got as the file has it, because that progress belongs with the imported records, which a settings-only save leaves out.</summary>
+    private static void KeepImportProgressAsSaved(Models.Integrations.IntegrationsSettings toWrite, Models.Integrations.IntegrationsSettings saved)
+    {
+        toWrite.Stripe.LastSyncCursor = saved.Stripe.LastSyncCursor;
+        toWrite.Stripe.LastRefundCursor = saved.Stripe.LastRefundCursor;
+        toWrite.Stripe.PendingChargeIds = saved.Stripe.PendingChargeIds;
+        toWrite.Stripe.LastSyncTime = saved.Stripe.LastSyncTime;
+        toWrite.Stripe.ImportedPayouts = saved.Stripe.ImportedPayouts;
+        toWrite.ArgoApi.LastSyncTime = saved.ArgoApi.LastSyncTime;
+        toWrite.ArgoApi.ImportedBatches = saved.ArgoApi.ImportedBatches;
     }
 
     /// <summary>
@@ -2123,13 +2207,15 @@ public class CompanyManager : IDisposable
     /// call <c>MarkAsSaved</c> so an outstanding ChangesMade flag for OTHER
     /// edits is preserved.
     /// </summary>
-    public async Task SaveSettingsOnlyAsync(CancellationToken cancellationToken = default)
+    /// <returns>True when the settings reached the file; false when no company is open or the working folder holds unsaved records that packing it would put in the file.</returns>
+    public async Task<bool> SaveSettingsOnlyAsync(CancellationToken cancellationToken = default)
     {
         await _saveLock.WaitAsync(cancellationToken);
         try
         {
-            if (!IsCompanyOpen || CurrentFilePath == null || _currentTempDirectory == null || CompanyData == null)
-                return;
+            if (!IsCompanyOpen || CurrentFilePath == null || _currentTempDirectory == null || CompanyData == null
+                || _workingFolderAheadOfFile)
+                return false;
 
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
 
@@ -2144,12 +2230,15 @@ public class CompanyManager : IDisposable
             settings.BacktestVersion = onDisk?.BacktestVersion;
             settings.LastBacktestedMonth = onDisk?.LastBacktestedMonth;
 
+            if (onDisk != null)
+                KeepImportProgressAsSaved(settings.Integrations, onDisk.Integrations);
+
             if (onDisk == null)
             {
                 // The working copy has lost its files, so packing it would replace the company with one holding only settings.
                 await EnsureReceiptsLoadedAsync();
                 if (CompanyData == null || CurrentFilePath == null || _currentTempDirectory == null)
-                    return;
+                    return false;
                 await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
             }
             else
@@ -2166,6 +2255,8 @@ public class CompanyManager : IDisposable
             {
                 AcquireFileLock(CurrentFilePath);
             }
+
+            return true;
         }
         finally
         {
@@ -2234,9 +2325,10 @@ public class CompanyManager : IDisposable
                 tempDirectory,
                 ToCompanyFileName(CompanyData?.Settings.Company.Name ?? string.Empty));
             Directory.CreateDirectory(rebuilt);
+            // Receipts and avatars that were in it are gone, and the next save writes the company without them, so this is worth seeing on the dashboard.
             _errorLogger?.LogWarning(
-                $"The open company's working directory was gone and has been rebuilt: {tempDirectory}",
-                "CompanyManager");
+                "The open company's working directory was gone and has been rebuilt",
+                "CompanyManager", ErrorCategory.FileSystem, "WorkingDirectoryRebuilt");
             return rebuilt;
         }
 

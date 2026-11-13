@@ -415,7 +415,10 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
             ScanUsage = string.Empty;
 
-            // Every failure path in CheckUsageAsync returns a zero limit, so a hidden label and a genuine "no allowance configured" look identical from here. Recorded rather than swallowed.
+            // Every failure path in CheckUsageAsync reports itself and marks the result offline, so only a server that answered with no allowance is left to record here.
+            if (usage.IsOffline)
+                return;
+
             App.ErrorLogger?.LogWarning(
                 $"Scan usage unavailable: {usage.ErrorMessage ?? "no limit returned"}",
                 "ReceiptsPageViewModel.RefreshScanUsageAsync",
@@ -896,7 +899,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Receipt.DeleteReceipt");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "Receipt.DeleteReceipt");
         }
     }
 
@@ -1051,7 +1054,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Receipt.DeleteSelected");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "Receipt.DeleteSelected");
         }
     }
 

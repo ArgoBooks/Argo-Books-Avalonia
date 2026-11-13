@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Text.Json.Nodes;
+using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.BankMatching;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Services;
 using ArgoBooks.ViewModels;
@@ -48,6 +50,17 @@ internal static class Takes
                 await QuickBooksCheckAsync(window, options);
                 return;
             }
+            if (options.Take is "payment" or "matching" or "reports")
+            {
+                await OpenCompanyCopyAsync(window, options);
+                await (options.Take switch
+                {
+                    "payment" => PaymentAsync(window, options),
+                    "matching" => MatchingAsync(window, options),
+                    _ => ReportsAsync(window, options),
+                });
+                return;
+            }
             await OpenSampleCompanyAsync(window);
             switch (options.Take)
             {
@@ -59,6 +72,12 @@ internal static class Takes
                     break;
                 case "bank":
                     await BankAsync(window, options);
+                    break;
+                case "bill":
+                    await BillAsync(window, options);
+                    break;
+                case "salestax":
+                    await SalesTaxAsync(window, options);
                     break;
                 case "forecast":
                     await ForecastAsync(window);
@@ -466,6 +485,425 @@ internal static class Takes
         await rec.ClickAsync();
         await rec.HoldAsync(4.0);
         window.CaptureRenderedFrame()?.Save(Path.Combine(options.OutFolder, "statement.png"));
+        await rec.FinishAsync();
+    }
+
+    /// <summary>
+    /// An expense made into a bill to pay later: opened from the Expenses page, Paid unticked so it takes a due date, and
+    /// saved. Then the Accounts Payable Aging report, which lists what is owed to each supplier.
+    /// </summary>
+    private static async Task BillAsync(Window window, TakeOptions options)
+    {
+        App.NavigationService!.NavigateTo(PageNames.Expenses);
+        await Task.Delay(2500);
+        var rec = new Recorder(window, Path.Combine(options.OutFolder, "bill.mkv"), new Point(1250, 330));
+        await rec.WarmUpAsync(3);
+        rec.Mark("expenses");
+        await rec.HoldAsync(1.2);
+
+        var expenses = window.GetVisualDescendants().OfType<Control>().Select(c => c.DataContext).OfType<ExpensesPageViewModel>().First();
+        var row = Ui.Text(window, "NetSwitch 1000-24T");
+        var edit = window.GetVisualDescendants().OfType<Button>()
+            .First(b => b.Command == expenses.OpenEditModalCommand && b.IsEffectivelyVisible && Math.Abs(Ui.CentreOf(window, b).Y - Ui.CentreOf(window, row).Y) < 16);
+        await rec.MoveToAsync(Ui.LeftOf(window, row, 0.5), 1.0);
+        rec.Mark("row");
+        await rec.HoldAsync(0.6);
+        await rec.MoveToAsync(Ui.CentreOf(window, edit), 0.8);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_edit");
+        await rec.ClickAsync();
+
+        CheckBox? Paid() => window.GetVisualDescendants().OfType<CheckBox>().FirstOrDefault(c => c.Content as string == "Paid" && c.IsEffectivelyVisible);
+        await rec.WaitForAsync(() => Paid() != null && Ui.Shows(window, "Save Changes"), 10, "the expense form");
+        rec.Mark("form");
+        await rec.HoldAsync(1.2);
+        Ui.Dump(window, "expense form");
+
+        // The Paid box sits under the line items, so the form is scrolled down to it.
+        var save = Ui.Text(window, "Save Changes");
+        await rec.MoveToAsync(Ui.CentreOf(window, save) + new Point(-320, -260), 0.7);
+        rec.Mark("scroll");
+        for (var i = 0; i < 60 && Ui.CentreOf(window, Paid()!).Y > Ui.CentreOf(window, save).Y - 280; i++)
+        {
+            window.MouseWheel(rec.Cursor, new Vector(0, -1));
+            await rec.HoldAsync(0.07);
+        }
+        await rec.HoldAsync(0.5);
+        await rec.MoveToAsync(Ui.LeftOf(window, Paid()!, 0.08), 0.7);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_paid");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => Ui.Shows(window, "Due date"), 5, "the due date");
+        rec.Mark("due");
+        await rec.HoldAsync(2.8);
+        Ui.Dump(window, "bill");
+        await rec.MoveToAsync(Ui.CentreOf(window, save), 0.8);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_save");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => !Ui.Shows(window, "Save Changes"), 10, "the form to close");
+        rec.Mark("saved");
+        await rec.HoldAsync(1.0);
+        Ui.Dump(window, "expenses with the bill");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Bills to Pay")) + new Point(0, -14), 1.0);
+        rec.Mark("bills_card");
+        await rec.HoldAsync(2.5);
+
+        App.NavigationService!.NavigateTo("Reports");
+        await rec.WaitForAsync(() => App.NavigationService?.CurrentPageName == "Reports", 10, "the Reports page");
+        await rec.HoldAsync(1.0);
+        var reports = window.GetVisualDescendants().OfType<Control>().Select(c => c.DataContext).OfType<ReportsPageViewModel>().First();
+        reports.SelectTemplateCommand.Execute(ReportTemplateFactory.TemplateNames.APaging);
+        await rec.HoldAsync(0.8);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.9);
+        await rec.ClickAsync();
+        await rec.HoldAsync(2.0);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.9);
+        await rec.ClickAsync();
+        await rec.HoldAsync(5.0);
+        rec.Mark("aging");
+        Ui.Dump(window, "aging");
+        await rec.HoldAsync(4.0);
+        window.CaptureRenderedFrame()?.Save(Path.Combine(options.OutFolder, "aging.png"));
+        rec.Mark("end");
+        await rec.FinishAsync();
+    }
+
+    /// <summary>The Sales Tax page from the sidebar: each period's tax, what is owed, and when its return is due.</summary>
+    private static async Task SalesTaxAsync(Window window, TakeOptions options)
+    {
+        var rec = new Recorder(window, Path.Combine(options.OutFolder, "salestax.mkv"), new Point(1100, 260));
+        await rec.WarmUpAsync(3);
+        rec.Mark("dashboard");
+        await rec.HoldAsync(1.0);
+        var item = window.GetVisualDescendants().OfType<TextBlock>()
+            .First(t => Ui.TextOf(t) == "Sales Tax" && t.IsEffectivelyVisible && Ui.CentreOf(window, t).X < 300);
+        await rec.MoveToAsync(Ui.LeftOf(window, item), 1.0);
+        await rec.HoldAsync(0.15);
+        rec.Mark("click_sales_tax");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => App.NavigationService?.CurrentPageName == PageNames.SalesTax, 10, "the Sales Tax page");
+        rec.Mark("sales_tax");
+        await rec.HoldAsync(1.0);
+        Ui.Dump(window, "sales tax");
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Owed now")) + new Point(30, 18), 1.0);
+        rec.Mark("owed");
+        await rec.HoldAsync(1.8);
+        var due = Ui.Text(window, "Due");
+        await rec.MoveToAsync(Ui.CentreOf(window, due) + new Point(10, 110), 1.0);
+        rec.Mark("due");
+        await rec.HoldAsync(1.0);
+        await rec.MoveToAsync(Ui.CentreOf(window, due) + new Point(10, 320), 1.6);
+        await rec.HoldAsync(2.5);
+        rec.Mark("end");
+        await rec.FinishAsync();
+    }
+
+    /// <summary>
+    /// Opens a copy of the company the quickbooks take saved. It is a real company rather than the sample, so payments
+    /// can be recorded and its reports carry its own name. The copy keeps the file's name, which the app shows.
+    /// </summary>
+    private static async Task OpenCompanyCopyAsync(Window window, TakeOptions options)
+    {
+        var source = options.Statement ?? throw new ArgumentException($"The {options.Take} take needs the company file the quickbooks take saved");
+        var folder = Path.Combine(options.OutFolder, options.Take);
+        Directory.CreateDirectory(folder);
+        var copy = Path.Combine(folder, Path.GetFileName(source));
+        File.Copy(source, copy, true);
+        var open = typeof(App).GetMethod("OpenCompanyWithRetryAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+        await (Task)open.Invoke(null, [copy, "video", true])!;
+        for (var i = 0; i < 600 && App.NavigationService?.CurrentPageName != PageNames.Dashboard; i++)
+            await Task.Delay(100);
+        await Task.Delay(2000);
+        AppHooks.Audit("opened");
+    }
+
+    private static T PageModel<T>(Window window) =>
+        window.GetVisualDescendants().OfType<Control>().Select(c => c.DataContext).OfType<T>().First();
+
+    /// <summary>An unpaid invoice paid: Record Payment on its row, the payment form, and the invoice shown as paid.</summary>
+    private static async Task PaymentAsync(Window window, TakeOptions options)
+    {
+        App.NavigationService!.NavigateTo(PageNames.Invoices);
+        await Task.Delay(2500);
+        var invoices = PageModel<InvoicesPageViewModel>(window);
+        Ui.Dump(window, "invoices");
+        // An overdue invoice, the kind a payment most often closes.
+        var rowY = Ui.CentreOf(window, Ui.Text(window, "Priya Nair")).Y;
+        var pay = window.GetVisualDescendants().OfType<Button>()
+            .First(b => b.Command == invoices.RecordPaymentCommand && b.IsEffectivelyVisible && b.IsEnabled && Math.Abs(Ui.CentreOf(window, b).Y - rowY) < 16);
+
+        var rec = new Recorder(window, Path.Combine(options.OutFolder, "payment.mkv"), new Point(1250, 330));
+        await rec.WarmUpAsync(3);
+        rec.Mark("invoices");
+        await rec.HoldAsync(1.5);
+        await rec.MoveToAsync(new Point(700, rowY + 4), 1.1);
+        rec.Mark("row");
+        await rec.HoldAsync(1.2);
+        await rec.MoveToAsync(Ui.CentreOf(window, pay), 0.9);
+        await rec.HoldAsync(0.3);
+        rec.Mark("click_pay");
+        await rec.ClickAsync();
+
+        var payments = App.PaymentModalsViewModel!;
+        await rec.WaitForAsync(() => Ui.Shows(window, "Reference Number"), 10, "the payment form");
+        rec.Mark("form");
+        Ui.Dump(window, "payment form");
+        await rec.HoldAsync(2.5);
+        var save = window.GetVisualDescendants().OfType<Button>().First(b => b.Command == payments.SaveFormCommand && b.IsEffectivelyVisible);
+        await rec.MoveToAsync(Ui.CentreOf(window, save), 0.9);
+        await rec.HoldAsync(0.3);
+        rec.Mark("click_save");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => !Ui.Shows(window, "Reference Number"), 10, "the form to close");
+        rec.Mark("paid");
+        await rec.HoldAsync(1.0);
+        Ui.Dump(window, "invoices after the payment");
+        AppHooks.Audit("after the payment");
+        await rec.MoveToAsync(new Point(1000, rowY + 20), 1.2);
+        await rec.HoldAsync(3.5);
+        window.CaptureRenderedFrame()?.Save(Path.Combine(options.OutFolder, "payment.png"));
+        rec.Mark("end");
+        await rec.FinishAsync();
+    }
+
+    /// <summary>
+    /// October's statement checked against the books on the Bank Matching page, in a company that checked the months
+    /// before it already: the statement chosen, its lines matched, a transfer to savings ignored, a suggestion accepted, the
+    /// months on the calendar, and what is in the books but not the bank.
+    /// </summary>
+    private static async Task MatchingAsync(Window window, TakeOptions options)
+    {
+        var folder = Path.Combine(options.OutFolder, "matching");
+        var statement = WriteStatement(Path.Combine(folder, "October statement.csv"));
+        AppHooks.AnswerFilePickers(window, Path.Combine(folder, "unused.argo"), statement);
+        App.NavigationService!.NavigateTo("BankMatching");
+        await Task.Delay(2500);
+        var page = PageModel<BankMatchingPageViewModel>(window);
+        Ui.Dump(window, "bank matching");
+
+        var rec = new Recorder(window, Path.Combine(options.OutFolder, "matching.mkv"), new Point(1100, 300));
+        await rec.WarmUpAsync(3);
+        rec.Mark("page");
+        await rec.HoldAsync(1.5);
+        Button Visible(System.Windows.Input.ICommand command) =>
+            window.GetVisualDescendants().OfType<Button>().First(b => b.Command == command && b.IsEffectivelyVisible);
+        await rec.MoveToAsync(Ui.CentreOf(window, Visible(page.ImportStatementCommand)), 1.0);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_import");
+        await rec.ClickAsync();
+
+        var prompt = AppHooks.ImportPrompt();
+        await rec.WaitForAsync(() => AppHooks.IsOpen(prompt), 10, "the import prompt");
+        rec.Mark("prompt");
+        Ui.Dump(window, "prompt");
+        await rec.HoldAsync(3.0);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Choose statement")), 0.8);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_choose");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => page.HasSession && Ui.Shows(window, "OK"), 180, "the import's message");
+        rec.Mark("imported");
+        await rec.HoldAsync(1.8);
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "OK")), 0.8);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_ok");
+        await rec.ClickAsync();
+        await rec.WaitForAsync(() => !Ui.Shows(window, "OK"), 10, "the message to close");
+        await rec.HoldAsync(1.0);
+        rec.Mark("matched");
+        Ui.Dump(window, "matched");
+        Console.WriteLine($"matched {page.MatchedCount}, unmatched lines {page.UnmatchedLineCount}, unmatched records {page.UnmatchedBookCount}, difference {page.MatchedDifferenceDisplay}");
+        window.CaptureRenderedFrame()?.Save(Path.Combine(options.OutFolder, "matching.png"));
+
+        foreach (var (label, key) in new[] { ("Matched", "look_matched"), ("Unmatched bank lines", "look_lines"), ("Unmatched book records", "look_records") })
+        {
+            if (Ui.FindText(window, label) is not { } card)
+                continue;
+            await rec.MoveToAsync(Ui.CentreOf(window, card) + new Point(0, 30), 0.9);
+            rec.Mark(key);
+            await rec.HoldAsync(1.6);
+        }
+
+        // Money moved to the owner's own savings is neither income nor an expense, so it is set aside rather than matched.
+        if (Ui.FindText(window, "TRANSFER TO SAVINGS") is { } transfer)
+        {
+            var y = Ui.CentreOf(window, transfer).Y;
+            await rec.MoveToAsync(Ui.LeftOf(window, transfer, 0.4) + new Point(0, 14), 1.0);
+            rec.Mark("transfer");
+            await rec.HoldAsync(1.5);
+            var ignore = window.GetVisualDescendants().OfType<Button>()
+                .First(b => b.Command == page.IgnoreLineCommand && b.IsEffectivelyVisible && Math.Abs(Ui.CentreOf(window, b).Y - y) < 16);
+            await rec.MoveToAsync(Ui.CentreOf(window, ignore), 0.8);
+            await rec.HoldAsync(0.3);
+            rec.Mark("click_ignore");
+            await rec.ClickAsync();
+            await rec.HoldAsync(1.5);
+        }
+        if (Ui.FindText(window, "CITY FUEL #4412") is { } fuel)
+        {
+            await rec.MoveToAsync(Ui.LeftOf(window, fuel, 0.4) + new Point(0, 14), 1.0);
+            rec.Mark("fuel");
+            await rec.HoldAsync(3.0);
+        }
+        // The suggested lines sit further down the table, so it is scrolled until one is in view.
+        Button? Suggestion() => window.GetVisualDescendants().OfType<Button>()
+            .FirstOrDefault(b => b.Command == page.AcceptSuggestionCommand && b.IsEffectivelyVisible && Ui.CentreOf(window, b).Y is > 490 and < 790);
+        if (Suggestion() == null)
+        {
+            await rec.MoveToAsync(new Point(900, 700), 0.8);
+            rec.Mark("scroll");
+            for (var i = 0; i < 40 && Suggestion() == null; i++)
+            {
+                window.MouseWheel(rec.Cursor, new Vector(0, -1));
+                await rec.HoldAsync(0.07);
+            }
+            await rec.HoldAsync(0.6);
+        }
+        if (Suggestion() is { } accept)
+        {
+            var row = window.GetVisualDescendants().OfType<TextBlock>()
+                .FirstOrDefault(t => t.IsEffectivelyVisible && Ui.TextOf(t) == "Suggested" && Math.Abs(Ui.CentreOf(window, t).Y - Ui.CentreOf(window, accept).Y) < 16);
+            if (row != null)
+            {
+                await rec.MoveToAsync(Ui.CentreOf(window, row) + new Point(160, 14), 0.9);
+                rec.Mark("suggested");
+                await rec.HoldAsync(1.8);
+            }
+            await rec.MoveToAsync(Ui.CentreOf(window, accept), 1.0);
+            await rec.HoldAsync(0.4);
+            rec.Mark("click_accept");
+            await rec.ClickAsync();
+            await rec.HoldAsync(1.5);
+        }
+        Ui.Dump(window, "lines handled");
+
+        await rec.MoveToAsync(Ui.CentreOf(window, Visible(page.ShowLinesCalendarCommand)), 1.0);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_calendar");
+        await rec.ClickAsync();
+        await rec.HoldAsync(1.0);
+        rec.Mark("calendar");
+        Ui.Dump(window, "calendar");
+        await rec.HoldAsync(4.0);
+
+        await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Missing from statement")), 1.0);
+        await rec.HoldAsync(0.2);
+        rec.Mark("click_missing");
+        await rec.ClickAsync();
+        await rec.HoldAsync(1.0);
+        rec.Mark("missing");
+        Ui.Dump(window, "missing");
+        await rec.HoldAsync(5.0);
+        rec.Mark("end");
+        await rec.FinishAsync();
+    }
+
+    /// <summary>
+    /// Writes October's bank statement as a bank's website gives it, and gives the company the months before it as
+    /// already checked, each line matched to the record it came from. Every paid sale and expense is on the day it was
+    /// recorded, except the parts orders, whose card charges post two days later. The invoices still unpaid are left out,
+    /// and October has a fuel stop that was never recorded and a transfer to the owner's savings for tax.
+    /// </summary>
+    private static string WriteStatement(string path)
+    {
+        var data = App.CompanyManager!.CompanyData!;
+        string Supplier(string? id) => data.Suppliers.FirstOrDefault(s => s.Id == id)?.Name ?? "";
+        string Customer(string? id) => data.Customers.FirstOrDefault(c => c.Id == id)?.Name ?? "";
+        // A card charge reads as the store's name, and an e-transfer as the sender's name and their message.
+        var stores = new Dictionary<string, string>
+        {
+            ["Northwave Internet"] = "NORTHWAVE INTERNET", ["CloudHost Services"] = "CLOUDHOST HOSTING", ["TechSource Parts"] = "TECHSOURCE PARTS",
+            ["Brightline Office Supply"] = "BRIGHTLINE PAPER & TONER", ["City Fuel"] = "CITY FUEL #4412", ["Parkway Parking"] = "PARKWAY PARKING",
+        };
+        var unpaid = data.Invoices.Where(i => i.Balance > 0).Select(i => i.Id).ToHashSet();
+        var lines = new List<(DateTime Date, string Text, decimal Amount, BookRecordType Type, string? Id)>();
+        foreach (var expense in data.Expenses)
+        {
+            var name = Supplier(expense.SupplierId);
+            lines.Add((expense.Date.AddDays(name == "TechSource Parts" ? 2 : 0), stores.GetValueOrDefault(name, name.ToUpperInvariant()),
+                -expense.Total, BookRecordType.Expense, expense.Id));
+        }
+        var paid = data.Revenues.Where(r => r.PaymentStatus is RevenuePaymentStatus.Paid or RevenuePaymentStatus.Complete
+                                            && (r.InvoiceId == null || !unpaid.Contains(r.InvoiceId))).ToList();
+        foreach (var revenue in paid)
+            lines.Add((revenue.Date, $"E-TRANSFER {Customer(revenue.CustomerId).ToUpperInvariant()} {revenue.Description.ToUpperInvariant()}",
+                revenue.Total, BookRecordType.Revenue, revenue.Id));
+        lines.Add((new DateTime(2026, 10, 17), "CITY FUEL #4412", -61.30m, BookRecordType.Expense, null));
+        lines.Add((new DateTime(2026, 10, 31), "TRANSFER TO SAVINGS", -1500.00m, BookRecordType.Expense, null));
+        lines = lines.OrderBy(l => l.Date).ToList();
+
+        var october = new DateTime(2026, 10, 1);
+        var earlier = new BankImportSession { Id = Guid.NewGuid().ToString("N"), SourceFileName = "January to September statement.csv" };
+        var matcher = new BankMatchingService();
+        foreach (var (line, n) in lines.Where(l => l.Date < october).Select((l, n) => (l, n)))
+        {
+            var bankLine = new BankStatementLine { Id = Guid.NewGuid().ToString("N"), Date = line.Date, Description = line.Text, Amount = line.Amount, SourceRowIndex = n };
+            earlier.Lines.Add(bankLine);
+            matcher.ConfirmMatch(bankLine, new BankMatchCandidate { LineId = bankLine.Id, RecordType = line.Type, RecordId = line.Id!, Confidence = 1.0 }, data);
+        }
+        data.BankImportSessions.Add(earlier);
+        Console.WriteLine($"statement: {data.Expenses.Count} expenses, {paid.Count} of {data.Revenues.Count} revenues, {unpaid.Count} unpaid invoices left out, " +
+                          $"{earlier.Lines.Count} lines before October matched already");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var money = System.Globalization.CultureInfo.InvariantCulture;
+        var balance = 18250.00m + lines.Where(l => l.Date < october).Sum(l => l.Amount);
+        var csv = new System.Text.StringBuilder("Date,Description,Withdrawals,Deposits,Balance\n");
+        foreach (var (date, text, amount, _, _) in lines.Where(l => l.Date >= october))
+        {
+            balance += amount;
+            csv.Append(money, $"{date:yyyy-MM-dd},{text},{(amount < 0 ? (-amount).ToString("0.00", money) : "")},{(amount > 0 ? amount.ToString("0.00", money) : "")},{balance.ToString("0.00", money)}\n");
+        }
+        File.WriteAllText(path, csv.ToString());
+        return path;
+    }
+
+    /// <summary>The Income Statement for the year so far, then the Accounts Receivable Aging report of who still owes what.</summary>
+    private static async Task ReportsAsync(Window window, TakeOptions options)
+    {
+        App.NavigationService!.NavigateTo("Reports");
+        await Task.Delay(2500);
+        var reports = PageModel<ReportsPageViewModel>(window);
+        var rec = new Recorder(window, Path.Combine(options.OutFolder, "reports.mkv"), new Point(1100, 420));
+        await rec.WarmUpAsync(3);
+        rec.Mark("reports");
+        foreach (var (template, key) in new[]
+                 {
+                     (ReportTemplateFactory.TemplateNames.IncomeStatement, "statement"),
+                     (ReportTemplateFactory.TemplateNames.ARaging, "receivable"),
+                 })
+        {
+            while (reports.CurrentStep > 1)
+            {
+                var step = reports.CurrentStep;
+                await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Previous")), 0.8);
+                await rec.ClickAsync();
+                await rec.WaitForAsync(() => reports.CurrentStep < step, 10, "the step before");
+                await rec.HoldAsync(0.8);
+            }
+            await rec.HoldAsync(0.8);
+            reports.SelectTemplateCommand.Execute(template);
+            await rec.HoldAsync(0.8);
+            if (key == "statement")
+            {
+                reports.SelectedDatePreset = DatePresetNames.YearToDate;
+                await rec.HoldAsync(0.8);
+            }
+            rec.Mark(key + "_choice");
+            await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.9);
+            await rec.ClickAsync();
+            await rec.HoldAsync(2.0);
+            await rec.MoveToAsync(Ui.CentreOf(window, Ui.Text(window, "Next")), 0.9);
+            await rec.ClickAsync();
+            await rec.HoldAsync(5.0);
+            rec.Mark(key);
+            Ui.Dump(window, key);
+            await rec.MoveToAsync(new Point(780, 520), 1.5);
+            await rec.HoldAsync(4.0);
+            window.CaptureRenderedFrame()?.Save(Path.Combine(options.OutFolder, key + ".png"));
+        }
+        rec.Mark("end");
         await rec.FinishAsync();
     }
 

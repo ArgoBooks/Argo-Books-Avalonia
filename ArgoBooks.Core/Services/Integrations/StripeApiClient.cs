@@ -371,7 +371,7 @@ public class StripeApiClient
         {
             // Surface Stripe's own error message instead of a bare status code.
             var detail = ExtractStripeError(body) ?? resp.ReasonPhrase;
-            throw new HttpRequestException($"Stripe {(int)resp.StatusCode}: {detail}");
+            throw new HttpRequestException($"Stripe {(int)resp.StatusCode}: {detail}", null, resp.StatusCode);
         }
         return JsonDocument.Parse(body);
     }

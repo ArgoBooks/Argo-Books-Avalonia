@@ -31,7 +31,7 @@ public static class LegacyXlsConverter
     /// <summary>
     /// Opens the given <c>.xls</c> file, copies every sheet/row/cell into a new
     /// <c>.xlsx</c> workbook, writes it to a fresh temp file and returns that path.
-    /// A file named <c>.xls</c> that is really an HTML page or an <c>.xlsx</c> is read as what it is.
+    /// A file named <c>.xls</c> that is really an HTML page, an <c>.xlsx</c> or delimited text is read as what it is.
     /// </summary>
     /// <param name="xlsPath">Path to the source legacy <c>.xls</c> file.</param>
     /// <returns>The path to the newly written temporary <c>.xlsx</c> file.</returns>
@@ -59,12 +59,55 @@ public static class LegacyXlsConverter
             return tempPath;
         }
 
-        using var output = !content.AsSpan().StartsWith(BinaryWorkbookSignature) && HtmlTableReader.LooksLikeHtmlTable(content)
-            ? FromHtml(content)
+        var isBinary = content.AsSpan().StartsWith(BinaryWorkbookSignature);
+        string? delimitedText = null;
+        using var output = !isBinary && HtmlTableReader.LooksLikeHtmlTable(content) ? FromHtml(content)
+            : !isBinary && LooksLikeDelimitedText(content, out delimitedText) ? FromDelimitedText(delimitedText!)
             : FromBinaryWorkbook(content);
 
         output.SaveAs(tempPath);
         return tempPath;
+    }
+
+    /// <summary>Banks often save a comma or tab separated export under an .xls name: text with no markup whose lines share a separator.</summary>
+    private static bool LooksLikeDelimitedText(byte[] content, out string? text)
+    {
+        text = null;
+        // UTF-16 text, such as Excel's Unicode Text export, starts with a byte order mark and is full of zero bytes, which any other text has none of.
+        var isUtf16 = content.AsSpan().StartsWith((ReadOnlySpan<byte>)[0xFF, 0xFE]) || content.AsSpan().StartsWith((ReadOnlySpan<byte>)[0xFE, 0xFF]);
+        if (!isUtf16 && content.AsSpan(0, Math.Min(content.Length, 4096)).IndexOf((byte)0) >= 0)
+            return false;
+
+        var decoded = TextFileDecoder.Decode(content);
+        var start = decoded.TrimStart();
+        if (start.Length == 0 || start[0] == '<')
+            return false;
+
+        var lines = decoded.Split('\n').Where(line => !string.IsNullOrWhiteSpace(line)).Take(20).ToList();
+        var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(lines);
+        if (lines.Count(line => line.Contains(delimiter)) < 2)
+            return false;
+
+        text = decoded;
+        return true;
+    }
+
+    private static XLWorkbook FromDelimitedText(string text)
+    {
+        var rows = CsvReader.ParseRows(text, SpreadsheetAnalysisService.DetectCsvDelimiter(text.Split('\n')));
+
+        var output = new XLWorkbook();
+        var sheet = output.Worksheets.Add("Sheet1");
+        for (var r = 0; r < rows.Count; r++)
+        {
+            for (var c = 0; c < rows[r].Length; c++)
+            {
+                if (rows[r][c].Length > 0)
+                    sheet.Cell(r + 1, c + 1).Value = rows[r][c];
+            }
+        }
+
+        return output;
     }
 
     private static XLWorkbook FromHtml(byte[] content)

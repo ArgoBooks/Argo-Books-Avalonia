@@ -100,7 +100,7 @@ public class FileServiceEnvelopeTests : IDisposable
     {
         var filePath = await SaveCompanyAsync(Password);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+        await Assert.ThrowsAsync<CompanyPasswordException>(
             () => _fileService.OpenCompanyAsync(filePath, "NotThePassword#9"));
     }
 
@@ -109,7 +109,7 @@ public class FileServiceEnvelopeTests : IDisposable
     {
         var filePath = await SaveCompanyAsync(Password);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+        await Assert.ThrowsAsync<CompanyPasswordException>(
             () => _fileService.OpenCompanyAsync(filePath));
     }
 
@@ -270,7 +270,7 @@ public class FileServiceEnvelopeTests : IDisposable
     {
         var filePath = await WriteLegacyVersion1FileAsync(Password);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+        await Assert.ThrowsAsync<CompanyPasswordException>(
             () => _fileService.OpenCompanyAsync(filePath, "NotThePassword#9"));
     }
 

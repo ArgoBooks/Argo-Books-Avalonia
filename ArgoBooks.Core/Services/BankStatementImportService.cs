@@ -110,7 +110,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to parse bank statement ({Path.GetExtension(filePath)})");
+            UserFileFailure.Report(errorLogger, ex, $"Failed to parse bank statement ({Path.GetExtension(filePath)})", ErrorCategory.Import, "StatementFileUnreadable");
             throw new UnreadableStatementFileException(Path.GetFileName(filePath), ex);
         }
         finally
@@ -127,20 +127,11 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         try
         {
             var text = await Task.Run(() => TextFileDecoder.ReadAllText(filePath), cancellationToken);
-            var collected = new List<string>();
-            using (var reader = new StringReader(text))
-            {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
-                    collected.Add(line);
-            }
-            var lines = collected.ToArray();
-            if (lines.Length < 2) return [];
-
-            var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(lines);
-            var parsed = lines
-                .Where(l => !string.IsNullOrWhiteSpace(l))
-                .Select(l => SpreadsheetAnalysisService.ParseCsvLine(l, delimiter))
+            var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(text.Split('\n'));
+            // The whole text is parsed at once, because a bank can put a line break inside a quoted description.
+            var parsed = CsvReader.ParseRows(text, delimiter)
+                .Where(row => row.Any(field => !string.IsNullOrWhiteSpace(field)))
+                .Select(row => row.ToList())
                 .ToList();
             if (parsed.Count < 2) return [];
 
@@ -155,7 +146,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to parse bank statement CSV");
+            UserFileFailure.Report(errorLogger, ex, "Failed to parse bank statement CSV", ErrorCategory.Import, "StatementFileUnreadable");
             throw new UnreadableStatementFileException(Path.GetFileName(filePath), ex);
         }
     }
@@ -244,6 +235,9 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         // as 15 March in the same UK/EU file.
         var dateOrder = SpreadsheetRowReader.DetectDateOrder(rows, headers, ColDate);
 
+        // A row without a readable date is a total or a pending line only when other rows' dates read, since otherwise the dates are in a form not recognised and every row would go.
+        var datesRead = rows.Any(row => SpreadsheetRowReader.GetDateTime(row, headers, ColDate, dateOrder) != DateTime.MinValue);
+
         for (int i = 0; i < rows.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -257,8 +251,8 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
             var balance = SpreadsheetRowReader.GetNullableDecimal(row, headers, ColBalance);
             var reference = SpreadsheetRowReader.GetString(row, headers, ColReference);
 
-            // Skip rows with neither a date nor any monetary value (e.g. blank/summary rows).
-            if (date == DateTime.MinValue && signedAmount is null && debit is null && credit is null)
+            // Every bank transaction has an amount, so a row without one, such as an opening balance, is not one.
+            if ((date == DateTime.MinValue && datesRead) || (signedAmount is null && debit is null && credit is null))
                 continue;
 
             // Canonical signed amount: negative = money out, positive = money in.

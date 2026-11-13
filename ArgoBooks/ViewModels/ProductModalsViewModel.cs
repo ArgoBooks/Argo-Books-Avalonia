@@ -1,4 +1,4 @@
-﻿using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Localization;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Services;
@@ -748,7 +748,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Product.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Product.OpenDeleteConfirm");
         }
     }
 

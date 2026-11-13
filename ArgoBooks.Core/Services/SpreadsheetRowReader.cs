@@ -18,13 +18,14 @@ internal static class SpreadsheetRowReader
     public static int FindHeaderRow(IXLWorksheet worksheet)
     {
         var lastRow = Math.Min(worksheet.LastRowUsed()?.RowNumber() ?? 1, 10);
-        var colCount = worksheet.ColumnsUsed().Count();
+        // The last column that holds data, so a sheet with a blank column is read to its end.
+        var lastColumn = worksheet.LastColumnUsed()?.ColumnNumber() ?? 0;
 
         for (int rowNum = 1; rowNum <= lastRow; rowNum++)
         {
             var row = worksheet.Row(rowNum);
             int nonEmpty = 0;
-            for (int col = 1; col <= colCount; col++)
+            for (int col = 1; col <= lastColumn; col++)
             {
                 if (!row.Cell(col).IsEmpty()) nonEmpty++;
                 if (nonEmpty >= 2) return rowNum;

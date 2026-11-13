@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using ArgoBooks.Core.Validation;
+using ArgoBooks.Core.Models.Telemetry;
 
 namespace ArgoBooks.Core.Services;
 
@@ -69,7 +70,7 @@ public class UpdateEmailService(HttpClient httpClient, IErrorLogger? errorLogger
         }
         catch (Exception ex)
         {
-            errorLogger?.LogWarning($"Update email subscribe failed: {ex.Message}", "UpdateEmail");
+            errorLogger?.LogError(ex, ErrorCategory.Api, "Update email subscribe failed");
             return new UpdateEmailResult(false, "Could not reach the server. Please check your connection and try again.");
         }
     }

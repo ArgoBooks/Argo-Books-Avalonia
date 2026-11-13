@@ -105,15 +105,15 @@ public static class GoogleCredentialsManager
 
             return false;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
             // Offline / server unreachable: surface a clear message. Callers that catch
             // InvalidOperationException show this directly, without a raw-exception prefix.
-            throw new InvalidOperationException(await ConnectivityMessage.ResolveAsync());
+            throw new InvalidOperationException(await ConnectivityMessage.ResolveAsync(), ex);
         }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new InvalidOperationException(await ConnectivityMessage.ResolveAsync());
+            throw new InvalidOperationException(await ConnectivityMessage.ResolveAsync(), ex);
         }
     }
 

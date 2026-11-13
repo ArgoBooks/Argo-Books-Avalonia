@@ -969,60 +969,19 @@ public RevenuePageViewModel()
 
     partial void OnArgoApiPendingCountChanged(int value) => OnPropertyChanged(nameof(ArgoApiBannerText));
 
-    private int _lastNotifiedArgoApiPending;
-
     /// <summary>
-    /// Checks whether a connected app has sent anything that is still waiting,
-    /// and shows the Revenue-page banner if so. Called on every navigation here,
-    /// which matters more for this than it does for Stripe: a developer pushes on
-    /// their own schedule, so without a banner nothing would tell the merchant
-    /// anything had arrived at all.
-    ///
-    /// GET /v1/account returns per-type counts in a single call, so this is a much
-    /// lighter check than the Stripe one, which fetches every charge to count them.
-    ///
-    /// Errors are swallowed. A server the merchant does not control being briefly
-    /// unreachable must never stop the Revenue page loading.
+    /// Checks whether a connected app has sent anything that is still waiting, and shows the
+    /// Revenue-page banner if so. Called on every navigation here. A server the merchant does not
+    /// control being briefly unreachable leaves the banner as it was and never stops the page loading.
     /// </summary>
     private async Task CheckArgoApiPendingAsync()
     {
-        var data = App.CompanyManager?.CompanyData;
-        var api = data?.Settings.Integrations.ArgoApi;
-        if (data == null || api == null || !api.Enabled
-            || string.IsNullOrWhiteSpace(api.DesktopKey) || App.SharedHttpClient == null)
-        {
+        var count = await ArgoApiPendingNotice.CheckAsync(App.CompanyManager?.CompanyData, App.SharedHttpClient);
+        if (count == null)
             return;
-        }
 
-        try
-        {
-            var client = new ArgoApiClient(App.SharedHttpClient);
-            var account = await client.GetAccountAsync(api.DesktopKey!);
-            // Pending is absent rather than empty if the server ever omits it.
-            var count = account?.Pending?.Values.Sum() ?? 0;
-
-            ArgoApiPendingCount = count;
-            ArgoApiBannerVisible = count > 0;
-
-            if (count > 0 && count != _lastNotifiedArgoApiPending)
-            {
-                _lastNotifiedArgoApiPending = count;
-                App.AddNotification(
-                    "Argo Books API".Translate(),
-                    "New data is waiting to be imported.".Translate(),
-                    NotificationType.Info,
-                    () => App.NavigationService?.NavigateTo(PageNames.Revenue));
-            }
-            else if (count == 0)
-            {
-                _lastNotifiedArgoApiPending = 0;
-            }
-        }
-        catch
-        {
-            // Unreachable or the key was revoked: leave the banner hidden rather
-            // than raise connectivity errors on a page that is not about that.
-        }
+        ArgoApiPendingCount = count.Value;
+        ArgoApiBannerVisible = count > 0;
     }
 
     [ObservableProperty]
@@ -1058,13 +1017,12 @@ public RevenuePageViewModel()
     }
 
     /// <summary>
-    /// Re-reads the queue so the banner reflects it. The last-notified count is reset first, since
-    /// after an undo the count returns to what it was before the import and the "new data is
-    /// waiting" notice would otherwise be suppressed as a repeat.
+    /// Re-reads the queue so the banner reflects it, announcing the count again even if it matches
+    /// the last one, since after an undo it returns to what it was before the import.
     /// </summary>
     private Task RefreshArgoApiQueueAsync()
     {
-        _lastNotifiedArgoApiPending = 0;
+        ArgoApiPendingNotice.Forget();
         return CheckArgoApiPendingAsync();
     }
 

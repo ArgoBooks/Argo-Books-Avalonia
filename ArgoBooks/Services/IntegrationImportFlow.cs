@@ -1,3 +1,4 @@
+using System.Net;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Telemetry;
@@ -261,7 +262,17 @@ public static class IntegrationImportFlow
 
     private static async Task<IntegrationImportResult> FailedAsync(string title, string message, Exception ex)
     {
-        App.ErrorLogger?.LogError(ex, ErrorCategory.Api, $"{title} sync failed");
+        // A Stripe key the user revoked or limited, or our server turning a request down on purpose, is not a fault in the app.
+        var refusal = ex switch
+        {
+            HttpRequestException { StatusCode: HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden } => "StripeKeyRejected",
+            ArgoApiException { Code: "RATE_LIMITED" or "PREMIUM_REQUIRED" or "API_NOT_ENABLED" } argo => argo.Code,
+            _ => null,
+        };
+        if (refusal != null)
+            App.ErrorLogger?.LogWarning($"{title} sync was refused", $"{title} sync failed", ErrorCategory.Api, refusal);
+        else
+            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, $"{title} sync failed");
         await App.ShowWarningDialogAsync(title.Translate(), message);
         return new IntegrationImportResult(IntegrationImportOutcome.Failed, Error: ex.Message);
     }

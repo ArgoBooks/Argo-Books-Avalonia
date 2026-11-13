@@ -345,6 +345,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
 
                 if (!response.Success)
                 {
+                    SendFailure.Report(App.ErrorLogger, response.ErrorCode, response.Message, "AccountantPack.Send");
                     ErrorMessage = response.Message.Translate();
                     return;
                 }

@@ -316,7 +316,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Payroll.ViewStubs");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "Payroll.ViewStubs");
         }
     }
 
@@ -381,7 +381,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Payroll.DownloadStubs");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Payroll.DownloadStubs");
         }
     }
 

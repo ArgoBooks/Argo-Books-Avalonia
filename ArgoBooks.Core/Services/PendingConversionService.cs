@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Models.Transactions;
 
 namespace ArgoBooks.Core.Services;
@@ -273,6 +274,7 @@ public class PendingConversionService
             }
             catch (RateLimitedException)
             {
+                _errorLogger?.LogWarning("Rate-limited by the exchange rate server", "PendingConversionService", ErrorCategory.Api, "RateLimited");
                 // The loop would hit the same limit one request at a time.
                 var refused = datesToPrice.ToHashSet();
                 foreach (var entry in toProcess.Where(e => refused.Contains(e.TransactionDate.Date)))

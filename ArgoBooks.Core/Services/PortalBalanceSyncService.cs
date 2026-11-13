@@ -2,6 +2,7 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Portal;
 using ArgoBooks.Core.Models.Transactions;
+using ArgoBooks.Core.Models.Telemetry;
 
 namespace ArgoBooks.Core.Services;
 
@@ -102,8 +103,7 @@ public sealed class PortalBalanceSyncService : IDisposable
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogWarning(
-                $"Portal balance push failed: {ex.Message}", "PortalBalanceSync");
+            _errorLogger?.LogError(ex, ErrorCategory.Api, "Portal balance push failed");
         }
     }
 
@@ -220,8 +220,9 @@ public sealed class PortalBalanceSyncService : IDisposable
 
             if (!response.Success)
             {
-                _errorLogger?.LogWarning(
-                    $"Portal balance sync rejected: {response.Message}", "PortalBalanceSync");
+                // The server turned the update down, so the customer's portal shows a stale balance.
+                _errorLogger?.LogError(
+                    $"Portal balance sync rejected: {response.Message}", ErrorCategory.Api, "PortalBalanceSync", "PortalBalanceRejected");
             }
 
             return response.Success;
@@ -233,8 +234,7 @@ public sealed class PortalBalanceSyncService : IDisposable
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogWarning(
-                $"Portal balance sync failed: {ex.Message}", "PortalBalanceSync");
+            _errorLogger?.LogError(ex, ErrorCategory.Api, "Portal balance sync failed");
             return false;
         }
     }

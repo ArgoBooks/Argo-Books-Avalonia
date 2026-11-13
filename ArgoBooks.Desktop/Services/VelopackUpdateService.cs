@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
 using Velopack;
 using Velopack.Logging;
@@ -33,12 +34,17 @@ public sealed class VelopackUpdateService : IUpdateService
     /// <summary>The Windows installer every release publishes under the same name, which a copy from the old installer downloads to move over.</summary>
     private const string WindowsSetupFileName = PackId + "-win-Setup.exe";
 
+    /// <summary>What a Mac user is told when the copy they are running sits somewhere it cannot replace itself.</summary>
+    private const string MoveToApplicationsMessage =
+        "Argo Books cannot update itself from where it is. Move it to your Applications folder, open it from there, and check again.";
+
     private readonly IErrorLogger? _errorLogger;
     private readonly SignedWebSource _source;
     private readonly CleaningUpdateManager _manager;
     private readonly Task _cleanup;
     private Velopack.UpdateInfo? _pending;
     private string? _setupPath;
+    private string? _installedCopyPath;
 
     /// <inheritdoc />
     public UpdateState State { get; private set; } = UpdateState.Idle;
@@ -108,6 +114,49 @@ public sealed class VelopackUpdateService : IUpdateService
             .Any(folder => folder.Length > 0 && exe.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Whether the running copy cannot replace itself. A Mac copy opened straight from a download runs from a
+    /// folder macOS keeps read-only, and one kept outside Applications can sit where the user cannot write.
+    /// </summary>
+    private static bool CannotReplaceItself()
+    {
+        if (!OperatingSystem.IsMacOS() || MacBundlePath() is not { } bundle)
+            return false;
+
+        // macOS runs a copy still marked as downloaded from a read-only mount of its own, which it calls App Translocation.
+        if (bundle.Contains("/AppTranslocation/", StringComparison.Ordinal))
+            return true;
+
+        if (Path.GetDirectoryName(bundle) is not { Length: > 0 } parent)
+            return false;
+
+        // Replacing the app writes in the folder holding it, so that folder is the one that has to be writable.
+        try
+        {
+            var probe = Path.Combine(parent, $".argobooks-update-check-{Guid.NewGuid():N}");
+            File.WriteAllBytes(probe, []);
+            File.Delete(probe);
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>The .app folder the running copy lives in, or null when it is not running from one.</summary>
+    private static string? MacBundlePath()
+    {
+        if (Environment.ProcessPath is not { Length: > 0 } exe)
+            return null;
+
+        for (var dir = new DirectoryInfo(Path.GetDirectoryName(exe)!); dir != null; dir = dir.Parent)
+            if (dir.Name.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+                return dir.FullName;
+
+        return null;
+    }
+
     /// <inheritdoc />
     public bool IsMoveToNewInstall => IsOldWindowsInstall;
 
@@ -150,6 +199,14 @@ public sealed class VelopackUpdateService : IUpdateService
             if (!_manager.IsInstalled)
                 return UpToDate();
 
+            // Offering an update the running copy cannot install would download it and fail at the last step.
+            if (CannotReplaceItself())
+            {
+                LastError = MoveToApplicationsMessage;
+                SetState(UpdateState.Error);
+                return null;
+            }
+
             var update = await _manager.CheckForUpdatesAsync();
             if (update == null)
                 return UpToDate();
@@ -166,9 +223,8 @@ public sealed class VelopackUpdateService : IUpdateService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogWarning($"Update check failed: {ex.Message}", "AutoUpdate");
             // An update check is an HTTP fetch of the update list, so a failure is almost always a connectivity problem.
-            LastError = await ConnectivityMessage.ResolveAsync();
+            LastError = await NetworkFailure.ResolveAndReportAsync(_errorLogger, ex, "Update check failed");
             SetState(UpdateState.Error);
             return null;
         }
@@ -191,7 +247,11 @@ public sealed class VelopackUpdateService : IUpdateService
             }
             else
             {
-                _setupPath = await DownloadWindowsSetupAsync();
+                // A user who kept the old copy may already have the new one at this version or later, so it is opened instead of downloading and running the installer again.
+                _installedCopyPath = InstalledCopyUnder(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AvailableUpdate.Version);
+                if (_installedCopyPath == null)
+                    _setupPath = await DownloadWindowsSetupAsync();
             }
 
             DownloadProgressChanged?.Invoke(this, 100);
@@ -199,9 +259,17 @@ public sealed class VelopackUpdateService : IUpdateService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogWarning($"Update download failed: {ex.Message}", "AutoUpdate");
             // A failed signature check has its own message, since telling the user to check their connection would be wrong.
-            LastError = ex is UpdateSignatureException ? UpdateSignatureException.UserMessage : await ConnectivityMessage.ResolveAsync();
+            if (ex is UpdateSignatureException)
+            {
+                // A release whose signature does not match is our release process at fault, or tampering; a signature that never downloaded is still classified as the connection.
+                _errorLogger?.LogError(ex, ErrorCategory.Unknown, "Update signature check failed");
+                LastError = UpdateSignatureException.UserMessage;
+            }
+            else
+            {
+                LastError = await NetworkFailure.ResolveAndReportAsync(_errorLogger, ex, "Update download failed");
+            }
             SetState(UpdateState.Error);
             throw;
         }
@@ -228,8 +296,8 @@ public sealed class VelopackUpdateService : IUpdateService
             return;
         }
 
-        // Setup installs the Velopack copy for this user and opens it, and that copy then removes this one.
-        using var setup = Process.Start(new ProcessStartInfo(_setupPath!) { UseShellExecute = true })
+        // Setup installs the Velopack copy for this user and opens it, or the copy already installed is opened, and that copy then removes this one.
+        using var setup = Process.Start(new ProcessStartInfo(_installedCopyPath ?? _setupPath!) { UseShellExecute = true })
             ?? throw new InvalidOperationException("The Argo Books installer did not start.");
         Environment.Exit(0);
     }
@@ -246,6 +314,32 @@ public sealed class VelopackUpdateService : IUpdateService
         return feed.Assets
             .Where(asset => asset.Type == VelopackAssetType.Full)
             .MaxBy(asset => asset.Version);
+    }
+
+    /// <summary>The app of the Velopack copy installed for this user under <paramref name="localAppData"/> at <paramref name="minimumVersion"/> or later, or null when there is none.</summary>
+    internal static string? InstalledCopyUnder(string localAppData, string minimumVersion)
+    {
+        var current = Path.Combine(localAppData, PackId, "current");
+        var app = Path.Combine(current, "Argo Books.exe");
+        var manifest = Path.Combine(current, "sq.version");
+        if (!File.Exists(manifest) || !File.Exists(app))
+            return null;
+
+        try
+        {
+            // The manifest Velopack keeps beside the app names the version installed.
+            var match = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(manifest), "<version>([^<]+)</version>");
+            return match.Success
+                   && SemanticVersion.TryParse(match.Groups[1].Value.Trim(), out var installed)
+                   && SemanticVersion.TryParse(minimumVersion, out var wanted)
+                   && installed >= wanted
+                ? app
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

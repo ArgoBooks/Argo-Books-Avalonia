@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -525,7 +525,7 @@ public partial class App : Application
                     try { await CompanyManager.SavePaymentSyncAsync(companyData); }
                     catch (Exception ex)
                     {
-                        ErrorLogger?.LogWarning($"Failed to persist synced payments: {ex.Message}", "PortalSync");
+                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to persist synced payments");
                     }
 
                     if (CompanyChanged()) return;
@@ -621,7 +621,7 @@ public partial class App : Application
                 }
                 catch (Exception ex)
                 {
-                    ErrorLogger?.LogWarning($"Failed to persist synced quote responses: {ex.Message}", "PortalSync");
+                    ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to persist synced quote responses");
                 }
 
                 if (CompanyChanged()) return;
@@ -696,7 +696,7 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                ErrorLogger?.LogWarning($"Failed to upload mobile-sync snapshot: {ex.Message}", "MobileSync");
+                ErrorLogger?.LogError(ex, ErrorCategory.Api, "Failed to upload mobile-sync snapshot");
             }
 
             if (CompanyChanged()) return;
@@ -742,7 +742,7 @@ public partial class App : Application
                     }
                     catch (Exception ex)
                     {
-                        ErrorLogger?.LogWarning($"Failed to persist mobile-sync captures: {ex.Message}", "MobileSync");
+                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to persist mobile-sync captures");
                     }
                 }
 
@@ -795,7 +795,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             // Mobile-sync failures are non-critical; log and continue.
-            ErrorLogger?.LogWarning($"Mobile sync failed: {ex.Message}", "MobileSync");
+            ErrorLogger?.LogError(ex, ErrorCategory.Api, "Mobile sync failed");
         }
         finally
         {
@@ -1425,10 +1425,8 @@ public partial class App : Application
                 }
                 catch (Exception ex)
                 {
-                    errorLogger.LogWarning(
-                        $"Could not create the update service: {ex.Message}",
-                        "Startup", ErrorCategory.Network,
-                        "UpdateServiceCreateFailed");
+                    // Creating the service does no network work, so a failure here is our code or a damaged install.
+                    errorLogger.LogError(ex, ErrorCategory.Unknown, "Could not create the update service");
                 }
             }
 
@@ -1643,7 +1641,7 @@ public partial class App : Application
                     catch (Exception ex)
                     {
                         _appShellViewModel.HeaderViewModel.ShowSavingIndicator = false;
-                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company on close");
+                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company");
                         await ShowErrorDialogAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
                     }
                 }
@@ -2031,7 +2029,7 @@ public partial class App : Application
                     // The check could not be completed, which is not a verdict on the licence. Allow offline use.
                     ErrorLogger?.LogWarning(
                         "Startup license validation was rate limited; keeping the stored license.",
-                        category: ErrorCategory.License);
+                        category: ErrorCategory.License, code: "LicenseRateLimited");
                     return;
 
                 case LicenseValidationStatus.InvalidKey:
@@ -2090,9 +2088,12 @@ public partial class App : Application
                     .GetAwaiter().GetResult();
             }
 
-            // Recorded only once the work is saved, since a failed save cancels the update.
-            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied,
-                UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown"));
+            // Recorded only once the work is saved, since a failed save cancels the update, and waited for, since the installer ends the process next.
+            if (TelemetryManager is { } telemetry)
+            {
+                var context = UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown");
+                Task.Run(() => telemetry.TrackFeatureAsync(FeatureName.UpdateApplied, context)).GetAwaiter().GetResult();
+            }
         }
         catch (Exception ex)
         {
@@ -2140,7 +2141,8 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            ErrorLogger?.LogWarning($"Background update check failed: {ex.Message}", "AutoUpdate");
+            // The update service reports its own failures and never throws, so whatever lands here came from showing the result.
+            ErrorLogger?.LogError(ex, ErrorCategory.UI, "Showing the update check result failed");
         }
     }
 
@@ -2697,7 +2699,7 @@ public partial class App : Application
             catch (Exception ex)
             {
                 _suppressSavedFeedback = false;
-                ErrorLogger?.LogWarning($"Could not save the sample company's moved dates: {ex.Message}", "SampleCompany");
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Could not save the sample company's moved dates");
             }
         }
 
@@ -2975,7 +2977,7 @@ public partial class App : Application
             {
                 _mainWindowViewModel?.HideLoading();
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "xls-convert");
-                ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to convert a .xls or .ods file for import");
+                UserFileFailure.Report(ErrorLogger, ex, "Failed to convert a .xls or .ods file for import", ErrorCategory.Import, "ImportFileUnreadable");
                 await ShowErrorDialogAsync(
                     "Import Failed".Translate(),
                     isOds
@@ -3166,9 +3168,7 @@ public partial class App : Application
                 using var validationCts = new CancellationTokenSource();
                 _mainWindowViewModel?.ShowLoading("Validating mapped data...".Translate(), cts: validationCts, cancelConfirmation: ConfirmCancelAsync);
 
-                var validationResult = isCsv
-                    ? new ImportValidationResult() // CSV validation is simpler
-                    : await importService.ValidateWithMappingsAsync(filePath, companyData, updatedAnalysis);
+                var validationResult = await importService.ValidateWithMappingsAsync(filePath, companyData, updatedAnalysis);
 
                 _mainWindowViewModel?.HideLoading();
 
@@ -4257,14 +4257,7 @@ public partial class App : Application
         {
             Title = "Open Company".Translate(),
             AllowMultiple = false,
-            FileTypeFilter =
-            [
-                Utilities.FilePickerTypes.CompanyFileType,
-                new FilePickerFileType("All Files")
-                {
-                    Patterns = ["*.*"]
-                }
-            ]
+            FileTypeFilter = [Utilities.FilePickerTypes.CompanyFileType]
         });
 
         if (files.Count > 0)
@@ -4431,7 +4424,7 @@ public partial class App : Application
                 CancelCompanyOpenTiming();
             }
         }
-        catch (UnauthorizedAccessException)
+        catch (CompanyPasswordException)
         {
             // Wrong password - show error and retry
             _isOpeningCompany = false;
@@ -4553,7 +4546,7 @@ public partial class App : Application
                 return false;
             }
         }
-        catch (UnauthorizedAccessException)
+        catch (CompanyPasswordException)
         {
             // Wrong password again - show error and retry
             _mainWindowViewModel.HideLoading();
@@ -4795,7 +4788,7 @@ public partial class App : Application
         return await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save Company".Translate(),
-            SuggestedFileName = CompanyManager.ToCompanyFileName(suggestedFileName) + FileFormatConstants.CompanyFileExtension,
+            SuggestedFileName = CompanyManager.ToCompanyFileNameWithExtension(suggestedFileName),
             DefaultExtension = FileFormatConstants.CompanyFileExtension.TrimStart('.'),
             FileTypeChoices =
             [

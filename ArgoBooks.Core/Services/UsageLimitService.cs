@@ -121,12 +121,17 @@ public class UsageLimitService : IUsageLimitService
         var code = (int)status;
         if (code is >= 400 and < 500 && answer is { Refuses: true })
         {
-            _errorLogger?.LogWarning($"{_limit.Name} usage check refused (HTTP {code}): {answer.Error ?? answer.ErrorCode}", category: ErrorCategory.Api);
+            var refusal = $"{_limit.Name} usage check refused (HTTP {code}): {answer.Error ?? answer.ErrorCode}";
+            // A bad request is our endpoint rejecting what we sent, which is ours to fix; the rest are verdicts about this user.
+            if (status == HttpStatusCode.BadRequest)
+                _errorLogger?.LogError(refusal, ErrorCategory.Api, $"{_limit.Name} usage check", answer.ErrorCode ?? "Http400");
+            else
+                _errorLogger?.LogWarning(refusal, $"{_limit.Name} usage check", ErrorCategory.Api, answer.ErrorCode ?? $"Http{code}");
             return new UsageCheckResult { ErrorMessage = RefusalMessage(status), IsOffline = true };
         }
 
-        _errorLogger?.LogError(new Exception(answer?.Error ?? $"HTTP {code}, not an answer from the usage endpoint"), ErrorCategory.Api,
-            $"{_limit.Name} usage server unavailable, allowing");
+        _errorLogger?.LogError(answer?.Error ?? $"HTTP {code}, not an answer from the usage endpoint", ErrorCategory.Api,
+            $"{_limit.Name} usage server unavailable, allowing", $"UsageHttp{code}");
         return AllowedUncounted();
     }
 
@@ -169,7 +174,7 @@ public class UsageLimitService : IUsageLimitService
 
         if (answer == null)
         {
-            _errorLogger?.LogError($"{_limit.Name} usage increment got an unreadable answer", ErrorCategory.Api);
+            _errorLogger?.LogError($"{_limit.Name} usage increment got an unreadable answer", ErrorCategory.Api, code: "UsageUnreadable");
             return new UsageIncrementResult { ErrorMessage = "Unable to record usage." };
         }
 

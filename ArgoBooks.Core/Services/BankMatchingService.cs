@@ -41,14 +41,14 @@ public class BankMatchingService
         AutoIgnoreStripePayouts(result.Lines, data, options);
 
         // All in-scope book records, aligned to bank sign convention, that aren't already matched.
-        var records = UnmatchedRecordRefs(data, options.Scope);
+        var records = new RecordsByAmount(UnmatchedRecordRefs(data, options.Scope));
 
         foreach (var line in result.Lines)
         {
             if (line.MatchStatus is BankLineMatchStatus.Matched or BankLineMatchStatus.Ignored)
                 continue;
 
-            var candidates = ScoreCandidates(line, records, options);
+            var candidates = ScoreCandidates(line, records.Near(line.Amount, options.AmountTolerance), options);
 
             if (candidates.Count == 0)
             {
@@ -64,7 +64,7 @@ public class BankMatchingService
             {
                 best.IsAutoMatch = true;
                 ConfirmMatch(line, best, data);
-                records.RemoveAll(r => r.Type == best.RecordType && r.Id == best.RecordId);
+                records.Remove(best.RecordType, best.RecordId);
                 result.AutoMatchedCount++;
             }
             else if (best.Confidence >= options.SuggestThreshold)
@@ -86,6 +86,64 @@ public class BankMatchingService
         result.UnmatchedBookRecords = stillUnmatched;
 
         return result;
+    }
+
+    /// <summary>The unmatched records ordered by amount, so each line scores only those whose amount can match it rather than every record in the books.</summary>
+    private sealed class RecordsByAmount
+    {
+        private readonly List<BookRecordRef> _records;
+        private readonly int[] _byAmount;
+        private readonly decimal[] _sortedAmounts;
+        private readonly bool[] _removed;
+        private readonly Dictionary<(BookRecordType Type, string Id), List<int>> _byKey = [];
+
+        public RecordsByAmount(List<BookRecordRef> records)
+        {
+            _records = records;
+            _byAmount = Enumerable.Range(0, records.Count).OrderBy(i => records[i].Amount).ToArray();
+            _sortedAmounts = _byAmount.Select(i => records[i].Amount).ToArray();
+            _removed = new bool[records.Count];
+            for (var i = 0; i < records.Count; i++)
+            {
+                var key = (records[i].Type, records[i].Id);
+                if (!_byKey.TryGetValue(key, out var indices))
+                    _byKey[key] = indices = [];
+                indices.Add(i);
+            }
+        }
+
+        /// <summary>The records within <paramref name="tolerance"/> of the amount, in the books' own order, which decides between equally good candidates.</summary>
+        public List<BookRecordRef> Near(decimal amount, decimal tolerance)
+        {
+            var found = new List<int>();
+            tolerance = Math.Max(0m, tolerance);
+            for (var k = FirstAtLeast(amount - tolerance); k < _sortedAmounts.Length && _sortedAmounts[k] <= amount + tolerance; k++)
+            {
+                if (!_removed[_byAmount[k]])
+                    found.Add(_byAmount[k]);
+            }
+            found.Sort();
+            return found.ConvertAll(i => _records[i]);
+        }
+
+        public void Remove(BookRecordType type, string id)
+        {
+            if (_byKey.TryGetValue((type, id), out var indices))
+                foreach (var i in indices)
+                    _removed[i] = true;
+        }
+
+        private int FirstAtLeast(decimal value)
+        {
+            int low = 0, high = _sortedAmounts.Length;
+            while (low < high)
+            {
+                var mid = (low + high) / 2;
+                if (_sortedAmounts[mid] < value) low = mid + 1;
+                else high = mid;
+            }
+            return low;
+        }
     }
 
     /// <summary>

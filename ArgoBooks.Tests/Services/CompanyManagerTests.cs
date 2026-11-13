@@ -1,4 +1,4 @@
-﻿using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Common;
@@ -179,6 +179,121 @@ public class CompanyManagerTests : IDisposable
         {
             await _manager.CloseCompanyAsync();
             if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    /// <summary>
+    /// A receipts read that fails once, as when antivirus holds the file at open, must not block
+    /// every later save: the next save reads again and keeps the receipts.
+    /// </summary>
+    [Fact]
+    public async Task DeferredReceipts_FailedRead_IsRetriedByTheNextSave()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var fileService = new FileService(new CompressionService(), new FooterService());
+        try
+        {
+            await _manager.CreateCompanyAsync(filePath, "Receipts Co");
+            _manager.CompanyData!.Receipts.Add(new Receipt { Id = "RCP-1", FileName = "r.jpg", FileData = "QUJD" });
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var reads = 0;
+            _manager.ReceiptsReaderOverride = async directory =>
+            {
+                if (Interlocked.Increment(ref reads) == 1)
+                {
+                    await gate.Task;
+                    throw new IOException("The file is in use by another process.");
+                }
+                return await fileService.LoadReceiptsAsync(directory);
+            };
+
+            Assert.True(await _manager.OpenCompanyAsync(filePath));
+            var firstSave = _manager.SaveCompanyAsync();
+            gate.SetResult();
+            await Assert.ThrowsAsync<IOException>(() => firstSave);
+
+            await _manager.SaveCompanyAsync();
+
+            Assert.Single(_manager.CompanyData!.Receipts);
+            Assert.Equal("RCP-1", _manager.CompanyData.Receipts[0].Id);
+            Assert.Equal(2, reads);
+        }
+        finally
+        {
+            _manager.ReceiptsReaderOverride = null;
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    /// <summary>A receipts read that already failed by the time the first save asks for it is read again, so that save keeps the receipts.</summary>
+    [Fact]
+    public async Task DeferredReceipts_ReadThatFailedBeforeTheSave_IsReadAgainByThatSave()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var fileService = new FileService(new CompressionService(), new FooterService());
+        try
+        {
+            await _manager.CreateCompanyAsync(filePath, "Receipts Co");
+            _manager.CompanyData!.Receipts.Add(new Receipt { Id = "RCP-1", FileName = "r.jpg", FileData = "QUJD" });
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            var firstReadDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var reads = 0;
+            _manager.ReceiptsReaderOverride = directory =>
+            {
+                if (Interlocked.Increment(ref reads) == 1)
+                {
+                    firstReadDone.SetResult();
+                    throw new IOException("The file is in use by another process.");
+                }
+                return fileService.LoadReceiptsAsync(directory);
+            };
+
+            Assert.True(await _manager.OpenCompanyAsync(filePath));
+            await firstReadDone.Task;
+            await Task.Delay(50);
+
+            await _manager.SaveCompanyAsync();
+
+            Assert.Single(_manager.CompanyData!.Receipts);
+            Assert.Equal(2, reads);
+        }
+        finally
+        {
+            _manager.ReceiptsReaderOverride = null;
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public async Task SaveCompanyAs_ThatFails_LeavesTheCompanyAsItWas()
+    {
+        var originalPath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var unreachable = Path.Combine(Path.GetTempPath(), $"argo-missing-{Guid.NewGuid():N}", "Renamed Co.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(originalPath, "Acme");
+            await _manager.SaveCompanyAsync();
+            var nameBefore = _manager.CompanyData!.Settings.Company.Name;
+
+            await Assert.ThrowsAnyAsync<IOException>(() => _manager.SaveCompanyAsAsync(unreachable));
+
+            Assert.Equal(nameBefore, _manager.CompanyData!.Settings.Company.Name);
+            Assert.Equal(originalPath, _manager.CurrentFilePath);
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+            Assert.True(await _manager.OpenCompanyAsync(originalPath));
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(originalPath)) File.Delete(originalPath);
         }
     }
 
@@ -418,6 +533,54 @@ public class CompanyManagerTests : IDisposable
 
     #endregion
 
+    #region Logo Tests
+
+    private static void WriteImage(string path, SkiaSharp.SKColor color, SkiaSharp.SKEncodedImageFormat format)
+    {
+        using var bitmap = new SkiaSharp.SKBitmap(8, 8);
+        bitmap.Erase(color);
+        using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(format, 100);
+        File.WriteAllBytes(path, data.ToArray());
+    }
+
+    /// <summary>
+    /// A logo replaced by one of another file type must not linger, or the thumbnail on the
+    /// recent-companies list can show the old one.
+    /// </summary>
+    [Fact]
+    public async Task ReplacingTheLogoWithAnotherFileType_ShowsTheNewLogoInTheThumbnail()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var jpg = Path.Combine(Path.GetTempPath(), $"argo-logo-{Guid.NewGuid():N}.jpg");
+        var png = Path.Combine(Path.GetTempPath(), $"argo-logo-{Guid.NewGuid():N}.png");
+        try
+        {
+            WriteImage(jpg, SkiaSharp.SKColors.Red, SkiaSharp.SKEncodedImageFormat.Jpeg);
+            WriteImage(png, SkiaSharp.SKColors.Blue, SkiaSharp.SKEncodedImageFormat.Png);
+            await _manager.CreateCompanyAsync(path, "Acme");
+            await _manager.SetCompanyLogoAsync(jpg);
+            await _manager.SaveCompanyAsync();
+
+            await _manager.SetCompanyLogoAsync(png);
+            await _manager.SaveCompanyAsync();
+
+            var logos = Directory.GetFiles(Path.GetDirectoryName(_manager.CurrentCompanyLogoPath!)!, "logo.*");
+            Assert.Equal("logo.png", Path.GetFileName(Assert.Single(logos)));
+            var footer = await new FooterService().ReadFooterAsync(path);
+            using var thumbnail = SkiaSharp.SKBitmap.Decode(Convert.FromBase64String(footer!.LogoThumbnail!));
+            Assert.Equal(SkiaSharp.SKColors.Blue, thumbnail.GetPixel(0, 0));
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            foreach (var p in new[] { path, jpg, png })
+                if (File.Exists(p)) File.Delete(p);
+        }
+    }
+
+    #endregion
+
     #region Payment Sync Save Tests
 
     /// <summary>
@@ -500,6 +663,66 @@ public class CompanyManagerTests : IDisposable
 
             Assert.True(await _manager.OpenCompanyAsync(path));
             Assert.Equal("Smith/Jones: Books?", _manager.CompanyData!.Settings.Company.Name);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("Acme Inc.", "Acme Inc.argo")]
+    [InlineData("Acme Inc", "Acme Inc.argo")]
+    [InlineData("St. John's", "St. John's.argo")]
+    [InlineData("...", "Company.argo")]
+    public void FileNameWithExtension_HasOneDotBeforeArgo(string companyName, string expected) =>
+        Assert.Equal(expected, CompanyManager.ToCompanyFileNameWithExtension(companyName));
+
+    /// <summary>
+    /// "Acme Inc." is saved as "Acme Inc.argo", and the dot the user typed must still be in the
+    /// company's name when the file is opened again.
+    /// </summary>
+    [Fact]
+    public async Task CreateCompany_NameEndingInDot_KeepsTheDotAfterReopen()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, CompanyManager.ToCompanyFileNameWithExtension("Acme Inc."));
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme Inc.");
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            Assert.True(await _manager.OpenCompanyAsync(path));
+            Assert.Equal("Acme Inc.", _manager.CompanyData!.Settings.Company.Name);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Files saved before the dot was dropped are named "Acme Inc..argo", and opening one must not
+    /// change the company's name either.
+    /// </summary>
+    [Fact]
+    public async Task OpenCompany_OlderFileWithTheDotKept_KeepsTheName()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "Acme Inc..argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme Inc.");
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            Assert.True(await _manager.OpenCompanyAsync(path));
+            Assert.Equal("Acme Inc.", _manager.CompanyData!.Settings.Company.Name);
         }
         finally
         {
@@ -1087,7 +1310,7 @@ public class CompanyManagerTests : IDisposable
     {
         public int ErrorCount { get; private set; }
         public void LogError(Exception exception, ErrorCategory category, string? context = null, string callerFile = "", int callerLine = 0, string callerMember = "") => ErrorCount++;
-        public void LogError(string message, ErrorCategory category, string? context = null, string callerFile = "", int callerLine = 0, string callerMember = "") => ErrorCount++;
+        public void LogError(string message, ErrorCategory category, string? context = null, string? code = null, string callerFile = "", int callerLine = 0, string callerMember = "") => ErrorCount++;
         public void LogWarning(string message, string? context = null, ErrorCategory category = ErrorCategory.Unknown, string? code = null, string callerFile = "", int callerLine = 0, string callerMember = "") { }
         public void LogInfo(string message) { }
         public void LogDebug(string message) { }

@@ -117,7 +117,7 @@ public class EncryptionService : IEncryptionService
         {
             var expected = Convert.FromBase64String(expectedPasswordHash);
             if (!CryptographicOperations.FixedTimeEquals(hash, expected))
-                throw new UnauthorizedAccessException("Invalid password.");
+                throw new CompanyPasswordException("Invalid password.");
 
             return AesGcmBlob.Decrypt(encryptedData, key, Convert.FromBase64String(iv));
         }

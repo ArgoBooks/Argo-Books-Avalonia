@@ -14,16 +14,17 @@ public static class SafeFileName
     /// <param name="name">The text to name the file after.</param>
     /// <param name="fallback">Used when nothing usable is left, since an empty segment would write
     /// into the parent folder instead.</param>
-    /// <param name="replaceSpaces">Also turn spaces into "-" and drop dashes at either end, for
-    /// names that get emailed or attached, where spaces get mangled.</param>
+    /// <param name="replaceSpaces">Also turn spaces into "-", drop dashes at either end and dots at
+    /// the end, for names that get emailed or attached, where spaces get mangled.</param>
     public static string Create(string? name, string fallback, bool replaceSpaces = false)
     {
         var result = new string((name ?? string.Empty)
             .Select(c => char.IsControl(c) || WindowsReservedChars.Contains(c) || (replaceSpaces && c == ' ') ? '-' : c)
             .ToArray());
 
+        // A name like "John Smith Jr." is followed by an extension, which would make "Jr..pdf".
         if (replaceSpaces)
-            result = result.Trim('-');
+            result = result.TrimEnd('.', '-').Trim('-');
 
         return string.IsNullOrWhiteSpace(result) || result.All(c => c == '.') ? fallback : result;
     }

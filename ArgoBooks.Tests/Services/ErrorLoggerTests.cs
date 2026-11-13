@@ -256,6 +256,106 @@ public class ErrorLoggerTests
         Assert.Equal(LogLevel.Error, reported.Level);
     }
 
+    #endregion
+
+    #region What Counts as Our Defect
+
+    // An Error on the dashboard means something in Argo Books to fix, so the user's own machine or connection must not produce one.
+
+    [Fact]
+    public void LogError_SameFailureCaughtTwice_IsReportedOnce()
+    {
+        var telemetry = new RecordingTelemetryManager();
+        var logger = new ErrorLogger(maxEntries: 100) { TelemetryManager = telemetry };
+        var failure = new InvalidOperationException("broken");
+
+        logger.LogError(failure, ErrorCategory.FileSystem, "Failed to open company");
+        logger.LogError(failure, ErrorCategory.FileSystem, "Failed to open company file");
+
+        Assert.Single(telemetry.Reported);
+    }
+
+    [Fact]
+    public void LogError_AWrapperOfAReportedFailure_IsNotReportedAgain()
+    {
+        var telemetry = new RecordingTelemetryManager();
+        var logger = new ErrorLogger(maxEntries: 100) { TelemetryManager = telemetry };
+        var failure = new InvalidOperationException("broken");
+
+        logger.LogError(failure, ErrorCategory.Import);
+        logger.LogError(new Exception("Import failed", failure), ErrorCategory.Import);
+
+        Assert.Single(telemetry.Reported);
+    }
+
+    [Theory]
+    [InlineData(unchecked((int)0x80070020), "FileLocked")]
+    [InlineData(unchecked((int)0x80070070), "DiskFull")]
+    [InlineData(unchecked((int)0x80070015), "DriveUnavailable")]
+    public void LogError_TheUsersOwnFileProblem_IsACodedWarning(int hResult, string code)
+    {
+        var telemetry = new RecordingTelemetryManager();
+        var logger = new ErrorLogger(maxEntries: 100) { TelemetryManager = telemetry };
+
+        logger.LogError(new IOException(@"The process cannot access the file 'D:\Books\Acme Ltd.argo'", hResult), ErrorCategory.Export);
+
+        var reported = Assert.Single(telemetry.Reported);
+        Assert.Equal(LogLevel.Warning, reported.Level);
+        Assert.Equal(code, reported.ErrorCode);
+        Assert.DoesNotContain("Acme", reported.Message);
+    }
+
+    [Fact]
+    public void LogError_AccessDenied_IsACodedWarning()
+    {
+        var telemetry = new RecordingTelemetryManager();
+        var logger = new ErrorLogger(maxEntries: 100) { TelemetryManager = telemetry };
+
+        logger.LogError(new UnauthorizedAccessException(), ErrorCategory.FileSystem);
+
+        var reported = Assert.Single(telemetry.Reported);
+        Assert.Equal(LogLevel.Warning, reported.Level);
+        Assert.Equal("AccessDenied", reported.ErrorCode);
+    }
+
+    [Fact]
+    public void LogError_ARequestThatNeverReachedAServer_IsACodedWarning()
+    {
+        var telemetry = new RecordingTelemetryManager();
+        var logger = new ErrorLogger(maxEntries: 100) { TelemetryManager = telemetry };
+
+        logger.LogError(new HttpRequestException(HttpRequestError.NameResolutionError, "No such host is known."), ErrorCategory.Api);
+
+        var reported = Assert.Single(telemetry.Reported);
+        Assert.Equal(LogLevel.Warning, reported.Level);
+        Assert.Equal("DnsFailure", reported.ErrorCode);
+        Assert.Equal(ErrorCategory.Network, reported.Category);
+    }
+
+    [Fact]
+    public void LogError_AServerThatAnsweredWithAFailure_IsAnError()
+    {
+        var telemetry = new RecordingTelemetryManager();
+        var logger = new ErrorLogger(maxEntries: 100) { TelemetryManager = telemetry };
+
+        logger.LogError(new HttpRequestException("Internal Server Error", null, System.Net.HttpStatusCode.InternalServerError), ErrorCategory.Api);
+
+        Assert.Equal(LogLevel.Error, Assert.Single(telemetry.Reported).Level);
+    }
+
+    [Fact]
+    public void LogError_AMissingFile_StaysAnError()
+    {
+        var telemetry = new RecordingTelemetryManager();
+        var logger = new ErrorLogger(maxEntries: 100) { TelemetryManager = telemetry };
+
+        logger.LogError(new FileNotFoundException(), ErrorCategory.FileSystem);
+
+        Assert.Equal(LogLevel.Error, Assert.Single(telemetry.Reported).Level);
+    }
+
+    #endregion
+
     /// <summary>Captures what ErrorLogger hands to telemetry. Every other member is unused.</summary>
     private sealed class RecordingTelemetryManager : ITelemetryManager
     {
@@ -282,6 +382,4 @@ public class ErrorLoggerTests
         public Task ClearAllDataAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<TelemetryStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default) => Task.FromResult(new TelemetryStatistics());
     }
-
-    #endregion
 }

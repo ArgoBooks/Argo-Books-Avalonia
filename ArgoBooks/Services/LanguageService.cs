@@ -326,7 +326,9 @@ public partial class LanguageService
                     LastDownloadNotPublished = true;
                     return File.Exists(GetLanguageFilePath(isoCode));
                 }
-                App.ErrorLogger?.LogWarning($"LanguageService: Download failed with status {response.StatusCode}");
+                // Our server answered with a failure, which is ours to fix.
+                App.ErrorLogger?.LogError($"LanguageService: Download failed with status {response.StatusCode}",
+                    ErrorCategory.Api, $"Translations for {languageName}", $"Http{(int)response.StatusCode}");
                 TranslationProgress?.Invoke(this, new TranslationProgressEventArgs(languageName, false, "Download failed"));
                 return false;
             }
@@ -336,7 +338,8 @@ public partial class LanguageService
 
             if (downloadedTranslations == null || downloadedTranslations.Count == 0)
             {
-                App.ErrorLogger?.LogWarning("LanguageService: Downloaded translations are empty");
+                App.ErrorLogger?.LogError("LanguageService: Downloaded translations are empty",
+                    ErrorCategory.Parsing, $"Translations for {languageName}", "TranslationsEmpty");
                 TranslationProgress?.Invoke(this, new TranslationProgressEventArgs(languageName, false, "No translations found"));
                 return false;
             }

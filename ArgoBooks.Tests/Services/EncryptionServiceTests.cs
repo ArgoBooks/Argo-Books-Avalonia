@@ -288,7 +288,7 @@ public class EncryptionServiceTests
         var hash = KeyDerivation.ComputePasswordHashBase64("pw-correct", salt);
         var encrypted = _encryptionService.Encrypt("hello"u8.ToArray(), "pw-correct", salt, iv);
 
-        Assert.Throws<UnauthorizedAccessException>(() =>
+        Assert.Throws<CompanyPasswordException>(() =>
             _encryptionService.DecryptWithVerification(encrypted, "pw-wrong", salt, iv, hash));
     }
 

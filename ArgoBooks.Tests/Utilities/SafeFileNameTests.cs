@@ -28,6 +28,13 @@ public class SafeFileNameTests
     }
 
     [Theory]
+    [InlineData("John Smith Jr.", "John-Smith-Jr")]
+    [InlineData("Acme Inc. ", "Acme-Inc")]
+    [InlineData("St. John", "St.-John")]
+    public void ReplacingSpaces_DropsDotsAtTheEnd(string given, string expected) =>
+        Assert.Equal(expected, SafeFileName.Create(given, "export", replaceSpaces: true));
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]

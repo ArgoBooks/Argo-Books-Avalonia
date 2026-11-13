@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
 using Avalonia.Controls;
@@ -101,11 +102,19 @@ public static class WebViewEnvironment
             e.Handled = true;
             HasFailed = true;
 
-            errorLogger?.LogWarning(
-                $"WebView could not start: {e.Exception.GetType().Name}: {e.Exception.Message}",
-                "WebView",
-                ErrorCategory.UI,
-                FailureCode);
+            // Our own handlers for the web view's events run inside its code too, so a fault in one of them is caught here as well, and it is ours to fix.
+            if (ThrownByOurCode(e.Exception))
+            {
+                errorLogger?.LogError(e.Exception, ErrorCategory.UI, "A web view event handler failed");
+            }
+            else
+            {
+                errorLogger?.LogWarning(
+                    $"WebView could not start: {e.Exception.GetType().Name}: {e.Exception.Message}",
+                    "WebView",
+                    ErrorCategory.UI,
+                    FailureCode);
+            }
 
             // Raised inside a handler that has just stopped the process from ending, so a
             // subscriber that throws would put the app straight back where it started.
@@ -115,11 +124,8 @@ public static class WebViewEnvironment
             }
             catch (Exception ex)
             {
-                errorLogger?.LogWarning(
-                    $"WebView fallback notification failed: {ex.Message}",
-                    "WebView",
-                    ErrorCategory.UI,
-                    FailureCode);
+                // The subscribers are our own fallback code, so this is our fault and not the missing runtime.
+                errorLogger?.LogError(ex, ErrorCategory.UI, "WebView fallback notification failed");
             }
         };
     }
@@ -167,6 +173,16 @@ public static class WebViewEnvironment
             // The dispatcher guard keeps the resulting failure non-fatal either way.
             return null;
         }
+    }
+
+    /// <summary>True when the method that threw belongs to Argo Books rather than to the web view or the runtime under it.</summary>
+    internal static bool ThrownByOurCode(Exception exception)
+    {
+        var thrown = exception is AggregateException { InnerExceptions.Count: 1 } aggregate
+            ? aggregate.InnerExceptions[0]
+            : exception;
+        var thrower = new StackTrace(thrown, false).GetFrame(0)?.GetMethod()?.DeclaringType;
+        return thrower?.Namespace?.StartsWith("ArgoBooks", StringComparison.Ordinal) == true;
     }
 
     private static bool IsWebViewFailure(Exception? exception)

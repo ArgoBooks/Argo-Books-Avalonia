@@ -90,6 +90,62 @@ On a Mac the app hides its own title bar and window buttons, leaves them to macO
 
 The pages are captured with `node capture_pages.js work/mac/pages wave_us zoho_mac zoho_us gnucash_home gnucash_download gnucash_features manager_download manager_home manager_cloud argo_downloads_mac argo_pricing`. Each is opened as a Mac's Safari, so download pages offer the Mac version. Intuit's pages refuse a headless browser, so the QuickBooks facts are on cards that name their source. The few lines the capture finds in the wrong place are placed by hand in `BOXES`, which needs checking after a fresh capture.
 
+## Best QuickBooks Desktop alternatives (YouTube video 16)
+
+`qb_desktop_video.py` makes "Best QuickBooks Desktop Alternatives (2026)": Sage 50, AccountEdge Pro, GnuCash, Manager and Argo Books, what each costs, whether your QuickBooks data comes with you, and the catch in each. Its files go to `work/qbvideo/`, and the video to `work/videos/`.
+
+```
+python qb_desktop_video.py voice              fetches and measures the voice
+python qb_desktop_video.py frame 12 95        saves single frames to work/qbvideo/check/
+python qb_desktop_video.py                    renders the video
+```
+
+The takes are recorded from a copy of the released app, the same way as the Mac takes but without the Mac changes: `git worktree add --detach <folder> origin/main`, copy this tool's `Takes.cs` over the copy's, build it there, and record `welcome`, `tour`, `bill`, `salestax` and `quickbooks` into `work/qbvideo/takes`. The `quickbooks` take needs `work/qb/exports` as its last argument and uses five of this computer's monthly spreadsheet imports. The `bill` take turns one of the sample company's expenses into a bill, then opens the Accounts Payable Aging report.
+
+The pages are captured with `node capture_pages.js work/qbvideo/pages accountedge_pricing accountedge_qb gnucash_download_win manager_download_win manager_cloud argo_downloads argo_pricing`. Sage's site refuses a headless browser and Intuit's refuses the connection, so their facts are on cards that name their source. GnuCash's features page is the one captured for video 15. The QuickBooks Online clip is video 14's, from `work/qb/clips`.
+
+## How to do your own bookkeeping (YouTube video 17)
+
+`bookkeeping_video.py` makes "How to Do Your Own Bookkeeping": a small business's routine in seven steps, from the first receipt to the reports at the end of the month, with the bank statement checked on the Bank Matching page. Its files go to `work/books/`, and the video to `work/videos/`.
+
+```
+python bookkeeping_video.py voice              fetches and measures the voice
+python bookkeeping_video.py frame 12 95        saves single frames to work/books/check/
+python bookkeeping_video.py                    renders the video
+```
+
+The takes are recorded from a copy of the released app, as for video 16. `receipt` goes into `work/books/takes`. `payment`, `matching` and `reports` go there too, and each opens a copy of the company the `quickbooks` take saved, given as the last argument (`work/qbvideo/takes/Cedar Ridge IT.argo`). It is a real company rather than the sample, so a payment can be recorded and the reports carry its own name.
+
+- `payment` records Priya Nair's overdue invoice as paid.
+- `matching` writes October's statement from the company's own records, as a bank's website would give it, and gives the company January to September as already checked. It then imports October's statement on camera, ignores a transfer to savings, points at a fuel stop that was never recorded, and accepts a suggested match. Each recording uses one of this computer's monthly bank imports.
+- `reports` shows the Income Statement for the year so far, then the Accounts Receivable Aging report.
+
+`welcome`, `tour`, `bill` and `salestax` are video 16's.
+
+## How much to set aside for taxes (YouTube video 18)
+
+`taxes_video.py` makes "How Much to Set Aside for Taxes When You're Self-Employed": the 25 to 30 percent rule, the three things it covers, a worked example added up on screen, the free self-employed tax calculator on argorobots.com, and the habit of moving a share of every payment into its own account. Its files go to `work/taxes/`, and the video to `work/videos/`.
+
+```
+python taxes_video.py voice              fetches and measures the voice
+python taxes_video.py frame 12 95        saves single frames to work/taxes/check/
+python taxes_video.py                    renders the video
+```
+
+The calculator is recorded with `node record_generator.js taxcalc work/taxes/takes`, at the app's window size so it sits beside the app's takes. It types the example's income and expenses for the US, then switches to Canada and Ontario. The figures on the cards are the calculator's for the 2026 tax year, so record again and update them when its rates change. The app's takes are video 16's `salestax` and video 17's `receipt` and `reports`.
+
+## Small business tax deductions (YouTube video 19)
+
+`deductions_video.py` makes "Small Business Tax Deductions: What You Can Actually Write Off": what a write-off really saves, the test a cost has to pass in the US and Canada, the small costs people miss, the 2026 mileage rates on the free mileage calculator, the home office, the mistakes to avoid, and keeping the proof. Its files go to `work/deductions/`, and the video to `work/videos/`.
+
+```
+python deductions_video.py voice              fetches and measures the voice
+python deductions_video.py frame 12 95        saves single frames to work/deductions/check/
+python deductions_video.py                    renders the video
+```
+
+The calculator is recorded with `node record_generator.js mileage work/deductions/takes`. It types 4,000 US miles either side of the IRS's July 2026 rate change, then a 30 percent tax rate to show what the claim saves. The rates on the cards are the IRS's and the CRA's for 2026, so update them, and record again, when the rates change. The app's takes are video 17's `receipt` and `reports`.
+
 ## The Shorts
 
 - `catches_short.py` makes "the catch in each" from the recap of the roundup, in Evan's own voice. Run `roundup.py` first.
@@ -97,6 +153,13 @@ The pages are captured with `node capture_pages.js work/mac/pages wave_us zoho_m
 - `bank_short.py` makes "Import a bank statement without linking your bank" from the `bank` take, narrated by the Azure voice.
 - `spreadsheet_short.py` makes "Still keeping your books in a spreadsheet?" from the `tour` take, with the same voice.
 - `mac_short.py` makes "Free accounting software for Mac" from the Mac takes and pages, with the same voice. Make those for `mac_video.py` first.
+- `invoice_short.py` makes "Free invoice generator" from argorobots.com's free invoice generator, and `estimate_short.py` makes "Free estimate generator for contractors" from the estimate generator, both with the same voice. Record each take first with `node record_generator.js invoice work/invoice/takes` or `node record_generator.js estimate work/estimate/takes`: it opens the live page in Edge, types the document into it and downloads the PDF, saving every change with the hand's path, and the Short turns that into a take like the app's. The recording blocks the page's own statistics, so it does not count as a visit or a download.
+- `qb_desktop_short.py` makes "QuickBooks Desktop alternatives" from the pages and takes of `qb_desktop_video.py`, with the same voice. Make those first. Sage's facts and the import's totals are drawn as cards, since Sage's site refuses a headless browser and the app's Income Statement is too small to read in a Short.
+- `bank_matching_short.py` makes "The bookkeeping step most people skip" from the `matching` take of `bookkeeping_video.py`, with the same voice. Record that take first.
+- `fading_receipt_short.py` makes "Your receipts are fading": the receipt photo in `work/` fading as thermal print does, how long the IRS and the CRA can ask for records, and the `receipt` take of `bookkeeping_video.py`, with the same voice.
+- `bank_balance_short.py` makes "Your bank balance is lying to you": an example balance counting down as the sales tax, the unpaid bills and the income tax come off it, then the `salestax` and `bill` takes of `qb_desktop_video.py`, with the same voice.
+- `pnl_short.py` makes "How to read a profit and loss statement": the example company's year so far as a waterfall of revenue, expenses and net profit, what one forgotten expense does to it, then the `receipt` take of `bookkeeping_video.py`, with the same voice. The figures are the ones the Income Statement in the `reports` take shows.
+- `hourly_short.py` makes "Don't charge \$30 an hour": a full-time year's 2,080 hours shrinking as the weeks off and the unpaid admin come out, what the billable hours have to pay, and the two rates side by side, then argorobots.com's free hourly rate calculator, with the same voice. Record its take first with `node record_generator.js hourly work/hourly_short/takes`; the figures on the cards are the ones the calculator shows for that example. When Edge will not start, which happens while an update of it is waiting, the recorder uses Chrome.
 - `render_thumbnail.js` saves a thumbnail's HTML as a PNG: `node render_thumbnail.js thumbnail.html 1280 720`.
 
 ## Credits

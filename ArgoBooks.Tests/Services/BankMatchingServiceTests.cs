@@ -97,6 +97,54 @@ public class BankMatchingServiceTests
     }
 
     [Fact]
+    public void MatchDeterministic_RecordExactlyAtTheAmountTolerance_IsStillACandidate()
+    {
+        var date = new DateTime(2025, 3, 1);
+        var data = NewCompany();
+        data.Expenses.Add(new Expense { Id = "EXP-1", Total = 100.05m, Date = date, Description = "zzzz" });
+
+        var line = Line(-100m, date, "qqqq");
+        var result = new BankMatchingService().MatchDeterministic([line], data, new BankMatchingOptions { AmountTolerance = 0.05m });
+
+        Assert.Equal(BankLineMatchStatus.Suggested, line.MatchStatus);
+        Assert.Contains(result.CandidatesByLineId[line.Id], c => c.RecordId == "EXP-1");
+    }
+
+    [Fact]
+    public void MatchDeterministic_ARecordAutoMatchedOnce_IsNotOfferedToTheNextLine()
+    {
+        var date = new DateTime(2025, 3, 1);
+        var data = NewCompany();
+        data.Expenses.Add(new Expense { Id = "EXP-1", Total = 40m, Date = date, Description = "Corner Cafe" });
+
+        var first = Line(-40m, date, "CORNER CAFE");
+        var second = Line(-40m, date, "CORNER CAFE");
+        new BankMatchingService().MatchDeterministic([first, second], data, new BankMatchingOptions());
+
+        Assert.Equal(BankLineMatchStatus.Matched, first.MatchStatus);
+        Assert.Equal(BankLineMatchStatus.Unmatched, second.MatchStatus);
+    }
+
+    [Fact]
+    public void MatchDeterministic_ManyLinesAndRecords_MatchesEachToItsOwnRecord()
+    {
+        var start = new DateTime(2024, 1, 1);
+        var data = NewCompany();
+        var lines = new List<BankStatementLine>();
+        for (var i = 0; i < 3000; i++)
+        {
+            var amount = 10m + i;
+            data.Expenses.Add(new Expense { Id = $"EXP-{i}", Total = amount, Date = start.AddDays(i % 300), Description = $"Vendor {i}" });
+            lines.Add(Line(-amount, start.AddDays(i % 300), $"VENDOR {i}"));
+        }
+
+        var result = new BankMatchingService().MatchDeterministic(lines, data, new BankMatchingOptions());
+
+        Assert.Equal(3000, result.AutoMatchedCount);
+        Assert.All(lines, l => Assert.Equal($"EXP-{(int)(-l.Amount - 10m)}", l.MatchedRecordId));
+    }
+
+    [Fact]
     public void ConfirmThenUnlink_TogglesRecordFlag()
     {
         var data = NewCompany();

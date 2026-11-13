@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
+using ArgoBooks.Core.Models.Telemetry;
 
 namespace ArgoBooks.Core.Services;
 
@@ -84,9 +85,9 @@ public sealed class SourceSurveyReporter
 
             if (!response.IsSuccessStatusCode)
             {
-                _errorLogger?.LogWarning(
+                _errorLogger?.LogError(
                     $"SourceSurveyReporter received HTTP {(int)response.StatusCode}",
-                    context: "SourceSurveyReporter.ReportAsync");
+                    ErrorCategory.Api, "SourceSurveyReporter.ReportAsync", $"Http{(int)response.StatusCode}");
                 return false;
             }
             return true;

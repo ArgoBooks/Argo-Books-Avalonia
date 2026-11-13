@@ -104,6 +104,61 @@ public class BankStatementImportServiceTests
     }
 
     [Fact]
+    public async Task ParseCsvAsync_RowsWithoutADateOrAnAmount_AreNotImported()
+    {
+        var path = await WriteTempCsvAsync(
+            "Date,Description,Amount\n" +
+            "2025-01-05,Coffee shop,-12.50\n" +
+            ",Total,-12.50\n" +
+            "Pending,Card hold,-3.00\n" +
+            "2025-01-06,Opening balance,\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            var line = Assert.Single(lines);
+            Assert.Equal("Coffee shop", line.Description);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task ParseCsvAsync_DatesInAFormNotRecognised_StillGiveTheRows()
+    {
+        var path = await WriteTempCsvAsync(
+            "Date,Description,Amount\n" +
+            "5 janv. 2025,Coffee shop,-12.50\n" +
+            "6 janv. 2025,Client deposit,250.00\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            Assert.Equal(2, lines.Count);
+            Assert.All(lines, line => Assert.Equal(DateTime.MinValue, line.Date));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task ParseCsvAsync_LineBreakInsideAQuotedDescription_KeepsTheRowWhole()
+    {
+        var path = await WriteTempCsvAsync(
+            "Date,Description,Amount\n" +
+            "2025-03-05,\"ACME STORE\nBRANCH 12\",-45.00\n" +
+            "2025-03-06,Client deposit,250.00\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            Assert.Equal(2, lines.Count);
+            Assert.Equal(-45.00m, lines[0].Amount);
+            Assert.Equal("ACME STORE\nBRANCH 12", lines[0].Description);
+            Assert.Equal(250.00m, lines[1].Amount);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task ParseCsvAsync_SignedAmountColumn_KeepsSignAndParses()
     {
         var path = await WriteTempCsvAsync(

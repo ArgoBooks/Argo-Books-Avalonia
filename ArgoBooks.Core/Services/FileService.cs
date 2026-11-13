@@ -93,7 +93,7 @@ public class FileService(
         if (footer.IsEncrypted)
         {
             if (string.IsNullOrEmpty(password))
-                throw new UnauthorizedAccessException("Password is required for this file.");
+                throw new CompanyPasswordException("Password is required for this file.");
 
             if (encryptionService == null)
                 throw new InvalidOperationException("Encryption service not available.");
@@ -155,7 +155,7 @@ public class FileService(
             // Constant-time check first, so a wrong password reports itself as a wrong password rather than as a GCM tag mismatch, which the caller could not tell apart from a corrupt file.
             var expected = Convert.FromBase64String(footer.PasswordHash);
             if (!CryptographicOperations.FixedTimeEquals(verifyHash, expected))
-                throw new UnauthorizedAccessException("Invalid password.");
+                throw new CompanyPasswordException("Invalid password.");
 
             dataKey = KeyEnvelope.Unwrap(
                 Convert.FromBase64String(footer.WrappedKey),
@@ -274,7 +274,7 @@ public class FileService(
             ModifiedAt = DateTime.UtcNow,
             // Biometric unlock substitutes for typing the password, so it is meaningless without one.
             BiometricEnabled = !string.IsNullOrEmpty(password) && GetBiometricEnabledFromDirectory(cachedSettings),
-            LogoThumbnail = GenerateLogoThumbnail(tempDirectory)
+            LogoThumbnail = GenerateLogoThumbnail(tempDirectory, cachedSettings?.Company?.LogoFileName)
         };
 
         // Check if file exists to preserve created date
@@ -295,6 +295,9 @@ public class FileService(
                 contentStream.Position = 0;
                 await contentStream.CopyToAsync(fileStream, cancellationToken);
                 await footerService.WriteFooterAsync(fileStream, footer, cancellationToken);
+                // The new file reaches the disk before it replaces the old one, so a power cut straight after a save cannot leave an empty file.
+                await fileStream.FlushAsync(cancellationToken);
+                fileStream.Flush(flushToDisk: true);
             }
             await AtomicFile.ReplaceAsync(tempPath, filePath, overwrite: true, cancellationToken);
         }
@@ -697,9 +700,10 @@ public class FileService(
 
     private const int ThumbnailMaxSize = 64;
 
-    private static string? GenerateLogoThumbnail(string tempDirectory)
+    private static string? GenerateLogoThumbnail(string tempDirectory, string? logoFileName)
     {
-        var logoPath = FindLogoFileInDirectory(tempDirectory);
+        // The logo the company settings name, because an earlier logo of another file type can still be in the folder.
+        var logoPath = string.IsNullOrEmpty(logoFileName) ? null : FindFileInDirectory(tempDirectory, logoFileName);
         if (logoPath == null)
             return null;
 
@@ -746,35 +750,6 @@ public class FileService(
         {
             return null;
         }
-    }
-
-    private static string? FindLogoFileInDirectory(string directory, int maxDepth = 3)
-    {
-        try
-        {
-            foreach (var file in Directory.GetFiles(directory))
-            {
-                var name = Path.GetFileName(file);
-                if (name.StartsWith("logo.", StringComparison.OrdinalIgnoreCase))
-                    return file;
-            }
-
-            if (maxDepth <= 0)
-                return null;
-
-            foreach (var subDir in Directory.GetDirectories(directory))
-            {
-                var result = FindLogoFileInDirectory(subDir, maxDepth - 1);
-                if (result != null)
-                    return result;
-            }
-        }
-        catch
-        {
-            // Directory may be inaccessible
-        }
-
-        return null;
     }
 
     private async Task<List<string>> GetAccountantNamesAsync(

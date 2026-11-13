@@ -384,7 +384,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             // Logged, not shown. There is nothing the customer can usefully do about it.
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Network, "License email capture failed");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.License, "License email capture failed");
         }
         finally
         {
@@ -423,7 +423,12 @@ public partial class UpgradeModalViewModel : ViewModelBase
         var json = JsonSerializer.Serialize(requestBody);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        await HttpClient.PostAsync(LicenseCaptureEmailUrl, content);
+        using var response = await HttpClient.PostAsync(LicenseCaptureEmailUrl, content);
+
+        // Our server answering with a failure is ours to fix; the caller files a request that never arrived as the connection.
+        if (!response.IsSuccessStatusCode)
+            App.ErrorLogger?.LogError($"License email capture returned HTTP {(int)response.StatusCode}",
+                ErrorCategory.License, "License email capture failed", $"Http{(int)response.StatusCode}");
     }
 
     #endregion

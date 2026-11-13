@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
 using ArgoBooks.Core.Platform;
+using ArgoBooks.Core.Models.Telemetry;
 
 namespace ArgoBooks.Core.Services;
 
@@ -115,9 +116,10 @@ public sealed class FirstRunReporter
             else
             {
                 IncrementAttemptCount(attemptsPath, attempts + 1);
-                _errorLogger?.LogWarning(
+                // Our endpoint answered with a failure, which is ours to fix.
+                _errorLogger?.LogError(
                     $"FirstRunReporter received HTTP {(int)response.StatusCode}",
-                    context: "FirstRunReporter.ReportIfFirstRunAsync");
+                    ErrorCategory.Api, "FirstRunReporter.ReportIfFirstRunAsync", $"Http{(int)response.StatusCode}");
             }
         }
         catch (OperationCanceledException)
@@ -160,21 +162,15 @@ public sealed class FirstRunReporter
                 return null;
             }
 
-            var processPath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-            if (string.IsNullOrEmpty(processPath))
-            {
-                return null;
-            }
-
             // macOS has no route: the .zip is expanded before first launch, so the bundle carries neither the archive's name nor a recorded source URL.
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 return null;
             }
 
-            // Linux: the AppImage is itself the executable, so it still carries
-            // the downloaded filename.
-            return InstallToken.FromPath(processPath);
+            return InstallToken.FromPath(LinuxDownloadPath(
+                Environment.GetEnvironmentVariable("APPIMAGE"),
+                System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName) ?? "");
         }
         catch (Exception ex)
         {
@@ -184,6 +180,10 @@ public sealed class FirstRunReporter
             return null;
         }
     }
+
+    /// <summary>The downloaded AppImage, whose name carries the token, which the AppImage runtime names in APPIMAGE because the running program sits in a temporary mount.</summary>
+    internal static string? LinuxDownloadPath(string? appImageVariable, string? processPath) =>
+        string.IsNullOrEmpty(appImageVariable) ? processPath : appImageVariable;
 
     /// <summary>
     /// Opens the welcome page so the browser can link this install to the visit that

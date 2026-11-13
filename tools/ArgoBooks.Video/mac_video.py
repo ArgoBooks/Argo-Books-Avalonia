@@ -81,22 +81,23 @@ def spoken(text):
 
 
 class Voice:
-    def __init__(self):
-        WORK.mkdir(parents=True, exist_ok=True)
+    """The parts read one after another, with a longer pause before each section. Video 16 passes its own script."""
+    def __init__(self, parts=PARTS, sections=SECTIONS, work=WORK):
+        work.mkdir(parents=True, exist_ok=True)
         pieces, self.spans, t = [np.zeros(int(0.3 * RATE), dtype=np.float32)], {}, 0.3
-        keys = list(PARTS)
+        keys = list(parts)
         for n, key in enumerate(keys):
-            samples = mv.voice_line(spoken(PARTS[key]))
+            samples = mv.voice_line(spoken(parts[key]))
             self.spans[key] = (t, t + len(samples) / RATE)
             pieces.append(samples)
-            gap = SECTION_GAP if n + 1 < len(keys) and keys[n + 1] in SECTIONS else GAP
+            gap = SECTION_GAP if n + 1 < len(keys) and keys[n + 1] in sections else GAP
             pieces.append(np.zeros(int(gap * RATE), dtype=np.float32))
             t += len(samples) / RATE + gap
         self.samples = np.concatenate(pieces)
         self.length = t
-        self.path = WORK / "voice.wav"
+        self.path = work / "voice.wav"
         r.write_mono(self.path, self.samples)
-        self.words = short.timed_words(self.path, WORK)
+        self.words = short.timed_words(self.path, work)
 
     def start(self, key):
         return self.spans[key][0]
@@ -388,14 +389,14 @@ def mix(v, spoken, total):
     return np.stack([mono, mono], axis=1)
 
 
-def write_captions(path, v):
+def write_captions(path, v, parts=PARTS):
     """The script itself, a short line at a time, timed by how far through its part each line falls."""
     def stamp(seconds):
         ms = int(round(seconds * 1000))
         return f"{ms // 3600000:02}:{ms // 60000 % 60:02}:{ms // 1000 % 60:02},{ms % 1000:03}"
 
     blocks = []
-    for key, text in PARTS.items():
+    for key, text in parts.items():
         first, last = v.spans[key]
         lines, line = [], []
         for word in text.split():
