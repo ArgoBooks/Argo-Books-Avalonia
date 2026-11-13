@@ -1,22 +1,24 @@
 // Records argorobots.com's free invoice or estimate generator as a take, the way Takes.cs records the app: a hand moves,
 // clicks and types through the page while every change is saved. The take keeps its own clock, so it plays at an even
 // speed however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
-// Usage: node record_generator.js invoice|estimate|taxcalc|mileage OUT_FOLDER   (run "npm install" in this folder first)
+// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly OUT_FOLDER   (run "npm install" in this folder first)
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
 
 const EDGE = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
+const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const PAGES = {
   invoice: "https://argorobots.com/invoice-generator/",
   estimate: "https://argorobots.com/estimate-generator/",
   taxcalc: "https://argorobots.com/self-employed-tax-calculator/",
   mileage: "https://argorobots.com/mileage-deduction-calculator/",
+  hourly: "https://argorobots.com/hourly-rate-calculator/",
 };
 const SCALE = 2;
 // Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short. The tax calculator
 // goes into a 16:9 video beside the app's takes, so it is recorded at the app's own window size.
-const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 } };
+const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 } };
 
 class Take {
   constructor(page, folder) {
@@ -358,6 +360,38 @@ const RECORDINGS = {
     take.hold(5.0);
     take.mark("end");
   },
+  // The hourly rate Short's example: a $60,000 take-home with $12,000 of costs and 25 percent tax, at the page's own 40 hours,
+  // 6 weeks off and 60 percent billable, then the quick sum the page compares it with.
+  async hourly(page, take) {
+    await take.scrollTo(120, 0.01);
+    await take.snap();
+    take.mark("top");
+    await take.place("form", ".calc-form");
+    await take.place("results", "[data-hr-results]");
+    take.hold(1.0);
+    await take.moveInto("income", "#hr-income", 0, 0.9, 120);
+    take.mark("click_income");
+    await take.click();
+    await take.type("60000", 0.11);
+    take.mark("income_done");
+    take.hold(0.3);
+    await take.moveInto("expenses", "#hr-expenses", 0, 0.5, 120);
+    take.mark("click_expenses");
+    await take.click();
+    await take.type("12000", 0.11);
+    take.hold(0.3);
+    await take.moveInto("tax", "#hr-tax", 0, 0.5, 120);
+    take.mark("click_tax");
+    await take.click();
+    await take.type("25", 0.14);
+    take.mark("typed");
+    take.hold(0.4);
+    const rate = await take.place("rate", '[data-hr="rate"]');
+    await take.moveTo(rate.x + rate.width + 30, rate.y + rate.height / 2 + 20, 0.8);
+    take.mark("look_rate");
+    take.hold(3.5);
+    take.mark("end");
+  },
   async estimate(page, take) {
     await opening(take, 3.0);
     await parties(take, "Northline Decks", "Northline Decks\n214 Harbor Road\nPortland, ME 04102", "Linda Park\n88 Maple Avenue\nPortland, ME 04103");
@@ -372,11 +406,13 @@ const RECORDINGS = {
 
 (async () => {
   const [kind, folder] = process.argv.slice(2);
-  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage OUT_FOLDER");
+  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly OUT_FOLDER");
   const viewport = VIEWPORTS[kind];
   fs.rmSync(path.join(folder, "frames"), { recursive: true, force: true });
   fs.mkdirSync(path.join(folder, "frames"), { recursive: true });
-  const browser = await chromium.launch({ executablePath: EDGE, headless: true });
+  // Edge refuses to start while an update of it is waiting to be installed, and Chrome draws the pages the same way.
+  const browser = await chromium.launch({ executablePath: EDGE, headless: true })
+    .catch(() => chromium.launch({ executablePath: CHROME, headless: true }));
   const context = await browser.newContext({
     viewport, deviceScaleFactor: SCALE, locale: "en-US", timezoneId: "America/New_York", acceptDownloads: true,
   });
