@@ -2987,11 +2987,25 @@ public partial class App : Application
             }
         }
 
-        // Check rate limit via server-side API
-        using var usageService = new UsageLimitService(UsageLimit.AiImports(), LicenseService, ErrorLogger);
-        var usageCheck = await usageService.CheckUsageAsync();
+        // A workbook laid out the way Argo Books exports one needs no AI to read it, so it imports straight away and doesn't count as an AI import.
+        SpreadsheetAnalysisResult? exactLayout = null;
+        if (!isCsv)
+        {
+            try
+            {
+                exactLayout = await Task.Run(() => ExportLayoutMatcher.Match(filePath, CompanyManager?.CurrentCompanySettings?.Company.Country));
+            }
+            catch (Exception)
+            {
+                // A file that will not open is reported by the AI import, which reads it next.
+            }
+        }
 
-        if (!usageCheck.Allowed)
+        // Check rate limit via server-side API
+        using var usageService = exactLayout == null ? new UsageLimitService(UsageLimit.AiImports(), LicenseService, ErrorLogger) : null;
+        var usageCheck = usageService == null ? null : await usageService.CheckUsageAsync();
+
+        if (usageCheck is { Allowed: false })
         {
             _mainWindowViewModel?.HideLoading();
 
@@ -3015,7 +3029,7 @@ public partial class App : Application
         }
 
         var geminiService = new GeminiService(ErrorLogger, TelemetryManager);
-        if (!geminiService.IsConfigured)
+        if (exactLayout == null && !geminiService.IsConfigured)
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "not-configured");
@@ -3029,7 +3043,7 @@ public partial class App : Application
         var unflattenedPath = filePath;
 
         // AI layout interpretation rewrites a messy sheet into clean single-header tables before analysis, where the local LayoutGate decides whether it is needed.
-        if (!isCsv)
+        if (!isCsv && exactLayout == null)
         {
             try
             {
@@ -3058,11 +3072,15 @@ public partial class App : Application
         try
         {
             // Step 1: AI Analysis. Run off the UI thread: the analyzer opens the workbook synchronously before its network calls, which would otherwise freeze the loading overlay.
-            analysisTicker.Start();
-            var analysis = isCsv
-                ? await Task.Run(() => analysisService.AnalyzeCsvAsync(filePath, analysisCts.Token, analysisProgress), analysisCts.Token)
-                : await Task.Run(() => analysisService.AnalyzeAsync(filePath, analysisCts.Token, analysisProgress), analysisCts.Token);
-            analysisTicker.Stop();
+            var analysis = exactLayout;
+            if (analysis == null)
+            {
+                analysisTicker.Start();
+                analysis = isCsv
+                    ? await Task.Run(() => analysisService.AnalyzeCsvAsync(filePath, analysisCts.Token, analysisProgress), analysisCts.Token)
+                    : await Task.Run(() => analysisService.AnalyzeAsync(filePath, analysisCts.Token, analysisProgress), analysisCts.Token);
+                analysisTicker.Stop();
+            }
 
             await Task.Yield();
             _mainWindowViewModel?.HideLoading();
@@ -3071,30 +3089,36 @@ public partial class App : Application
             if (analysis == null || analysis.Sheets.Count == 0 || analysis.Sheets.All(s => !s.IsIncluded))
             {
                 await TryRescueImportAsync(
-                    unflattenedPath, isCsv, companyData, analysisService, importService, originalFileName, usageService);
+                    unflattenedPath, isCsv, companyData, analysisService, importService, originalFileName, usageService!);
                 return;
             }
 
             // Show the file the user actually selected, not the temp file we may have analyzed.
             analysis.FileName = originalFileName;
 
-            // Step 2: Show mapping review dialog
-            var mappingDialog = _appShellViewModel.ImportMappingDialogViewModel;
-
-            _ = TelemetryManager?.TrackFeatureAsync(
-                FeatureName.ImportPreviewShown, $"sheets:{analysis.Sheets.Count(sh => sh.IsIncluded)}");
-
-            var dialogResult = await mappingDialog.ShowAsync(analysis, usageCheck.Remaining, usageCheck.MonthlyLimit);
-
-            if (dialogResult == ImportMappingDialogResult.Cancel)
+            // Step 2: Show mapping review dialog. An exported layout has nothing to review, and keeps the dialog's default of leaving existing records alone.
+            SpreadsheetAnalysisResult? updatedAnalysis = analysis;
+            var skipExistingRecords = true;
+            if (exactLayout == null)
             {
-                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "mapping");
-                return;
-            }
+                var mappingDialog = _appShellViewModel.ImportMappingDialogViewModel;
 
-            // Get user-updated analysis (they may have changed entity types or excluded sheets)
-            var updatedAnalysis = mappingDialog.GetUpdatedAnalysis();
-            if (updatedAnalysis == null) return;
+                _ = TelemetryManager?.TrackFeatureAsync(
+                    FeatureName.ImportPreviewShown, $"sheets:{analysis.Sheets.Count(sh => sh.IsIncluded)}");
+
+                var dialogResult = await mappingDialog.ShowAsync(analysis, usageCheck!.Remaining, usageCheck.MonthlyLimit);
+
+                if (dialogResult == ImportMappingDialogResult.Cancel)
+                {
+                    _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "mapping");
+                    return;
+                }
+
+                // Get user-updated analysis (they may have changed entity types or excluded sheets)
+                updatedAnalysis = mappingDialog.GetUpdatedAnalysis();
+                if (updatedAnalysis == null) return;
+                skipExistingRecords = mappingDialog.SkipExistingRecords;
+            }
 
             // Filter to only included sheets
             var includedSheets = updatedAnalysis.Sheets.Where(s => s.IsIncluded).ToList();
@@ -3118,7 +3142,7 @@ public partial class App : Application
 
             var importOptions = new ImportOptions
             {
-                SkipExistingRecords = mappingDialog.SkipExistingRecords
+                SkipExistingRecords = skipExistingRecords
             };
 
             // Detect currency written into the amount cells (symbols/codes).
@@ -3222,7 +3246,7 @@ public partial class App : Application
 
                 // AI-categorize any products that ended up without a category
                 // (skip if Tier 2 sheets will handle it after their processing)
-                if (tier2Sheets.Count == 0)
+                if (tier2Sheets.Count == 0 && exactLayout == null)
                 {
                     _mainWindowViewModel?.ShowLoading("Categorizing products...".Translate(), progress: 95, cts: importCts, cancelConfirmation: ConfirmCancelAsync);
                     await importService.AiCategorizeMissingProductsAsync(companyData, importCts.Token);
@@ -3345,7 +3369,9 @@ public partial class App : Application
             // Track import duration telemetry (covers analysis, validation, all tiers, and categorization)
             importStopwatch.Stop();
             var importContext = isCsv ? "ai-csv" : "ai-xlsx";
-            if (tier2Sheets.Count > 0 && tier1Sheets.Count == 0)
+            if (exactLayout != null)
+                importContext = "exported-xlsx";
+            else if (tier2Sheets.Count > 0 && tier1Sheets.Count == 0)
                 importContext = isCsv ? "ai-csv-tier2" : "ai-xlsx-tier2";
             else if (tier2Sheets.Count > 0)
                 importContext = isCsv ? "ai-csv-mixed" : "ai-xlsx-mixed";
@@ -3399,7 +3425,8 @@ public partial class App : Application
             // Only a run that brought something in uses up an import.
             if (totalProcessed > 0 || totalBankRouted > 0)
             {
-                await usageService.IncrementUsageAsync();
+                if (usageService != null)
+                    await usageService.IncrementUsageAsync();
                 TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
             }
 
