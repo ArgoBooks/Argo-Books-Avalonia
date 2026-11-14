@@ -38,6 +38,10 @@ public sealed class VelopackUpdateService : IUpdateService
     private const string MoveToApplicationsMessage =
         "Argo Books cannot update itself from where it is. Move it to your Applications folder, open it from there, and check again.";
 
+    /// <summary>What a Mac user is told when the copy is already in Applications but their account can't change apps there.</summary>
+    private const string AskAnAdministratorMessage =
+        "Argo Books cannot update itself because this Mac account is not allowed to change apps in the Applications folder. Sign in to an administrator account to update it.";
+
     private readonly IErrorLogger? _errorLogger;
     private readonly SignedWebSource _source;
     private readonly CleaningUpdateManager _manager;
@@ -115,20 +119,21 @@ public sealed class VelopackUpdateService : IUpdateService
     }
 
     /// <summary>
-    /// Whether the running copy cannot replace itself. A Mac copy opened straight from a download runs from a
-    /// folder macOS keeps read-only, and one kept outside Applications can sit where the user cannot write.
+    /// Why the running copy cannot replace itself, or null when it can. A Mac copy opened straight from a
+    /// download runs from a folder macOS keeps read-only, one kept outside Applications can sit where the
+    /// user cannot write, and only an administrator can change apps in Applications itself.
     /// </summary>
-    private static bool CannotReplaceItself()
+    private static string? WhyCannotReplaceItself()
     {
         if (!OperatingSystem.IsMacOS() || MacBundlePath() is not { } bundle)
-            return false;
+            return null;
 
         // macOS runs a copy still marked as downloaded from a read-only mount of its own, which it calls App Translocation.
         if (bundle.Contains("/AppTranslocation/", StringComparison.Ordinal))
-            return true;
+            return MoveToApplicationsMessage;
 
         if (Path.GetDirectoryName(bundle) is not { Length: > 0 } parent)
-            return false;
+            return null;
 
         // Replacing the app writes in the folder holding it, so that folder is the one that has to be writable.
         try
@@ -136,11 +141,11 @@ public sealed class VelopackUpdateService : IUpdateService
             var probe = Path.Combine(parent, $".argobooks-update-check-{Guid.NewGuid():N}");
             File.WriteAllBytes(probe, []);
             File.Delete(probe);
-            return false;
+            return null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return true;
+            return parent == "/Applications" ? AskAnAdministratorMessage : MoveToApplicationsMessage;
         }
     }
 
@@ -200,9 +205,9 @@ public sealed class VelopackUpdateService : IUpdateService
                 return UpToDate();
 
             // Offering an update the running copy cannot install would download it and fail at the last step.
-            if (CannotReplaceItself())
+            if (WhyCannotReplaceItself() is { } reason)
             {
-                LastError = MoveToApplicationsMessage;
+                LastError = reason;
                 SetState(UpdateState.Error);
                 return null;
             }
