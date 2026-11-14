@@ -4836,6 +4836,18 @@ public partial class App : Application
         {
             var recentCompanies = await CompanyManager.GetRecentCompaniesAsync();
 
+            // Use logo thumbnail from footer (instant, no decompression needed)
+            var logos = recentCompanies.Take(10).ToDictionary(c => c.FilePath, c =>
+            {
+                byte[]? logoBytes = null;
+                if (c.LogoThumbnail != null)
+                {
+                    try { logoBytes = Convert.FromBase64String(c.LogoThumbnail); }
+                    catch { /* corrupted thumbnail, skip */ }
+                }
+                return LoadBitmapFromBytes(logoBytes);
+            });
+
             // Update file menu
             _appShellViewModel.FileMenuPanelViewModel.RecentCompanies.Clear();
             foreach (var company in recentCompanies.Take(10))
@@ -4845,7 +4857,8 @@ public partial class App : Application
                     Name = company.CompanyName,
                     FilePath = company.FilePath,
                     LastOpened = company.ModifiedAt,
-                    Icon = company.IsEncrypted ? "Lock" : "Building"
+                    Icon = company.IsEncrypted ? "Lock" : "Building",
+                    Logo = logos[company.FilePath]
                 });
             }
 
@@ -4855,7 +4868,8 @@ public partial class App : Application
             {
                 _appShellViewModel.CompanySwitcherPanelViewModel.AddRecentCompany(
                     company.CompanyName,
-                    company.FilePath);
+                    company.FilePath,
+                    logos[company.FilePath]);
             }
 
             // Update welcome screen
@@ -4867,21 +4881,13 @@ public partial class App : Application
 
                 foreach (var company in companiesForWelcome)
                 {
-                    // Use logo thumbnail from footer (instant, no decompression needed)
-                    byte[]? logoBytes = null;
-                    if (company.LogoThumbnail != null)
-                    {
-                        try { logoBytes = Convert.FromBase64String(company.LogoThumbnail); }
-                        catch { /* corrupted thumbnail, skip */ }
-                    }
-
                     _welcomeScreenViewModel.RecentCompanies.Add(new RecentCompanyItem
                     {
                         Name = company.CompanyName,
                         FilePath = company.FilePath,
                         LastOpened = company.ModifiedAt,
                         Icon = company.IsEncrypted ? "Lock" : "Building",
-                        Logo = LoadBitmapFromBytes(logoBytes)
+                        Logo = logos[company.FilePath]
                     });
                 }
                 _welcomeScreenViewModel.HasRecentCompanies = _welcomeScreenViewModel.RecentCompanies.Count > 0;
