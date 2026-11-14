@@ -2443,4 +2443,7 @@ public class RecentCompanyInfo
     public bool IsEncrypted { get; set; }
     public DateTime ModifiedAt { get; set; }
     public string? LogoThumbnail { get; set; }
+
+    /// <summary>When the file was last saved, on this computer's clock. The file stores it in UTC.</summary>
+    public DateTime LastSavedLocal => DateTime.SpecifyKind(ModifiedAt, DateTimeKind.Utc).ToLocalTime();
 }

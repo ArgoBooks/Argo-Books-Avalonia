@@ -4856,7 +4856,7 @@ public partial class App : Application
                 {
                     Name = company.CompanyName,
                     FilePath = company.FilePath,
-                    LastOpened = company.ModifiedAt,
+                    LastOpened = company.LastSavedLocal,
                     Icon = company.IsEncrypted ? "Lock" : "Building",
                     Logo = logos[company.FilePath]
                 });
@@ -4867,6 +4867,7 @@ public partial class App : Application
             {
                 Name = company.CompanyName,
                 FilePath = company.FilePath,
+                LastOpened = company.LastSavedLocal,
                 Logo = logos[company.FilePath]
             }));
 
@@ -4883,7 +4884,7 @@ public partial class App : Application
                     {
                         Name = company.CompanyName,
                         FilePath = company.FilePath,
-                        LastOpened = company.ModifiedAt,
+                        LastOpened = company.LastSavedLocal,
                         Icon = company.IsEncrypted ? "Lock" : "Building",
                         Logo = logos[company.FilePath]
                     });
