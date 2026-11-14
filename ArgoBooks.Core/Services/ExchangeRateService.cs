@@ -436,9 +436,7 @@ public class ExchangeRateService
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                // 429 = the server's rate limiter. Surface it so the caller backs off instead of
-                // fanning out to one request per date (which only digs the rate-limit hole deeper).
-                // Whoever catches it reports it, since only they know whether anyone was waiting.
+                // The caller backs off rather than asking date by date, and reports it, since only it knows whether anyone was waiting.
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                     throw new RateLimitedException();
                 _errorLogger?.LogError(
