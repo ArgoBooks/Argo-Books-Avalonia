@@ -2189,13 +2189,20 @@ public class CompanyManager : IDisposable
     /// <summary>Keeps how far the Stripe and API imports have got as the file has it, because that progress belongs with the imported records, which a settings-only save leaves out.</summary>
     private static void KeepImportProgressAsSaved(Models.Integrations.IntegrationsSettings toWrite, Models.Integrations.IntegrationsSettings saved)
     {
-        toWrite.Stripe.LastSyncCursor = saved.Stripe.LastSyncCursor;
-        toWrite.Stripe.LastRefundCursor = saved.Stripe.LastRefundCursor;
-        toWrite.Stripe.PendingChargeIds = saved.Stripe.PendingChargeIds;
-        toWrite.Stripe.LastSyncTime = saved.Stripe.LastSyncTime;
+        // Disconnecting starts the import over, and that is saved at once.
+        if (toWrite.Stripe.Connected)
+            KeepStripeProgressAsSaved(toWrite.Stripe, saved.Stripe);
         toWrite.Stripe.ImportedPayouts = saved.Stripe.ImportedPayouts;
         toWrite.ArgoApi.LastSyncTime = saved.ArgoApi.LastSyncTime;
         toWrite.ArgoApi.ImportedBatches = saved.ArgoApi.ImportedBatches;
+    }
+
+    private static void KeepStripeProgressAsSaved(Models.Integrations.StripeIntegrationSettings toWrite, Models.Integrations.StripeIntegrationSettings saved)
+    {
+        toWrite.LastSyncCursor = saved.LastSyncCursor;
+        toWrite.LastRefundCursor = saved.LastRefundCursor;
+        toWrite.PendingChargeIds = saved.PendingChargeIds;
+        toWrite.LastSyncTime = saved.LastSyncTime;
     }
 
     /// <summary>

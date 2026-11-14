@@ -491,6 +491,81 @@ public class CompanyManagerTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Disconnecting Stripe clears how far its import got and is saved at once. Writing the old
+    /// account's progress back made the next account connected resume from where the old one stopped.
+    /// </summary>
+    [Fact]
+    public async Task SaveSettingsOnly_AfterDisconnectingStripe_ClearsItsImportProgress()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var stripe = _manager.CompanyData!.Settings.Integrations.Stripe;
+            stripe.ApiKey = "rk_old";
+            stripe.Connected = true;
+            stripe.LastSyncCursor = "ch_old";
+            stripe.LastRefundCursor = "re_old";
+            stripe.PendingChargeIds.Add("ch_pending");
+            stripe.LastSyncTime = new DateTime(2026, 11, 1);
+            await _manager.SaveCompanyAsync();
+
+            stripe.ApiKey = null;
+            stripe.Connected = false;
+            stripe.LastSyncCursor = null;
+            stripe.LastRefundCursor = null;
+            stripe.PendingChargeIds.Clear();
+            stripe.LastSyncTime = null;
+            await _manager.SaveSettingsOnlyAsync();
+            await _manager.CloseCompanyAsync();
+
+            await _manager.OpenCompanyAsync(path);
+            var reopened = _manager.CompanyData!.Settings.Integrations.Stripe;
+            Assert.False(reopened.Connected);
+            Assert.Null(reopened.LastSyncCursor);
+            Assert.Null(reopened.LastRefundCursor);
+            Assert.Empty(reopened.PendingChargeIds);
+            Assert.Null(reopened.LastSyncTime);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    /// While the same account stays connected, its progress belongs with the imported revenue,
+    /// which a settings-only save leaves out.
+    /// </summary>
+    [Fact]
+    public async Task SaveSettingsOnly_WhileStripeStaysConnected_KeepsTheSavedProgress()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var stripe = _manager.CompanyData!.Settings.Integrations.Stripe;
+            stripe.ApiKey = "rk_live";
+            stripe.Connected = true;
+            stripe.LastSyncCursor = "ch_saved";
+            await _manager.SaveCompanyAsync();
+
+            stripe.LastSyncCursor = "ch_unsaved";
+            await _manager.SaveSettingsOnlyAsync();
+            await _manager.CloseCompanyAsync();
+
+            await _manager.OpenCompanyAsync(path);
+            Assert.Equal("ch_saved", _manager.CompanyData!.Settings.Integrations.Stripe.LastSyncCursor);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     #endregion
 
     #region ChangePassword Tests
