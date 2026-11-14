@@ -45,7 +45,9 @@ public static class EnvironmentFailure
                 return FileCause("AccessDenied", "Access to the file or folder was denied");
             case DriveNotFoundException:
                 return FileCause("DriveUnavailable", "The drive is no longer available");
-            case HttpRequestException { StatusCode: null } http:
+            // Our own code throws this type without a status after the server has answered, and only a request that failed on the way carries a transport error or its cause.
+            case HttpRequestException { StatusCode: null } http
+                when http.HttpRequestError != HttpRequestError.Unknown || http.InnerException != null:
                 return NetworkCause(NetworkFailure.TransportCode(http));
             case SocketException:
                 return NetworkCause("TransportFailure");
