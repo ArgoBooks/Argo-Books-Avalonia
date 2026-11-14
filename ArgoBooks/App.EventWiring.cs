@@ -344,6 +344,9 @@ public partial class App
         // A save that renames the file strips the old path from the recent-companies caches but adds the new one only to settings.json, so the caches refresh from disk.
         CompanyManager.CompanyRenamed += async (_, _) =>
         {
+            // The menus leave the open company out of their recent lists by its path, which the rename has just changed.
+            _appShellViewModel.FileMenuPanelViewModel.SetCurrentCompany(CompanyManager.CurrentFilePath);
+            _appShellViewModel.CompanySwitcherPanelViewModel.CurrentCompanyPath = CompanyManager.CurrentFilePath;
             await LoadRecentCompaniesAsync();
         };
 
@@ -920,9 +923,10 @@ public partial class App
                     // toggles themselves should follow the new industry's starting point.
                     _appShellViewModel.ApplyFeatureVisibility(settings);
                     _appShellViewModel.InvoiceModalsViewModel.RefreshCompanyDetailsPrompt();
+                    // The file keeps its old name until the next save, which may still fail to rename it.
                     _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
                         args.CompanyName,
-                        CompanyManager.PendingRenamePath ?? CompanyManager.CurrentFilePath,
+                        CompanyManager.CurrentFilePath,
                         logo);
                     _reportsPageViewModel?.RefreshCanvas();
 
