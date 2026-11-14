@@ -127,9 +127,8 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         try
         {
             var text = await Task.Run(() => TextFileDecoder.ReadAllText(filePath), cancellationToken);
-            var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(text.Split('\n'));
             // The whole text is parsed at once, because a bank can put a line break inside a quoted description.
-            var parsed = CsvReader.ParseRows(text, delimiter)
+            var parsed = CsvReader.ParseRows(text, CsvReader.DetectDelimiter(text))
                 .Where(row => row.Any(field => !string.IsNullOrWhiteSpace(field)))
                 .Select(row => row.ToList())
                 .ToList();

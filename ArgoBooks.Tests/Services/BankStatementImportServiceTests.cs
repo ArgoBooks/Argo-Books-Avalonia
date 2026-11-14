@@ -76,6 +76,28 @@ public class BankStatementImportServiceTests
         finally { File.Delete(path); }
     }
 
+    /// <summary>
+    /// Comment lines above the columns are left out when working out the separator, as every other
+    /// CSV the app reads does, so separators inside them can't outvote the real rows.
+    /// </summary>
+    [Fact]
+    public async Task ParseCsvAsync_CommentLinesWithOtherSeparators_DoNotChooseTheSeparator()
+    {
+        var path = await WriteTempCsvAsync(
+            "# Account;Chequing;1234\r\n# Period;Oct;Nov\r\n# Branch;Main;Street\r\n# Owner;A;Sample\r\n" +
+            "Date,Description,Amount\r\n" +
+            "2026-10-02,COFFEE,-4.50\r\n" +
+            "2026-10-03,PAYMENT RECEIVED,200.00\r\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            Assert.Equal(-4.50m, Assert.Single(lines, l => l.Description == "COFFEE").Amount);
+            Assert.Equal(200.00m, Assert.Single(lines, l => l.Description == "PAYMENT RECEIVED").Amount);
+        }
+        finally { File.Delete(path); }
+    }
+
     [Fact]
     public async Task ParseCsvAsync_LongAccountDetailsAboveColumns_FindsHeaderAndImportsLines()
     {

@@ -61,8 +61,9 @@ public static class LegacyXlsConverter
 
         var isBinary = content.AsSpan().StartsWith(BinaryWorkbookSignature);
         string? delimitedText = null;
+        var delimiter = ',';
         using var output = !isBinary && HtmlTableReader.LooksLikeHtmlTable(content) ? FromHtml(content)
-            : !isBinary && LooksLikeDelimitedText(content, out delimitedText) ? FromDelimitedText(delimitedText!)
+            : !isBinary && LooksLikeDelimitedText(content, out delimitedText, out delimiter) ? FromDelimitedText(delimitedText!, delimiter)
             : FromBinaryWorkbook(content);
 
         output.SaveAs(tempPath);
@@ -70,9 +71,10 @@ public static class LegacyXlsConverter
     }
 
     /// <summary>Banks often save a comma or tab separated export under an .xls name: text with no markup whose lines share a separator.</summary>
-    private static bool LooksLikeDelimitedText(byte[] content, out string? text)
+    private static bool LooksLikeDelimitedText(byte[] content, out string? text, out char delimiter)
     {
         text = null;
+        delimiter = ',';
         // UTF-16 text, such as Excel's Unicode Text export, starts with a byte order mark and is full of zero bytes, which any other text has none of.
         var isUtf16 = content.AsSpan().StartsWith((ReadOnlySpan<byte>)[0xFF, 0xFE]) || content.AsSpan().StartsWith((ReadOnlySpan<byte>)[0xFE, 0xFF]);
         if (!isUtf16 && content.AsSpan(0, Math.Min(content.Length, 4096)).IndexOf((byte)0) >= 0)
@@ -84,17 +86,18 @@ public static class LegacyXlsConverter
             return false;
 
         var lines = decoded.Split('\n').Where(line => !string.IsNullOrWhiteSpace(line)).Take(20).ToList();
-        var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(lines);
-        if (lines.Count(line => line.Contains(delimiter)) < 2)
+        var separator = CsvReader.DetectDelimiter(decoded);
+        delimiter = separator;
+        if (lines.Count(line => line.Contains(separator)) < 2)
             return false;
 
         text = decoded;
         return true;
     }
 
-    private static XLWorkbook FromDelimitedText(string text)
+    private static XLWorkbook FromDelimitedText(string text, char delimiter)
     {
-        var rows = CsvReader.ParseRows(text, SpreadsheetAnalysisService.DetectCsvDelimiter(text.Split('\n')));
+        var rows = CsvReader.ParseRows(text, delimiter);
 
         var output = new XLWorkbook();
         var sheet = output.Worksheets.Add("Sheet1");

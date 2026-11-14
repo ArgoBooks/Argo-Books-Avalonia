@@ -53,6 +53,7 @@ public static class CsvReader
            || row.All(string.IsNullOrWhiteSpace)
            || row[0].TrimStart().StartsWith('#');
 
-    private static char DetectDelimiter(string text) =>
+    /// <summary>The separator the text's lines share, leaving out comment lines, whose separators belong to no column.</summary>
+    internal static char DetectDelimiter(string text) =>
         SpreadsheetAnalysisService.DetectCsvDelimiter(text.Split('\n').Where(l => !l.TrimStart().StartsWith('#')));
 }
