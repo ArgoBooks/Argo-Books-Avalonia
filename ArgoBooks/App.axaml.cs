@@ -4863,14 +4863,12 @@ public partial class App : Application
             }
 
             // Update company switcher
-            _appShellViewModel.CompanySwitcherPanelViewModel.RecentCompanies.Clear();
-            foreach (var company in recentCompanies.Take(5))
+            _appShellViewModel.CompanySwitcherPanelViewModel.SetRecentCompanies(recentCompanies.Take(5).Select(company => new CompanyItem
             {
-                _appShellViewModel.CompanySwitcherPanelViewModel.AddRecentCompany(
-                    company.CompanyName,
-                    company.FilePath,
-                    logos[company.FilePath]);
-            }
+                Name = company.CompanyName,
+                FilePath = company.FilePath,
+                Logo = logos[company.FilePath]
+            }));
 
             // Update welcome screen
             if (_welcomeScreenViewModel != null)
