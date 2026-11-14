@@ -21,6 +21,23 @@ public class CompanySwitcherPanelViewModelTests
         Assert.Equal(["Newest", "Middle", "Oldest"], _viewModel.FilteredRecentCompanies.Select(c => c.Name));
     }
 
+    /// <summary>
+    /// The list on screen is worked out from the recent companies, so it has to be told when one
+    /// goes, such as a company whose file was deleted.
+    /// </summary>
+    [Fact]
+    public void RemovingARecentCompany_UpdatesTheListOnScreen()
+    {
+        _viewModel.SetRecentCompanies([Company("Kept"), Company("Deleted")]);
+        var changed = new List<string?>();
+        _viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        _viewModel.RecentCompanies.Remove(_viewModel.RecentCompanies[1]);
+
+        Assert.Contains(nameof(CompanySwitcherPanelViewModel.FilteredRecentCompanies), changed);
+        Assert.Contains(nameof(CompanySwitcherPanelViewModel.HasFilteredRecentCompanies), changed);
+    }
+
     [Fact]
     public void SetRecentCompanies_KeepsTheFiveMostRecent()
     {

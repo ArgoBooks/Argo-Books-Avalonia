@@ -59,6 +59,9 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     /// </summary>
     public CompanySwitcherPanelViewModel()
     {
+        // Refresh filtered properties whenever the collection changes
+        RecentCompanies.CollectionChanged += (_, _) => RefreshFilteredRecent();
+
         // Design-time defaults
         RecentCompanies.Add(new CompanyItem
         {
