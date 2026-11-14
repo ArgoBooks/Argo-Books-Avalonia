@@ -181,8 +181,11 @@ public static class WebViewEnvironment
         var thrown = exception is AggregateException { InnerExceptions.Count: 1 } aggregate
             ? aggregate.InnerExceptions[0]
             : exception;
-        var thrower = new StackTrace(thrown, false).GetFrame(0)?.GetMethod()?.DeclaringType;
-        return thrower?.Namespace?.StartsWith("ArgoBooks", StringComparison.Ordinal) == true;
+        // Our handler often fails inside a .NET call such as a dictionary lookup, so the first frame outside .NET says whose code it was.
+        var caller = new StackTrace(thrown, false).GetFrames()
+            .Select(frame => frame.GetMethod()?.DeclaringType?.Namespace)
+            .FirstOrDefault(ns => ns != null && !ns.StartsWith("System", StringComparison.Ordinal));
+        return caller?.StartsWith("ArgoBooks", StringComparison.Ordinal) == true;
     }
 
     private static bool IsWebViewFailure(Exception? exception)

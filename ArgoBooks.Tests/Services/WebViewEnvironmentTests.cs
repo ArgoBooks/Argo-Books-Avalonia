@@ -34,9 +34,22 @@ public class WebViewEnvironmentTests
     }
 
     [Fact]
-    public void ThrownByOurCode_AFaultInsideTheFramework_IsNotOurs()
+    public void ThrownByOurCode_AFaultInsideTheUiLibrary_IsNotOurs()
     {
-        Assert.False(WebViewEnvironment.ThrownByOurCode(Catch(() => int.Parse("not a number"))));
+        Assert.False(WebViewEnvironment.ThrownByOurCode(Catch(() => Avalonia.Media.Color.Parse("not a colour"))));
+    }
+
+    /// <summary>
+    /// Our handler often fails inside a .NET call, such as looking up a key that isn't there, and
+    /// that is still our fault.
+    /// </summary>
+    [Fact]
+    public void ThrownByOurCode_AFaultInADotNetCallFromOurHandler_IsOurs()
+    {
+        var empty = new Dictionary<string, int>();
+
+        Assert.True(WebViewEnvironment.ThrownByOurCode(Catch(() => _ = empty["missing"])));
+        Assert.True(WebViewEnvironment.ThrownByOurCode(Catch(() => _ = int.Parse("not a number"))));
     }
 
     [Fact]
