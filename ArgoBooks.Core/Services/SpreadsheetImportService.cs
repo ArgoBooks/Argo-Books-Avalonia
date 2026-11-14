@@ -190,11 +190,28 @@ public class SpreadsheetImportService
 
         public static ReferenceResolutionContext Build(CompanyData data) => new()
         {
-            // A business customer is often filed under its contact, with the business the name other records use.
-            CustomerIndex = ReferenceResolver.BuildIndex(data.Customers.Select(c => (c.Id, c.Name))
-                .Concat(data.Customers.Where(c => !string.IsNullOrWhiteSpace(c.CompanyName)).Select(c => (c.Id, c.CompanyName!)))),
+            CustomerIndex = BuildCustomerIndex(data),
             SupplierIndex = ReferenceResolver.BuildIndex(data.Suppliers.Select(s => (s.Id, s.Name)))
         };
+
+        // A business customer is often filed under its contact, with the business the name other records use.
+        public static Dictionary<string, string> BuildCustomerIndex(CompanyData data) =>
+            ReferenceResolver.BuildIndex(data.Customers.Select(c => (c.Id, c.Name))
+                .Concat(data.Customers.Where(c => !string.IsNullOrWhiteSpace(c.CompanyName)).Select(c => (c.Id, c.CompanyName!))));
+    }
+
+    /// <summary>The company's customers by id and by name, built once for a sheet whose rows name customers.</summary>
+    private sealed class CustomerLookup(CompanyData data)
+    {
+        private readonly HashSet<string> _ids = data.Customers.Select(c => c.Id).ToHashSet();
+        private readonly Dictionary<string, string> _index = ReferenceResolutionContext.BuildCustomerIndex(data);
+
+        /// <summary>The id of the customer a sheet names, or the reference as it was when nobody matches it.</summary>
+        public string Find(string reference)
+        {
+            if (string.IsNullOrEmpty(reference) || _ids.Contains(reference)) return reference;
+            return ReferenceResolver.Resolve(reference, _index).MatchedId ?? reference;
+        }
     }
     /// <summary>
     /// Validates an Excel file before importing, checking for missing references.
@@ -2942,7 +2959,7 @@ public class SpreadsheetImportService
                 break;
 
             case "Customers":
-                if (data.Customers.All(c => c.Id != id) && FindCustomerId(data, id) == id)
+                if (data.Customers.All(c => c.Id != id) && new CustomerLookup(data).Find(id) == id)
                 {
                     data.Customers.Add(new Customer
                     {
@@ -3560,6 +3577,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     {
         // Numbers too: a row with only a number is identified by it, and line items match on either.
         var takenIds = TakenIds(data.Invoices.SelectMany(i => new[] { i.Id, i.InvoiceNumber }), headers, rows, "ID", "Invoice #");
+        var customers = new CustomerLookup(data);
 
         for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
@@ -3568,7 +3586,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // Two columns, either of which can identify the invoice. This app's own export carries both; a sheet from elsewhere usually has only the number.
             var invoiceId = GetString(row, headers, "ID");
             var invoiceNumber = GetString(row, headers, "Invoice #");
-            var customerId = FindCustomerId(data, GetString(row, headers, "Customer ID"));
+            var customerId = customers.Find(GetString(row, headers, "Customer ID"));
             var issueDate = GetDateTime(row, headers, "Issue Date");
             var total = GetDecimal(row, headers, "Total");
 
@@ -4309,6 +4327,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     private void ImportSales(CompanyData data, List<string> headers, List<List<object?>> rows, ImportOptions? options = null)
     {
         var takenIds = TakenIds(data.Revenues.Select(r => r.Id), headers, rows, "ID");
+        var customers = new CustomerLookup(data);
 
         for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
@@ -4321,7 +4340,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 description = GetString(row, headers, "Description");
 
             var date = GetDateTime(row, headers, "Date");
-            var customerId = GetNullableString(row, headers, "Customer ID") is { } customer ? FindCustomerId(data, customer) : null;
+            var customerId = GetNullableString(row, headers, "Customer ID") is { } customer ? customers.Find(customer) : null;
 
             // Skip summary/blank rows (e.g. "Subtotal", "Grand Total") that carry an amount but no
             // real revenue content, so they aren't imported as junk records.
@@ -4434,12 +4453,6 @@ Respond with ONLY a JSON array, one entry per product in the same order:
         return customerId;
     }
 
-    /// <summary>The id of the customer a sheet names, or the reference as it was when nobody matches it.</summary>
-    private static string FindCustomerId(CompanyData data, string reference)
-    {
-        if (string.IsNullOrEmpty(reference) || data.Customers.Any(c => c.Id == reference)) return reference;
-        return ReferenceResolver.Resolve(reference, ReferenceResolutionContext.Build(data).CustomerIndex).MatchedId ?? reference;
-    }
 
     /// <summary>
     /// Resolves a supplier reference. See <see cref="EnsureCustomerExists"/> for the resolution rules.
