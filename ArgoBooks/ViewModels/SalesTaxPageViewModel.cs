@@ -78,7 +78,7 @@ public partial class SalesTaxPageViewModel : SortablePageViewModelBase
     private static async void SaveSetting()
     {
         if (App.CompanyManager == null) return;
-        try { await App.CompanyManager.SaveSettingsOnlyAsync(); }
+        try { await App.CompanyManager.SaveSettingsNowOrLaterAsync(); }
         catch (Exception ex) { App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.FileSystem, "Failed to save the sales tax setting"); }
     }
 

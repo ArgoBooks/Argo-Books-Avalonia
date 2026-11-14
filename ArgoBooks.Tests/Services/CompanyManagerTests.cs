@@ -492,6 +492,36 @@ public class CompanyManagerTests : IDisposable
     }
 
     /// <summary>
+    /// A settings change that can't be written on its own yet, because the working copy holds
+    /// unsaved records, has to wait for the next save instead of being dropped without a word.
+    /// </summary>
+    [Fact]
+    public async Task SaveSettingsNowOrLater_WhenTheSettingsCannotBeWrittenAlone_MarksTheCompanyChanged()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var backup = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argobk");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            _manager.CompanyData!.Customers.Add(new Customer { Id = "CUS-001", Name = "Unsaved" });
+            _manager.MarkAsChanged();
+            await _manager.ExportBackupAsync(backup);
+            _manager.CompanyData.ChangesMade = false;
+
+            var saved = await _manager.SaveSettingsNowOrLaterAsync();
+
+            Assert.False(saved);
+            Assert.True(_manager.HasUnsavedChanges);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+            if (File.Exists(backup)) File.Delete(backup);
+        }
+    }
+
+    /// <summary>
     /// Disconnecting Stripe clears how far its import got and is saved at once. Writing the old
     /// account's progress back made the next account connected resume from where the old one stopped.
     /// </summary>

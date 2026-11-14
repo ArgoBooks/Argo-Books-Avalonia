@@ -1676,21 +1676,21 @@ public partial class SettingsModalViewModel : ViewModelBase
         if (App.CompanyManager is not { } manager)
             return;
 
-        var saved = false;
-        if (!manager.IsSampleCompany)
+        if (manager.IsSampleCompany)
         {
-            try
-            {
-                saved = await manager.SaveSettingsOnlyAsync();
-            }
-            catch (Exception ex)
-            {
-                App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save an integration change");
-            }
+            manager.MarkAsChanged();
+            return;
         }
 
-        if (!saved)
+        try
+        {
+            await manager.SaveSettingsNowOrLaterAsync();
+        }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save an integration change");
             manager.MarkAsChanged();
+        }
     }
 
     [RelayCommand]
@@ -2831,10 +2831,19 @@ public partial class SettingsModalViewModel : ViewModelBase
         try
         {
             var mobileSync = companyData.Settings.MobileSync;
+            var isNewIdentity = mobileSync.CompanyUid == null || mobileSync.SyncKeyBase64 == null;
             mobileSync.CompanyUid ??= SyncCrypto.GenerateCompanyUid();
             mobileSync.SyncKeyBase64 ??= SyncCrypto.GenerateSyncKey();
             mobileSync.Enabled = true;
-            await companyManager.SaveSettingsOnlyAsync();
+
+            // A phone paired with a sync key the file never gets can't read the company once it is reopened.
+            if (!await companyManager.SaveSettingsNowOrLaterAsync() && isNewIdentity)
+            {
+                await App.ShowErrorDialogAsync(
+                    "Couldn't Connect a Phone".Translate(),
+                    "Save the company first, then connect your phone.".Translate());
+                return;
+            }
 
             var companyLabel = string.IsNullOrWhiteSpace(companyData.Settings.Company.Name)
                 ? "My Company"
@@ -3491,7 +3500,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             // Persist ONLY the settings file (appSettings.json) to the .argo.
             if (App.CompanyManager?.IsCompanyOpen == true && !App.CompanyManager.IsSampleCompany)
             {
-                await App.CompanyManager.SaveSettingsOnlyAsync();
+                await App.CompanyManager.SaveSettingsNowOrLaterAsync();
             }
         }
 

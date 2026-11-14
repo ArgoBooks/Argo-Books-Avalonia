@@ -2272,6 +2272,19 @@ public class CompanyManager : IDisposable
     }
 
     /// <summary>
+    /// Writes the settings to the file now, or, when they can't be written on their own yet,
+    /// marks the company changed so the next save writes them.
+    /// </summary>
+    /// <returns>True when the settings reached the file.</returns>
+    public async Task<bool> SaveSettingsNowOrLaterAsync(CancellationToken cancellationToken = default)
+    {
+        var saved = await SaveSettingsOnlyAsync(cancellationToken);
+        if (!saved)
+            MarkAsChanged();
+        return saved;
+    }
+
+    /// <summary>
     /// Marks the company data as changed.
     /// </summary>
     public void MarkAsChanged()
