@@ -146,6 +146,22 @@ public static class AtomicFile
         }
     }
 
+    /// <summary>
+    /// Whether a file a folder watcher saw renamed or deleted is really gone. Saving on Windows
+    /// moves the old file aside for a moment before the new one takes its name, so the path is
+    /// checked again over the same backoff the swap retries with.
+    /// </summary>
+    public static async Task<bool> StaysGoneAsync(string path, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        {
+            if (File.Exists(path))
+                return false;
+            await Task.Delay(50 * attempt, cancellationToken);
+        }
+        return !File.Exists(path);
+    }
+
     /// <summary>Replaces an existing file in place on Windows, so Explorer still sees the same file and leaves its desktop icon where it was.</summary>
     private static void Swap(string tempPath, string finalPath, bool overwrite)
     {

@@ -4949,32 +4949,27 @@ public partial class App : Application
     /// <summary>
     /// Handles when a recent company file is deleted from the file system.
     /// </summary>
-    private static void OnRecentCompanyFileDeleted(object sender, FileSystemEventArgs e)
-    {
-        // FileService.SaveCompanyAsync writes to <path>.tmp then File.Move(tmp, path, overwrite: true).
-        if (File.Exists(e.FullPath))
-            return;
-
-        // Run on UI thread
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            // Re-check on the UI thread in case the file came back during the post hop.
-            if (File.Exists(e.FullPath))
-                return;
-            RemoveRecentCompanyFromUi(e.FullPath);
-        });
-    }
+    private static void OnRecentCompanyFileDeleted(object sender, FileSystemEventArgs e) =>
+        _ = RemoveRecentCompanyIfGoneAsync(e.FullPath);
 
     /// <summary>
     /// Handles when a recent company file is renamed (which also removes it from our tracked list).
     /// </summary>
-    private static void OnRecentCompanyFileRenamed(object sender, RenamedEventArgs e)
+    private static void OnRecentCompanyFileRenamed(object sender, RenamedEventArgs e) =>
+        _ = RemoveRecentCompanyIfGoneAsync(e.OldFullPath);
+
+    // Every save swaps a new file onto the company's path, which the watcher reports as the file being renamed or deleted.
+    private static async Task RemoveRecentCompanyIfGoneAsync(string filePath)
     {
-        // Run on UI thread - remove the old path
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        try
         {
-            RemoveRecentCompanyFromUi(e.OldFullPath);
-        });
+            if (await AtomicFile.StaysGoneAsync(filePath))
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => RemoveRecentCompanyFromUi(filePath));
+        }
+        catch (Exception ex)
+        {
+            ErrorLogger?.LogWarning($"Failed to check a recent company file: {ex.Message}", "FileWatcher");
+        }
     }
 
     /// <summary>

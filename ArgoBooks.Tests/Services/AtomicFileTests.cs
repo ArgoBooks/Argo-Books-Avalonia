@@ -63,4 +63,35 @@ public class AtomicFileTests : IDisposable
         await Assert.ThrowsAsync<FileNotFoundException>(
             () => AtomicFile.ReplaceAsync(temp, final));
     }
+    /// <summary>
+    /// A save on Windows moves the old file aside before the new one takes its name, and a folder
+    /// watcher sees that as the file being renamed away.
+    /// </summary>
+    [Fact]
+    public async Task AFileMovedAsideBySaving_DoesNotStayGone()
+    {
+        var final = Path.Combine(_dir, "Slow Sunday Games.argo");
+        await File.WriteAllTextAsync(final, "old");
+        var movedAway = new TaskCompletionSource<string>();
+        using var watcher = new FileSystemWatcher(_dir) { Filter = "*.argo", NotifyFilter = NotifyFilters.FileName, EnableRaisingEvents = true };
+        watcher.Renamed += (_, e) => { if (e.OldFullPath == final) movedAway.TrySetResult(e.OldFullPath); };
+        watcher.Deleted += (_, e) => { if (e.FullPath == final) movedAway.TrySetResult(e.FullPath); };
+
+        var temp = AtomicFile.TempPathFor(final);
+        await File.WriteAllTextAsync(temp, "new");
+        await AtomicFile.ReplaceAsync(temp, final);
+
+        var seen = await Task.WhenAny(movedAway.Task, Task.Delay(2000)) == movedAway.Task;
+        Assert.False(seen && await AtomicFile.StaysGoneAsync(final));
+    }
+
+    [Fact]
+    public async Task ADeletedFile_StaysGone()
+    {
+        var final = Path.Combine(_dir, "gone.argo");
+        await File.WriteAllTextAsync(final, "x");
+        File.Delete(final);
+
+        Assert.True(await AtomicFile.StaysGoneAsync(final));
+    }
 }
