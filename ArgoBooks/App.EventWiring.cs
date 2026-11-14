@@ -552,6 +552,17 @@ public partial class App
             if (string.IsNullOrEmpty(company.FilePath)) return;
             await OpenCompanyWithRetryAsync(company.FilePath, "menu-recent");
         };
+
+        fileMenu.ClearRecentRequested += async (_, _) => await ClearRecentCompaniesAsync();
+    }
+
+    // The File menu, the company switcher and the welcome screen each show a copy of the saved list, so all three load it again.
+    private static async Task ClearRecentCompaniesAsync()
+    {
+        if (SettingsService == null) return;
+        SettingsService.GlobalSettings.RecentCompanies.Clear();
+        await SettingsService.SaveGlobalSettingsAsync();
+        await LoadRecentCompaniesAsync();
     }
 
     /// <summary>
@@ -717,14 +728,7 @@ public partial class App
         };
 
         // Clear all recent companies
-        _welcomeScreenViewModel.ClearRecentRequested += async (_, _) =>
-        {
-            if (SettingsService != null)
-            {
-                SettingsService.GlobalSettings.RecentCompanies.Clear();
-                await SettingsService.SaveGlobalSettingsAsync();
-            }
-        };
+        _welcomeScreenViewModel.ClearRecentRequested += async (_, _) => await ClearRecentCompaniesAsync();
 
         _welcomeScreenViewModel.OpenSampleCompanyRequested += async (_, _) =>
         {
