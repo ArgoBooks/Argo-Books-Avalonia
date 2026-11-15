@@ -1,7 +1,7 @@
 // Records argorobots.com's free invoice or estimate generator as a take, the way Takes.cs records the app: a hand moves,
 // clicks and types through the page while every change is saved. The take keeps its own clock, so it plays at an even
 // speed however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
-// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin OUT_FOLDER   (run "npm install" in this folder first)
+// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven OUT_FOLDER   (run "npm install" in this folder first)
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
@@ -15,11 +15,12 @@ const PAGES = {
   mileage: "https://argorobots.com/mileage-deduction-calculator/",
   hourly: "https://argorobots.com/hourly-rate-calculator/",
   margin: "https://argorobots.com/markup-margin-calculator/",
+  breakeven: "https://argorobots.com/break-even-calculator/",
 };
 const SCALE = 2;
 // Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short. The tax calculator
 // goes into a 16:9 video beside the app's takes, so it is recorded at the app's own window size.
-const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 } };
+const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 } };
 
 class Take {
   constructor(page, folder) {
@@ -427,6 +428,44 @@ const RECORDINGS = {
     take.hold(3.5);
     take.mark("end");
   },
+  // The discount Short's example: $5,000 of costs and a $100 product that costs $50 needs 100 sales to break even, and
+  // the same product 20 percent off needs 167.
+  async breakeven(page, take) {
+    await take.scrollTo(120, 0.01);
+    await take.snap();
+    take.mark("top");
+    await take.place("form", ".calc-form");
+    await take.place("results", "[data-be-results], .calc-results");
+    take.hold(0.6);
+    await take.moveInto("fixed", "#be-fixed", 0, 0.8, 120);
+    take.mark("click_fixed");
+    await take.click();
+    await take.type("5000", 0.11);
+    take.hold(0.2);
+    await take.moveInto("price", "#be-price", 0, 0.5, 120);
+    await take.click();
+    await take.type("100", 0.12);
+    take.hold(0.2);
+    await take.moveInto("variable", "#be-variable", 0, 0.5, 120);
+    await take.click();
+    await take.type("50", 0.12);
+    take.mark("typed");
+    take.hold(0.3);
+    const units = await take.place("units", '[data-be="units"]');
+    await take.moveTo(units.x + units.width + 60, units.y + units.height / 2 + 20, 0.8);
+    take.mark("look_full");
+    take.hold(0.8);
+    await take.moveInto("price", "#be-price", 0, 0.8, 120);
+    take.mark("click_price");
+    await take.click();
+    await take.retype("80", 0.2);
+    take.mark("discounted");
+    take.hold(0.3);
+    await take.moveTo(units.x + units.width + 60, units.y + units.height / 2 + 20, 0.8);
+    take.mark("look_sale");
+    take.hold(3.5);
+    take.mark("end");
+  },
   async estimate(page, take) {
     await opening(take, 3.0);
     await parties(take, "Northline Decks", "Northline Decks\n214 Harbor Road\nPortland, ME 04102", "Linda Park\n88 Maple Avenue\nPortland, ME 04103");
@@ -441,7 +480,7 @@ const RECORDINGS = {
 
 (async () => {
   const [kind, folder] = process.argv.slice(2);
-  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin OUT_FOLDER");
+  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven OUT_FOLDER");
   const viewport = VIEWPORTS[kind];
   fs.rmSync(path.join(folder, "frames"), { recursive: true, force: true });
   fs.mkdirSync(path.join(folder, "frames"), { recursive: true });
