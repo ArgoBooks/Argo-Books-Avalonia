@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -153,7 +154,7 @@ public class GeoLocationService : IGeoLocationService
             var response = await _httpClient.GetFromJsonAsync<IpInfoResponse>(IpInfoUrl, cancellationToken);
             if (response != null && !string.IsNullOrEmpty(response.Country))
             {
-                data.Country = "Unknown"; // ipinfo.io only provides country code, not full name
+                data.Country = CountryName(response.Country);
                 data.CountryCode = response.Country ?? "Unknown";
                 data.Region = response.Region ?? "Unknown";
                 data.City = response.City ?? "Unknown";
@@ -166,6 +167,19 @@ public class GeoLocationService : IGeoLocationService
             _errorLogger?.LogDebug($"ipinfo.io failed: {ex.Message}");
         }
         return false;
+    }
+
+    /// <summary>The English name for a two-letter country code, since ipinfo.io gives only the code.</summary>
+    internal static string CountryName(string? countryCode)
+    {
+        try
+        {
+            return string.IsNullOrWhiteSpace(countryCode) ? "Unknown" : new RegionInfo(countryCode.Trim()).EnglishName;
+        }
+        catch (ArgumentException)
+        {
+            return "Unknown";
+        }
     }
 
     private async Task<string?> GetIpAddressAsync(CancellationToken cancellationToken)
