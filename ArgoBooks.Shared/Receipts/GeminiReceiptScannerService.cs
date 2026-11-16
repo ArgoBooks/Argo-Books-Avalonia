@@ -179,12 +179,15 @@ Rules:
             {
                 // The verification pass is a second full-image round-trip (~15-30s),
                 // so only spend it when there is evidence the first pass missed an item.
+                var addsUpBefore = AddsUpToTotal(result);
                 if (ShouldRunVerification(result))
                 {
                     result = await VerifyAndFillMissingItemsAsync(result, base64Image, mimeType, cancellationToken);
                 }
                 success = true;
                 _ = telemetryManager?.TrackFeatureAsync(FeatureName.ReceiptScanned, cancellationToken: cancellationToken);
+                _ = telemetryManager?.TrackFeatureAsync(FeatureName.ImportChecked,
+                    $"receipt:{CheckStatus(addsUpBefore, AddsUpToTotal(result))}", cancellationToken: cancellationToken);
             }
             return result;
         }
@@ -252,20 +255,33 @@ If nothing was missed, return: {{""missingItems"": []}}";
         if (result.Confidence < 0.8)
             return true;
 
-        var total = result.TotalAmount ?? 0m;
-
         // No printed total to reconcile against: fall back to the size heuristic.
-        if (total <= 0m)
-            return result.LineItems.Count >= 15;
+        return AddsUpToTotal(result) is { } addsUp ? !addsUp : result.LineItems.Count >= 15;
+    }
 
-        // Reconcile the extracted amounts against the printed total.
+    /// <summary>Whether the items, less the discount, plus tax and shipping come to the printed total. Null when the receipt has no total to check against.</summary>
+    public static bool? AddsUpToTotal(ReceiptScanResult result)
+    {
+        var total = result.TotalAmount ?? 0m;
+        if (total <= 0m)
+            return null;
+
         var itemsSum = result.LineItems.Sum(li => li.TotalPrice);
         var computedTotal = itemsSum - (result.Discount ?? 0m) + (result.TaxAmount ?? 0m) + (result.Shipping ?? 0m);
 
         // Tolerance is kept tight and biased toward verifying: a genuinely missed item shifts the total by roughly its own price, which we want to catch.
         var tolerance = Math.Max(0.05m, total * 0.005m);
-        return Math.Abs(computedTotal - total) > tolerance;
+        return Math.Abs(computedTotal - total) <= tolerance;
     }
+
+    /// <summary>The check for telemetry: balanced, fixed by the second pass, still off, or no total to check.</summary>
+    public static string CheckStatus(bool? addsUpBefore, bool? addsUpAfter) => (addsUpBefore, addsUpAfter) switch
+    {
+        (null, _) => "no-total",
+        (true, _) => "balanced",
+        (false, true) => "fixed",
+        _ => "off"
+    };
 
     /// <summary>
     /// Sends the receipt image back with the extracted items and asks the model to find anything missed.

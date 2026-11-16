@@ -13,11 +13,13 @@ namespace ArgoBooks.Core.Services;
 public class PdfStatementExtractor(IErrorLogger? errorLogger = null) : IPdfStatementExtractor
 {
     private static readonly string ExtractEndpoint = $"{ApiConfig.BaseUrl}/api/bank/extract.php";
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(120) };
+    // A long statement can take two reads on the server, and the server is told this so it knows whether a second read will finish in time.
+    private const int WaitSeconds = 240;
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(WaitSeconds + 10) };
 
     public bool IsConfigured => LicenseAuthHelper.IsConfigured;
 
-    public async Task<List<BankStatementLine>> ExtractAsync(byte[] pdfData, string fileName, CancellationToken cancellationToken = default)
+    public async Task<StatementExtraction> ExtractAsync(byte[] pdfData, string fileName, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -25,6 +27,7 @@ public class PdfStatementExtractor(IErrorLogger? errorLogger = null) : IPdfState
             var fileContent = new ByteArrayContent(pdfData);
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
             content.Add(fileContent, "statement", fileName);
+            content.Add(new StringContent(WaitSeconds.ToString(CultureInfo.InvariantCulture)), "waitSeconds");
 
             using var request = new HttpRequestMessage(HttpMethod.Post, ExtractEndpoint) { Content = content };
             LicenseAuthHelper.AddAuthHeaders(request);
@@ -39,7 +42,7 @@ public class PdfStatementExtractor(IErrorLogger? errorLogger = null) : IPdfState
             if (!response.IsSuccessStatusCode)
                 throw StatementExtractionException.FromBody(body);
             RecordTiming(body, wallClock.Elapsed.TotalMilliseconds, pdfData.Length);
-            return ParseRows(body);
+            return new StatementExtraction(ParseRows(body), ParseCheck(body));
         }
         catch (ServerRateLimitedException)
         {
@@ -54,7 +57,7 @@ public class PdfStatementExtractor(IErrorLogger? errorLogger = null) : IPdfState
         catch (Exception ex)
         {
             errorLogger?.LogError(ex, ErrorCategory.Api, "PDF statement extraction failed");
-            return [];
+            return new StatementExtraction([], null);
         }
     }
 
@@ -88,6 +91,24 @@ public class PdfStatementExtractor(IErrorLogger? errorLogger = null) : IPdfState
             rows.Add(line);
         }
         return rows;
+    }
+
+    public static StatementCheck? ParseCheck(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("check", out var check) || check.ValueKind != JsonValueKind.Object)
+                return null;
+            if (!check.TryGetProperty("status", out var status) || status.ValueKind != JsonValueKind.String)
+                return null;
+            decimal? gap = check.TryGetProperty("gap", out var g) && g.ValueKind == JsonValueKind.Number && g.TryGetDecimal(out var value) ? value : null;
+            return new StatementCheck(status.GetString()!, gap);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

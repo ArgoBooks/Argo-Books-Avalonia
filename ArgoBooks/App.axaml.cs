@@ -3959,12 +3959,13 @@ public partial class App : Application
         var isPicture = StatementImages.IsImage(filePath);
         progress.Begin(new FileInfo(filePath).Length);
         List<Core.Models.BankMatching.BankStatementLine> extracted;
+        StatementCheck? check;
         try
         {
             var bytes = isPicture
                 ? await Task.Run(() => StatementImages.ToPdf(filePath))
                 : await SharedFileReader.ReadAllBytesAsync(filePath);
-            extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.ChangeExtension(Path.GetFileName(filePath), ".pdf"));
+            (extracted, check) = await PdfStatementExtractor.ExtractAsync(bytes, Path.ChangeExtension(Path.GetFileName(filePath), ".pdf"));
         }
         catch (InvalidDataException) when (isPicture)
         {
@@ -4015,9 +4016,18 @@ public partial class App : Application
             return [];
         }
 
+        if (check != null)
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportChecked,
+                $"{(isPicture ? ImportTracking.BankPhoto : ImportTracking.BankPdf)}:{check.Status}");
+
         // Charged even if the user has since closed the screen, or a start-and-cancel loop could
         // read PDFs without ever using up the limit.
         await usage.IncrementUsageAsync();
+
+        if (stillWanted && check is { Status: "off", Gap: { } gap })
+            await ShowInfoDialogAsync(
+                "Import Bank Statement".Translate(),
+                "The transactions read from this statement don't add up to its closing balance. They're {0} off, so some may be missing or wrong. Check them against your statement.".TranslateFormat(CurrencyService.Format(Math.Abs(gap))));
         return extracted;
     }
 

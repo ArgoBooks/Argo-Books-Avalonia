@@ -391,6 +391,22 @@ public class GeminiReceiptScannerServiceTests
         Assert.True(GeminiReceiptScannerService.ShouldRunVerification(result));
     }
 
+    [Fact]
+    public void AddsUpToTotal_NoPrintedTotal_IsUnknown()
+    {
+        Assert.Null(GeminiReceiptScannerService.AddsUpToTotal(Result(total: null, confidence: 0.9, itemTotals: [5m])));
+    }
+
+    [Theory]
+    [InlineData(null, null, "no-total")]
+    [InlineData(true, true, "balanced")]
+    [InlineData(false, true, "fixed")]
+    [InlineData(false, false, "off")]
+    public void CheckStatus_SaysWhetherTheSecondPassFixedIt(bool? before, bool? after, string expected)
+    {
+        Assert.Equal(expected, GeminiReceiptScannerService.CheckStatus(before, after));
+    }
+
     #endregion
 
     #region ParseResponse date culture
