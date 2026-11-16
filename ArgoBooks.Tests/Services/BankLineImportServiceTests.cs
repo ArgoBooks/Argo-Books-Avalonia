@@ -31,6 +31,18 @@ public class BankLineImportServiceTests
     }
 
     [Fact]
+    public void CreateFromLines_MarksEachRecordWithTheImportItCameFrom()
+    {
+        var data = new CompanyData();
+        var line = new BankStatementLine { Id = "L1", Date = new DateTime(2026, 4, 5), Description = "Deposit", Amount = 12m };
+        var resolution = new BankLineResolution { Line = line, Type = BookRecordType.Revenue };
+
+        new BankLineImportService().CreateFromLines(data, [resolution], linkToBankLine: false, ImportTracking.BankPdf);
+
+        Assert.Equal(ImportTracking.BankPdf, data.Revenues[0].ImportSource);
+    }
+
+    [Fact]
     public void CreateFromLines_NewSupplierAndProduct_AutoCreatesBoth_WithCategory()
     {
         var data = new CompanyData();

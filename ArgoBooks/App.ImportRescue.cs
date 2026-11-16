@@ -71,7 +71,7 @@ public partial class App
         // Commit extracted entities, mirroring the Tier-2 commit path.
         var importStopwatch = System.Diagnostics.Stopwatch.StartNew();
         var snapshot = CreateCompanyDataSnapshot(companyData);
-        var importOptions = new ImportOptions();
+        var importOptions = new ImportOptions { ImportSource = ImportTracking.Spreadsheet };
 
         using var importCts = new CancellationTokenSource();
         _mainWindowViewModel?.ShowLoading("Importing data...".Translate(), cts: importCts, cancelConfirmation: ConfirmCancelAsync);

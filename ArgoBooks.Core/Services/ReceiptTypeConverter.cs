@@ -399,6 +399,7 @@ public static class ReceiptTypeConverter
         to.PaymentMethod = from.PaymentMethod;
         to.Notes = from.Notes;
         to.CreatedAt = from.CreatedAt;
+        to.ImportSource = from.ImportSource;
         to.BankMatched = from.BankMatched;
         to.BankMatchedDate = from.BankMatchedDate;
         to.BankMatchedLineId = from.BankMatchedLineId;

@@ -223,7 +223,8 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         var preCounters = data.IdCounters.Clone();
 
         // linkToBankLine: false -> plain transactions, no bank-match flag.
-        var creation = new BankLineImportService().CreateFromLines(data, resolutions, linkToBankLine: false);
+        var importSource = ImportTracking.ForStatementFile(FileName);
+        var creation = new BankLineImportService().CreateFromLines(data, resolutions, linkToBankLine: false, importSource);
 
         // Learn a rule per line (merchant -> product + counterparty) so the next import is pre-filled.
         var ruleCaptures = LearnRules(data, resolutions);
@@ -240,6 +241,9 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         var skippedDuplicates = Rows.Count(r => r.AlreadyImported && !r.IsIncluded);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported,
             $"bank:{toImport.Count}:duplicates:{duplicateCount}:skipped:{skippedDuplicates}");
+        // Rows the user left out themselves, apart from the duplicates the preview left out for them, are usually rows that were read wrong.
+        var unticked = Rows.Count(r => !r.IsIncluded && !r.AlreadyImported);
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportRowsUnticked, $"{importSource}:{unticked}/{Rows.Count}");
         TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
         IsOpen = false;
     }

@@ -3142,7 +3142,9 @@ public partial class App : Application
 
             var importOptions = new ImportOptions
             {
-                SkipExistingRecords = skipExistingRecords
+                SkipExistingRecords = skipExistingRecords,
+                // A file in Argo Books' own export layout is the user's own data coming back, not something read.
+                ImportSource = exactLayout == null ? ImportTracking.Spreadsheet : null
             };
 
             // Detect currency written into the amount cells (symbols/codes).

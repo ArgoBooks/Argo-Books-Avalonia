@@ -153,5 +153,16 @@ public enum FeatureName
     // How long it took, in the duration. The context holds what prompted it, whether the file is
     // encrypted, and its size band, such as "manual:plain:1-10MB".
     CompanyOpened,
-    CompanySaved
+    CompanySaved,
+
+    // How well a scan or import read. Checked is its own check against the printed totals, such as "bank-pdf:fixed".
+    ImportChecked,
+
+    // An imported expense or revenue changed or deleted within 30 days, with its source and the changed fields, such as "bank-pdf:date,amount".
+    ImportedRecordCorrected,
+    ImportedRecordDeleted,
+
+    // Bank rows the user left out of an import, such as "bank-pdf:8/120", and a statement line ignored on the bank matching page.
+    ImportRowsUnticked,
+    ImportedLineIgnored
 }

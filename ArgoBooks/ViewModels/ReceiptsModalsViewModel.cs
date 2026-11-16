@@ -1558,6 +1558,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 var revenue = new Revenue
                 {
                     Id = revenueId,
+                    ImportSource = ImportTracking.ReceiptScan,
                     Date = transactionDate,
                     CustomerId = null,
                     Description = lineItems.Count > 0 ? lineItems[0].Description : supplierName,
@@ -1591,6 +1592,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 var expense = new Expense
                 {
                     Id = expenseId,
+                    ImportSource = ImportTracking.ReceiptScan,
                     Date = transactionDate,
                     SupplierId = item.SelectedSupplierId,
                     Description = lineItems.Count > 0 ? lineItems[0].Description : supplierName,
@@ -2008,6 +2010,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         // The receipt is canned, so the supplier and category it resolves to are known before the call is made.
         _suppressAiSuggestions = true;
+        _reviewingSample = true;
         PopulateScanResults(BuildSampleScanResult());
         _suppressAiSuggestions = false;
         ApplySampleSuggestion();
@@ -2169,6 +2172,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             ScanAllowanceUsed?.Invoke(this, EventArgs.Empty);
 
             // Populate fields with extracted data
+            _reviewingSample = false;
             PopulateScanResults(result);
             _scannedFields = ReviewFormFields();
 
@@ -2220,6 +2224,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             ScanCurrencyCode,
             string.Join("\n", LineItems.Select(li => $"{li.Description.Trim()}|{Amount(li.Quantity)}|{Amount(li.TotalPrice)}")));
     }
+
+    /// <summary>True while the review shows the built-in sample receipt, whose record is not a real scan.</summary>
+    private bool _reviewingSample;
 
     private void PopulateScanResults(ReceiptScanResult result)
     {
@@ -2643,6 +2650,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var expense = new Expense
         {
             Id = expenseId,
+            ImportSource = _reviewingSample ? null : ImportTracking.ReceiptScan,
             Date = expenseDate,
             SupplierId = SelectedSupplier?.Id,
             Description = lineItems.Count > 0 ? lineItems[0].Description : ExtractedSupplier,
@@ -2717,6 +2725,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var revenue = new Revenue
         {
             Id = revenueId,
+            ImportSource = _reviewingSample ? null : ImportTracking.ReceiptScan,
             Date = revenueDate,
             CustomerId = null, // Could be linked to customer if we add customer selection later
             Description = lineItems.Count > 0 ? lineItems[0].Description : ExtractedSupplier,

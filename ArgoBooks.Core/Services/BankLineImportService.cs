@@ -126,7 +126,7 @@ public class BankImportCreation
 /// </param>
 public class BankLineImportService(UsdRateSource? rates = null)
 {
-    public BankImportCreation CreateFromLines(CompanyData data, IReadOnlyList<BankLineResolution> resolutions, bool linkToBankLine = true)
+    public BankImportCreation CreateFromLines(CompanyData data, IReadOnlyList<BankLineResolution> resolutions, bool linkToBankLine = true, string? importSource = null)
     {
         var creation = new BankImportCreation();
 
@@ -185,6 +185,7 @@ public class BankLineImportService(UsdRateSource? rates = null)
                 : TransactionFactory.CreateRevenue(data, draft, revenueIds);
 
             UsdConversion.Apply(data, tx, UsdConversion.CachedRate(tx.OriginalCurrency, tx.Date, rates));
+            tx.ImportSource = importSource;
 
             if (linkToBankLine)
             {

@@ -277,4 +277,9 @@ public abstract class Transaction : IRecord
     public bool NeedsReview { get; set; }
 
     #endregion
+
+    /// <summary>The scan or import that created this record, one of the <see cref="ImportTracking"/> sources, or null when it was entered by hand.</summary>
+    [JsonPropertyName("importSource")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ImportSource { get; set; }
 }

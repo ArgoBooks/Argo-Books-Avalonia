@@ -39,6 +39,9 @@ public class ImportOptions
     /// </summary>
     public bool SkipExistingRecords { get; set; }
 
+    /// <summary>Marks the expenses and revenue this import creates, so later corrections to them can be counted. Null for none.</summary>
+    public string? ImportSource { get; set; }
+
     /// <summary>
     /// Tracks the number of records actually skipped during import.
     /// Reset before each sheet import. Used internally by import methods.
@@ -1785,6 +1788,7 @@ public class SpreadsheetImportService
 
                     SetImportedLines(data, expense, existing, entityJson, given, isPurchase: true);
 
+                    expense.ImportSource = existing == null ? options?.ImportSource : existing.ImportSource;
                     data.Expenses.AddOrUpdate(existing, expense);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
@@ -1818,6 +1822,7 @@ public class SpreadsheetImportService
                         SetImportedLines(data, revenue, existing, entityJson, given, isPurchase: false);
 
                     var invoiceBefore = existing?.InvoiceId;
+                    revenue.ImportSource = existing == null ? options?.ImportSource : existing.ImportSource;
                     var liveRevenue = data.Revenues.AddOrUpdate(existing, revenue);
                     NoteRevenueNamingAnInvoice(liveRevenue, existing == null, invoiceBefore, revenueAmountDerived);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
@@ -3712,7 +3717,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var existing = data.Expenses.FirstOrDefault(p => p.Id == id);
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
-            var purchase = existing ?? new Expense();
+            var purchase = existing ?? new Expense { ImportSource = options?.ImportSource };
             (DateTime Date, string Currency)? costedAt = existing == null ? null : CostedAt(existing);
 
             // Updating an expense changes only what the sheet has columns for; a new one takes every field.
@@ -4359,7 +4364,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var existing = data.Revenues.FirstOrDefault(s => s.Id == id);
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
-            var revenue = existing ?? new Revenue();
+            var revenue = existing ?? new Revenue { ImportSource = options?.ImportSource };
             var invoiceBefore = existing?.InvoiceId;
 
             // Updating a revenue changes only what the sheet has columns for; a new one takes every

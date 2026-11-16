@@ -600,6 +600,10 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
             () => SetLineRestored(line),
             () => SetLineIgnored(line)));
         App.CompanyManager?.MarkAsChanged();
+
+        var session = App.CompanyManager?.CompanyData?.BankImportSessions.FirstOrDefault(s => s.Lines.Contains(line));
+        if (session != null)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportedLineIgnored, ImportTracking.ForStatementFile(session.SourceFileName));
     }
 
     /// <summary>Restores a previously ignored line, recomputing its candidate matches. Tracked in undo/redo.</summary>
