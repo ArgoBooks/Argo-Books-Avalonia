@@ -1,7 +1,7 @@
 // Records argorobots.com's free invoice or estimate generator as a take, the way Takes.cs records the app: a hand moves,
 // clicks and types through the page while every change is saved. The take keeps its own clock, so it plays at an even
 // speed however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
-// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven OUT_FOLDER   (run "npm install" in this folder first)
+// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy OUT_FOLDER   (run "npm install" in this folder first)
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
@@ -16,11 +16,12 @@ const PAGES = {
   hourly: "https://argorobots.com/hourly-rate-calculator/",
   margin: "https://argorobots.com/markup-margin-calculator/",
   breakeven: "https://argorobots.com/break-even-calculator/",
+  etsy: "https://argorobots.com/etsy-fee-calculator/",
 };
 const SCALE = 2;
 // Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short. The tax calculator
 // goes into a 16:9 video beside the app's takes, so it is recorded at the app's own window size.
-const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 } };
+const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 }, etsy: { width: 1600, height: 1000 } };
 
 class Take {
   constructor(page, folder) {
@@ -466,6 +467,45 @@ const RECORDINGS = {
     take.hold(3.5);
     take.mark("end");
   },
+  // The Etsy Short's example: a US shop's $30 item with $8 of materials and $6 of free shipping, then the same sale coming
+  // from an Offsite Ad.
+  async etsy(page, take) {
+    await page.selectOption("#ec-country", "US");
+    await take.scrollTo(420, 0.01);
+    await take.snap();
+    take.mark("top");
+    take.hold(0.6);
+    await take.moveInto("price", "#ec-price", 0, 0.8, 120);
+    take.mark("click_price");
+    await take.click();
+    await take.type("30", 0.14);
+    take.hold(0.2);
+    await take.moveInto("materials", "#ec-materials", 0, 0.6, 120);
+    await take.click();
+    await take.type("8", 0.14);
+    take.hold(0.2);
+    await take.moveInto("ship_cost", "#ec-ship-cost", 0, 0.6, 120);
+    await take.click();
+    await take.type("6", 0.14);
+    take.mark("typed");
+    take.hold(0.3);
+    await take.place("results", ".calc-results");
+    await take.moveInto("more", ".etsy-advanced summary", 0, 0.8, 120);
+    take.mark("click_more");
+    await take.click();
+    take.hold(0.4);
+    await take.moveInto("ads", "#ec-ads", 0, 0.7, 160);
+    take.mark("click_ads");
+    await take.click(false);
+    await page.selectOption("#ec-ads", { index: 1 });
+    await take.snap();
+    take.mark("ads_on");
+    take.hold(0.4);
+    await take.place("results", ".calc-results");
+    take.mark("look_result");
+    take.hold(3.5);
+    take.mark("end");
+  },
   async estimate(page, take) {
     await opening(take, 3.0);
     await parties(take, "Northline Decks", "Northline Decks\n214 Harbor Road\nPortland, ME 04102", "Linda Park\n88 Maple Avenue\nPortland, ME 04103");
@@ -480,7 +520,7 @@ const RECORDINGS = {
 
 (async () => {
   const [kind, folder] = process.argv.slice(2);
-  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven OUT_FOLDER");
+  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy OUT_FOLDER");
   const viewport = VIEWPORTS[kind];
   fs.rmSync(path.join(folder, "frames"), { recursive: true, force: true });
   fs.mkdirSync(path.join(folder, "frames"), { recursive: true });
