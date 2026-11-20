@@ -4,6 +4,7 @@ name: Build Linux AppImage
 # Runs packaging/linux/build-appimage.sh and uploads the AppImage and update files as one artifact.
 on:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   build:
