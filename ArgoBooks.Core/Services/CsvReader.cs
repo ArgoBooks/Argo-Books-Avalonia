@@ -13,22 +13,7 @@ public static class CsvReader
     public static List<List<string>> ReadAllRows(string path, out List<string> headers)
     {
         var text = TextFileDecoder.ReadAllText(path);
-        var delimiter = DetectDelimiter(text);
-        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            Delimiter = delimiter.ToString(),
-            HasHeaderRecord = false,
-            BadDataFound = null,
-            TrimOptions = TrimOptions.Trim,
-            DetectColumnCountChanges = false,
-        };
-
-        using var reader = new StringReader(text);
-        using var csv = new CsvParser(reader, config);
-
-        var all = new List<string[]>();
-        while (csv.Read())
-            all.Add(csv.Record ?? []);
+        var all = ParseRows(text, DetectDelimiter(text));
 
         // Leading section-comment lines, such as the "# Customers" line our own export writes, and blank rows are skipped so the real header is used.
         var start = 0;
@@ -42,11 +27,33 @@ public static class CsvReader
                   .ToList();
     }
 
+    /// <summary>Splits CSV text into rows, keeping a quoted field that runs over several lines in one row.</summary>
+    internal static List<string[]> ParseRows(string text, char delimiter)
+    {
+        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            Delimiter = delimiter.ToString(),
+            HasHeaderRecord = false,
+            BadDataFound = null,
+            TrimOptions = TrimOptions.Trim,
+            DetectColumnCountChanges = false,
+        };
+
+        using var reader = new StringReader(text);
+        using var csv = new CsvParser(reader, config);
+
+        var rows = new List<string[]>();
+        while (csv.Read())
+            rows.Add(csv.Record ?? []);
+        return rows;
+    }
+
     private static bool IsCommentOrBlank(string[] row)
         => row.Length == 0
            || row.All(string.IsNullOrWhiteSpace)
            || row[0].TrimStart().StartsWith('#');
 
-    private static char DetectDelimiter(string text) =>
+    /// <summary>The separator the text's lines share, leaving out comment lines, whose separators belong to no column.</summary>
+    internal static char DetectDelimiter(string text) =>
         SpreadsheetAnalysisService.DetectCsvDelimiter(text.Split('\n').Where(l => !l.TrimStart().StartsWith('#')));
 }

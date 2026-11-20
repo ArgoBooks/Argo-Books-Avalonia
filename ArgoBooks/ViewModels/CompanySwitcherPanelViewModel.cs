@@ -59,6 +59,9 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     /// </summary>
     public CompanySwitcherPanelViewModel()
     {
+        // Refresh filtered properties whenever the collection changes
+        RecentCompanies.CollectionChanged += (_, _) => RefreshFilteredRecent();
+
         // Design-time defaults
         RecentCompanies.Add(new CompanyItem
         {
@@ -163,30 +166,15 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Adds a recent company to the list.
+    /// Shows <paramref name="companies"/>, most recently opened first, keeping the first five.
     /// </summary>
-    public void AddRecentCompany(string name, string filePath, Bitmap? logo = null)
+    public void SetRecentCompanies(IEnumerable<CompanyItem> companies)
     {
-        // Don't add duplicates
-        var existing = RecentCompanies.FirstOrDefault(c => c.FilePath == filePath);
-        if (existing != null)
+        RecentCompanies.Clear();
+        foreach (var company in companies.Take(5))
         {
-            RecentCompanies.Remove(existing);
-        }
-
-        // Add to the beginning
-        RecentCompanies.Insert(0, new CompanyItem
-        {
-            Name = name,
-            Initial = Helpers.InitialsHelper.From(name),
-            FilePath = filePath,
-            Logo = logo
-        });
-
-        // Keep only the last 5 recent companies
-        while (RecentCompanies.Count > 5)
-        {
-            RecentCompanies.RemoveAt(RecentCompanies.Count - 1);
+            company.Initial = Helpers.InitialsHelper.From(company.Name);
+            RecentCompanies.Add(company);
         }
 
         RefreshFilteredRecent();

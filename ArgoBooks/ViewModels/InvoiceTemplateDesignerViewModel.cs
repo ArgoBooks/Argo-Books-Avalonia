@@ -707,7 +707,7 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.FileSystem, "Failed to load logo");
+            UserFileFailure.Report(App.ErrorLogger, ex, "Failed to load logo", Core.Models.Telemetry.ErrorCategory.FileSystem, "LogoFileUnreadable");
         }
     }
 

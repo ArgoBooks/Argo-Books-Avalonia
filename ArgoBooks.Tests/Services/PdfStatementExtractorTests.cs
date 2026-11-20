@@ -61,4 +61,27 @@ public class PdfStatementExtractorTests
         Assert.Empty(PdfStatementExtractor.ParseRows("not json <html>error</html>"));
         Assert.Empty(PdfStatementExtractor.ParseRows(""));
     }
+
+    [Fact]
+    public void ParseCheck_ReadsTheStatusAndGap()
+    {
+        var check = PdfStatementExtractor.ParseCheck("""{"success":true,"lines":[],"check":{"status":"off","gap":-60.5}}""");
+
+        Assert.Equal(new StatementCheck("off", -60.5m), check);
+    }
+
+    [Fact]
+    public void ParseCheck_AnUncheckedStatementHasNoGap()
+    {
+        var check = PdfStatementExtractor.ParseCheck("""{"success":true,"lines":[],"check":{"status":"unchecked","gap":null}}""");
+
+        Assert.Equal(new StatementCheck("unchecked", null), check);
+    }
+
+    [Fact]
+    public void ParseCheck_AResponseWithoutACheckGivesNone()
+    {
+        Assert.Null(PdfStatementExtractor.ParseCheck("""{"success":true,"lines":[]}"""));
+        Assert.Null(PdfStatementExtractor.ParseCheck("not json"));
+    }
 }

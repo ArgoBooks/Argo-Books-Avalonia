@@ -75,7 +75,7 @@ public class BackupRestoreTests : IDisposable
 
             // With no password supplied and nobody to ask, an encrypted file is not opened.
             Assert.False(await _manager.OpenCompanyAsync(_restoredPath));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            await Assert.ThrowsAsync<CompanyPasswordException>(
                 () => _manager.OpenCompanyAsync(_restoredPath, "WrongHorse#2"));
 
             Assert.True(await _manager.OpenCompanyAsync(_restoredPath, Password));

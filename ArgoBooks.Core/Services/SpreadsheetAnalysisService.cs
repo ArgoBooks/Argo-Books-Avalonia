@@ -60,6 +60,7 @@ public class SpreadsheetAnalysisService(
         CancellationToken cancellationToken = default,
         IProgress<(string detail, double percent)>? progress = null)
     {
+        var opened = false;
         try
         {
             // Report initial progress so the UI shows the loading overlay immediately
@@ -68,6 +69,7 @@ public class SpreadsheetAnalysisService(
 
             using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var workbook = new XLWorkbook(fileStream);
+            opened = true;
 
             var sheetsData = new List<(string Name, List<string> Headers, List<List<string>> SampleRows, int TotalRows)>();
 
@@ -92,7 +94,9 @@ public class SpreadsheetAnalysisService(
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to analyze spreadsheet with AI");
+            // A file that will not open is reported once, by the rescue import that reads it next.
+            if (opened)
+                errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to analyze spreadsheet with AI");
             return null;
         }
     }
@@ -105,6 +109,7 @@ public class SpreadsheetAnalysisService(
         CancellationToken cancellationToken = default,
         IProgress<(string detail, double percent)>? progress = null)
     {
+        var opened = false;
         try
         {
             // Report initial progress so the UI shows the loading overlay immediately
@@ -112,6 +117,7 @@ public class SpreadsheetAnalysisService(
             await Task.Yield();
 
             var allDataRows = CsvReader.ReadAllRows(filePath, out var headers);
+            opened = true;
             if (headers.Count == 0)
                 return null;
 
@@ -133,7 +139,9 @@ public class SpreadsheetAnalysisService(
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to analyze CSV with AI");
+            // A file that will not open is reported once, by the rescue import that reads it next.
+            if (opened)
+                errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to analyze CSV with AI");
             return null;
         }
     }
@@ -303,7 +311,7 @@ public class SpreadsheetAnalysisService(
             errorLogger?.LogError(
                 $"AI analysis response could not be parsed (length {response.Length}, " +
                 $"{batch.Count} sheet(s), {totalColumns} columns, maxTokens {maxTokens}); response likely truncated.",
-                ErrorCategory.Parsing, "Spreadsheet analysis");
+                ErrorCategory.Parsing, "Spreadsheet analysis", "AnalysisUnparseable");
         }
 
         return result;
@@ -325,11 +333,15 @@ public class SpreadsheetAnalysisService(
     {
         for (var attempt = 1; ; attempt++)
         {
-            var (result, answered) = await TryProcessChunkAsync(headers, rows, entityType, cancellationToken);
+            var (result, answered, failure) = await TryProcessChunkAsync(headers, rows, entityType, cancellationToken);
 
             // An unreadable reply isn't retried: the same rows at temperature 0 would most likely come back the same, and every answered call counts against the server's rate limit.
             if (result != null || answered || attempt >= MaxChunkAttempts)
+            {
+                // Only the attempt that settles the chunk is reported, since one a later attempt recovered from cost the user nothing.
+                failure?.Report(errorLogger);
                 return result;
+            }
 
             await Task.Delay(ChunkRetryDelay * attempt, cancellationToken);
         }
@@ -339,7 +351,7 @@ public class SpreadsheetAnalysisService(
     /// One LLM call for a chunk. <c>Answered</c> is false when no reply came back, the transient
     /// case worth retrying.
     /// </summary>
-    private async Task<(LlmProcessedData? Result, bool Answered)> TryProcessChunkAsync(
+    private async Task<(LlmProcessedData? Result, bool Answered, AiChatFailure? Failure)> TryProcessChunkAsync(
         List<string> headers,
         List<List<string>> rows,
         SpreadsheetSheetType entityType,
@@ -347,32 +359,35 @@ public class SpreadsheetAnalysisService(
     {
         var schema = ImportSchemaDefinition.GetSchemaForType(entityType, country);
         if (schema == null)
-            return (null, true);
+            return (null, true, null);
 
         var systemPrompt = BuildTier2SystemPrompt(entityType, schema);
         var userPrompt = BuildTier2UserPrompt(headers, rows);
 
         string? response;
+        AiChatFailure? failure;
         try
         {
             var reply = await geminiService.SendChatWithStatusAsync(
                 systemPrompt, userPrompt, maxTokens: 16000, temperature: 0.0, cancellationToken,
-                operation: OperationKind.SpreadsheetProcess, sizeFeature: rows.Count);
+                operation: OperationKind.SpreadsheetProcess, sizeFeature: rows.Count, reportFailure: false);
             if (reply.RateLimited)
-                return (null, true);
+                return (null, true, reply.Failure);
             response = reply.Content;
+            failure = reply.Failure;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             // HttpClient reports its own timeout as a cancellation. Left to propagate, one slow
             // chunk ended the whole import as though the user had pressed Cancel.
             response = null;
+            failure = new AiChatFailure("The AI request for a chunk of rows timed out", "Timeout", true, "Spreadsheet extraction");
         }
 
         if (string.IsNullOrEmpty(response))
-            return (null, false);
+            return (null, false, failure);
 
-        return (ParseTier2Response(response, entityType, rows.Count), true);
+        return (ParseTier2Response(response, entityType, rows.Count), true, null);
     }
 
     /// <summary>
@@ -483,6 +498,8 @@ public class SpreadsheetAnalysisService(
 
         await Task.WhenAll(tasks);
 
+        MakeMadeUpIdsUniqueAcrossChunks(chunks.Select(c => c.Rows).ToList(), chunkResults);
+
         var results = new List<LlmProcessedData>();
         var failedRows = 0;
         for (int i = 0; i < chunkResults.Length; i++)
@@ -503,12 +520,62 @@ public class SpreadsheetAnalysisService(
 
         if (failedRows > 0)
         {
+            // Rows the AI reply did not cover are lost from the import, so the count is uploaded; the sheet name is the user's and stays out of it.
             errorLogger?.LogWarning(
-                $"AI processing: {failedRows} of {total} rows failed to process for sheet '{sheetAnalysis.SourceSheetName}'");
+                $"AI processing: {failedRows} of {total} rows failed to process",
+                "Spreadsheet extraction", ErrorCategory.Import, "ExtractionRowsFailed");
         }
 
         return results;
     }
+
+    /// <summary>Renames an id an earlier chunk already used when this chunk's rows do not contain it, because the ids the AI makes up restart in every chunk and the import keeps one record per id.</summary>
+    internal static void MakeMadeUpIdsUniqueAcrossChunks(IReadOnlyList<List<List<string>>> chunkRows, IList<LlmProcessedData?> chunkResults)
+    {
+        var chunkOfId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var chunk = 0; chunk < chunkResults.Count; chunk++)
+        {
+            if (chunkResults[chunk] is not { } result)
+                continue;
+
+            HashSet<string>? cellsInChunk = null;
+            for (var i = 0; i < result.Entities.Count; i++)
+            {
+                var entity = result.Entities[i];
+                if (entity.ValueKind != JsonValueKind.Object || !entity.TryGetProperty("id", out var idElement)
+                    || idElement.ValueKind != JsonValueKind.String || idElement.GetString() is not { Length: > 0 } id)
+                    continue;
+
+                if (chunkOfId.TryGetValue(id, out var firstChunk) && firstChunk != chunk)
+                {
+                    cellsInChunk ??= new HashSet<string>(chunkRows[chunk].SelectMany(row => row).Select(cell => cell.Trim()),
+                        StringComparer.OrdinalIgnoreCase);
+                    if (!CameFromTheSheet(id, cellsInChunk))
+                    {
+                        // A letter in the suffix keeps it apart from the numbered copies the backup import adds for repeated ids.
+                        var newId = $"{id}-c{chunk + 1}";
+                        for (var n = 2; chunkOfId.ContainsKey(newId); n++)
+                            newId = $"{id}-c{chunk + 1}-{n}";
+
+                        var node = JsonNode.Parse(entity.GetRawText())!.AsObject();
+                        node["id"] = newId;
+                        result.Entities[i] = JsonSerializer.SerializeToElement(node);
+                        chunkOfId[newId] = chunk;
+                        continue;
+                    }
+                }
+
+                chunkOfId.TryAdd(id, chunk);
+            }
+        }
+    }
+
+    /// <summary>True when the id is a cell of the chunk, or a cell the AI wrote with a prefix such as INV-1001 for 1001.</summary>
+    private static bool CameFromTheSheet(string id, HashSet<string> cellsInChunk) =>
+        cellsInChunk.Contains(id)
+        || cellsInChunk.Any(cell => cell.Length >= 3 && id.Length > cell.Length
+                                    && id.EndsWith(cell, StringComparison.OrdinalIgnoreCase)
+                                    && !char.IsLetterOrDigit(id[id.Length - cell.Length - 1]));
 
     #endregion
 
@@ -788,6 +855,17 @@ IMPORTANT:
         }
     }
 
+    /// <summary>Writes an id the AI gave as a number as text, because every step after this compares ids as text to keep records apart.</summary>
+    private static JsonElement WithTextId(JsonElement entity)
+    {
+        if (entity.ValueKind != JsonValueKind.Object || !entity.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.Number)
+            return entity;
+
+        var node = JsonNode.Parse(entity.GetRawText())!.AsObject();
+        node["id"] = id.GetRawText();
+        return JsonSerializer.SerializeToElement(node);
+    }
+
     internal static LlmProcessedData? ParseTier2Response(string response, SpreadsheetSheetType entityType, int sourceRowCount)
     {
         try
@@ -806,7 +884,7 @@ IMPORTANT:
             {
                 foreach (var entity in doc.RootElement.EnumerateArray())
                 {
-                    result.Entities.Add(entity.Clone());
+                    result.Entities.Add(WithTextId(entity.Clone()));
                 }
             }
             else if (doc.RootElement.TryGetProperty("entities", out var entitiesArray)
@@ -814,7 +892,7 @@ IMPORTANT:
             {
                 foreach (var entity in entitiesArray.EnumerateArray())
                 {
-                    result.Entities.Add(entity.Clone());
+                    result.Entities.Add(WithTextId(entity.Clone()));
                 }
             }
             else
@@ -856,13 +934,14 @@ IMPORTANT:
     private static int FindHeaderRow(IXLWorksheet worksheet)
     {
         var lastRow = Math.Min(worksheet.LastRowUsed()?.RowNumber() ?? 1, 10);
-        var colCount = worksheet.ColumnsUsed().Count();
+        // The last column that holds data, so a sheet with a blank column is read to its end.
+        var lastColumn = worksheet.LastColumnUsed()?.ColumnNumber() ?? 0;
 
         for (int rowNum = 1; rowNum <= lastRow; rowNum++)
         {
             var row = worksheet.Row(rowNum);
             int nonEmpty = 0;
-            for (int col = 1; col <= colCount; col++)
+            for (int col = 1; col <= lastColumn; col++)
             {
                 if (!row.Cell(col).IsEmpty()) nonEmpty++;
                 if (nonEmpty >= 2) return rowNum;
@@ -881,9 +960,9 @@ IMPORTANT:
     {
         var headers = new List<string>();
         var row = worksheet.Row(headerRow);
-        var colCount = worksheet.ColumnsUsed().Count();
+        var lastColumn = worksheet.LastColumnUsed()?.ColumnNumber() ?? 0;
         var trailingEmpty = 0;
-        for (int col = 1; col <= colCount; col++)
+        for (int col = 1; col <= lastColumn; col++)
         {
             var cell = row.Cell(col);
             if (cell.IsEmpty())
@@ -1054,42 +1133,6 @@ IMPORTANT:
             else if (c == delimiter && !inQuotes) count++;
         }
         return count;
-    }
-
-    internal static List<string> ParseCsvLine(string line, char delimiter)
-    {
-        var fields = new List<string>();
-        var current = new StringBuilder();
-        var inQuotes = false;
-
-        for (int i = 0; i < line.Length; i++)
-        {
-            var c = line[i];
-            if (c == '"')
-            {
-                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
-                {
-                    current.Append('"');
-                    i++; // skip escaped quote
-                }
-                else
-                {
-                    inQuotes = !inQuotes;
-                }
-            }
-            else if (c == delimiter && !inQuotes)
-            {
-                fields.Add(current.ToString().Trim());
-                current.Clear();
-            }
-            else
-            {
-                current.Append(c);
-            }
-        }
-
-        fields.Add(current.ToString().Trim());
-        return fields;
     }
 
     #endregion
@@ -1462,7 +1505,7 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
         catch (Exception ex)
         {
             // Deliberate UX choice: a read failure here (corrupt/locked/unreadable file) surfaces as a friendly rejection instead of throwing and crashing the import flow.
-            errorLogger?.LogError(ex, ErrorCategory.Import, "Rescue import: failed to read the file");
+            UserFileFailure.Report(errorLogger, ex, "Rescue import: failed to read the file", ErrorCategory.Import, "ImportFileUnreadable");
             return new ImportRescueResult
             {
                 Outcome = ImportRescueOutcome.Rejected,

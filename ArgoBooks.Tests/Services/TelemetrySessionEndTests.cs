@@ -74,7 +74,7 @@ public class TelemetrySessionEndTests : IDisposable
     private sealed class SilentLogger : IErrorLogger
     {
         public void LogError(Exception exception, ErrorCategory category, string? context = null, string callerFile = "", int callerLine = 0, string callerMember = "") { }
-        public void LogError(string message, ErrorCategory category, string? context = null, string callerFile = "", int callerLine = 0, string callerMember = "") { }
+        public void LogError(string message, ErrorCategory category, string? context = null, string? code = null, string callerFile = "", int callerLine = 0, string callerMember = "") { }
         public void LogWarning(string message, string? context = null, ErrorCategory category = ErrorCategory.Unknown, string? code = null, string callerFile = "", int callerLine = 0, string callerMember = "") { }
         public void LogInfo(string message) { }
         public void LogDebug(string message) { }
@@ -130,5 +130,54 @@ public class TelemetrySessionEndTests : IDisposable
         await manager.EndSessionAsync();
 
         Assert.Empty(Directory.GetFiles(sessions));
+    }
+
+    private static int CountStarts(RecordingStorage storage) =>
+        storage.Events.OfType<SessionEvent>().Count(e => e.Action == SessionAction.SessionStart);
+
+    /// <summary>
+    /// An update that ends the session and then does not start leaves the app running, so the
+    /// rest of the run needs a session of its own, closed in turn when the window closes.
+    /// </summary>
+    [Fact]
+    public async Task ResumingAfterAnUpdateThatDidNotStart_RecordsTheRestOfTheRun()
+    {
+        var (manager, storage) = Build();
+        await manager.InitializeAsync();
+        await manager.EndSessionAsync();
+
+        await manager.ResumeSessionAsync();
+
+        var sessions = Path.Combine(_root, "telemetry", "sessions");
+        Assert.NotEmpty(Directory.GetFiles(sessions));
+        await manager.EndSessionAsync();
+        Assert.Equal(2, CountStarts(storage));
+        Assert.Equal(2, CountEnds(storage));
+    }
+
+    [Fact]
+    public async Task ResumedSession_GoesOnTimingThePageOnScreen()
+    {
+        var (manager, storage) = Build();
+        await manager.InitializeAsync();
+        manager.NoteCurrentPage("Expenses");
+        await manager.EndSessionAsync();
+
+        await manager.ResumeSessionAsync();
+        await manager.EndSessionAsync();
+
+        var lastEnd = storage.Events.OfType<SessionEvent>().Last(e => e.Action == SessionAction.SessionEnd);
+        Assert.Equal("Expenses", lastEnd.LastPage);
+    }
+
+    [Fact]
+    public async Task ResumingASessionThatIsStillRunning_ChangesNothing()
+    {
+        var (manager, storage) = Build();
+        await manager.InitializeAsync();
+
+        await manager.ResumeSessionAsync();
+
+        Assert.Equal(1, CountStarts(storage));
     }
 }

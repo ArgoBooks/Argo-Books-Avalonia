@@ -70,9 +70,9 @@ public sealed class RateReadinessService
         {
             // The server's rate limiter rejected us. We backed off immediately (no per-date fanout),
             // so tell the user to wait a moment rather than showing a misleading connection error.
-            _errorLogger?.LogError(
+            _errorLogger?.LogWarning(
                 $"[RateGate] Rate-limited by the server while fetching {missing.Count} dates; backed off without fanning out. Wait and retry.",
-                ErrorCategory.Import, "RateReadiness");
+                "RateReadiness", ErrorCategory.Api, "RateLimited");
             return new RateReadiness(RateReadinessStatus.Unavailable, RateUnavailableReason.RateLimited, future);
         }
         catch (Exception ex)
@@ -86,12 +86,13 @@ public sealed class RateReadinessService
             return new RateReadiness(RateReadinessStatus.Ready, RateUnavailableReason.None, future);
 
         var reason = await ClassifyAsync(ct);
-        // LogError (not Warning) so it reaches telemetry and survives the session: this is the exact
-        // set of dates that blocked the import, the single most useful clue for "could not get rates".
-        _errorLogger?.LogError(
-            $"[RateGate] BLOCKED: {stillMissing.Count} of {missing.Count} required dates still unpriced after fetch (reason={reason}): " +
-            $"{string.Join(", ", stillMissing.OrderBy(d => d).Take(40).Select(d => d.ToString("yyyy-MM-dd")))}",
-            ErrorCategory.Import, "RateReadiness");
+        var blocked = $"[RateGate] BLOCKED: {stillMissing.Count} of {missing.Count} required dates still unpriced after fetch (reason={reason}): " +
+                      $"{string.Join(", ", stillMissing.OrderBy(d => d).Take(40).Select(d => d.ToString("yyyy-MM-dd")))}";
+        // A connection that dropped part way through is the user's, not ours.
+        if (reason == RateUnavailableReason.NoInternet)
+            _errorLogger?.LogWarning(blocked, "RateReadiness", ErrorCategory.Network, "Offline");
+        else
+            _errorLogger?.LogError(blocked, ErrorCategory.Import, "RateReadiness", "RatesBlocked");
         return new RateReadiness(RateReadinessStatus.Unavailable, reason, future);
     }
 

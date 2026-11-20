@@ -44,7 +44,17 @@ public sealed record AiProxyResponse(
     bool IsHttpSuccess,
     double WallClockMs,
     long UploadBytes,
-    AiProxyTiming? Timing);
+    AiProxyTiming? Timing)
+{
+    /// <summary>
+    /// The server turned the request down on purpose: our rate limit, the month's scan allowance, or
+    /// a licence that is no longer valid. These are reported as warnings, since nothing failed.
+    /// </summary>
+    public bool IsExpectedRefusal => Code is "RATE_LIMITED" or "SCAN_LIMIT_REACHED" or "UNAUTHORIZED";
+
+    /// <summary>What the dashboard groups a failed call by: the server's code, or the HTTP status when it gave none.</summary>
+    public string FailureCode => Code ?? $"Http{(int)StatusCode}";
+}
 
 /// <summary>
 /// Posts requests to <c>{baseUrl}/api/ai/completions.php</c>. Shared by the desktop's

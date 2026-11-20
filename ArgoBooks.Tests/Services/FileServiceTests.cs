@@ -77,7 +77,7 @@ public class FileServiceTests
             tempForSave = await service.OpenCompanyAsync(filePath);
             await service.SaveCompanyAsync(filePath, tempForSave, password);
 
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
+            await Assert.ThrowsAsync<CompanyPasswordException>(async () =>
                 await service.OpenCompanyAsync(filePath, "wrong-password"));
         }
         finally

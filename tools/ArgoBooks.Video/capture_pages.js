@@ -109,7 +109,10 @@ const PAGES = {
     mac: true,
     url: "https://www.gnucash.org/features.phtml",
     clicks: [],
-    targets: { double_entry: { text: "Every transaction must debit one account and credit others" }, register: { text: "Checkbook-Style Register" } },
+    targets: {
+      double_entry: { text: "Every transaction must debit one account and credit others" }, register: { text: "Checkbook-Style Register" },
+      qif: { text: "QIF and OFX Import" }, quicken: { text: "GnuCash can import Intuit® Quicken® QIF files" },
+    },
   },
   manager_download: {
     mac: true,
@@ -134,8 +137,57 @@ const PAGES = {
     clicks: [],
     targets: { price: { text: "59 USD" }, users: { text: "Unlimited Users + Unlimited Businesses" } },
   },
+  // The QuickBooks Desktop alternatives video, on Windows. Sage's pages refuse a headless browser, so its facts are on cards.
+  accountedge_pricing: {
+    url: "https://www.accountedge.com/pricing/",
+    clicks: [{ mouse: "div.cmplz-close" }],
+    targets: {
+      platforms: { text: "For Mac", exact: true },
+      usd: { text: "(All pricing in USD)" },
+      payroll: { text: "Payroll available as an optional service on all AccountEdge plans." },
+      pro_price: { text: "$20/Month", near: "AccountEdge Pro" },
+      single_user: { text: "Single User" },
+      local: { text: "Local Desktop/On-Premise", near: "Single User" },
+      network_price: { text: "$30/Month" },
+      two_users: { text: "includes 2 users" },
+    },
+  },
+  accountedge_qb: {
+    url: "https://www.accountedge.com/convert-from-quickbooks/",
+    clicks: [{ mouse: "div.cmplz-close" }],
+    targets: {
+      from_389: { text: "starting at $389" },
+      iif: { text: "we have a free IIF import tool" },
+      current_year: { text: "$389", exact: true },
+      prior_years: { text: "$200 per year" },
+    },
+  },
+  gnucash_download_win: {
+    url: "https://www.gnucash.org/download.phtml",
+    clicks: [],
+    targets: {
+      windows: { text: "for Microsoft Windows 8/10/11" }, silicon: { text: "for Apple macOS Apple Silicon" },
+      linux: { text: "Most linux distributions" },
+    },
+  },
+  manager_download_win: {
+    url: "https://www.manager.io/download",
+    clicks: [],
+    targets: {
+      free_forever: { text: "No internet connection required. Fully-featured and free forever." },
+      windows: { text: "Requires Windows 10 Version 1709 (64-bit) or newer." },
+      single_user: { text: "Desktop edition is single-user software." },
+    },
+  },
   argo_home: { url: "https://argorobots.com/", clicks: [], targets: {} },
-  argo_downloads: { url: "https://argorobots.com/downloads/", clicks: [], targets: {} },
+  argo_downloads: {
+    url: "https://argorobots.com/downloads/",
+    clicks: [],
+    targets: {
+      no_account: { text: "Get started for free. No account required." }, windows: { text: "For Windows 10 and later" },
+      mac: { text: "For macOS 14 Sonoma and later" }, linux: { text: "Download for Linux" },
+    },
+  },
   argo_downloads_mac: {
     mac: true,
     url: "https://argorobots.com/downloads/",
@@ -156,6 +208,7 @@ const PAGES = {
       free_invoices: { text: "Send 25 invoices a month" },
       free_scans: { text: "Scan 10 receipts a month, no typing" },
       free_bank: { text: "Import 25 bank statements a month" },
+      free_imports: { text: "Import 100 spreadsheets a month" },
       premium_card: { text: "Want unlimited invoicing" },
       premium_price: { text: "CAD/month" },
     },

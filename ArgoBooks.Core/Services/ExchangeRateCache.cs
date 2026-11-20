@@ -1,3 +1,4 @@
+using System.Globalization;
 using ArgoBooks.Core.Platform;
 
 namespace ArgoBooks.Core.Services;
@@ -45,7 +46,8 @@ public class ExchangeRateCache
     /// <returns>A unique cache key.</returns>
     public static string GetCacheKey(string fromCurrency, string toCurrency, DateTime date)
     {
-        return $"{date:yyyy-MM-dd}_{fromCurrency.ToUpperInvariant()}_{toCurrency.ToUpperInvariant()}";
+        // Written the same way on every computer, because a Thai or Arabic calendar setting gives the date a different year and every saved rate would stop matching.
+        return string.Create(CultureInfo.InvariantCulture, $"{date:yyyy-MM-dd}_{fromCurrency.ToUpperInvariant()}_{toCurrency.ToUpperInvariant()}");
     }
 
     /// <summary>

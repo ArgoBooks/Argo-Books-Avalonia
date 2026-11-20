@@ -28,10 +28,12 @@ public interface IErrorLogger
     /// <param name="message">Error message.</param>
     /// <param name="category">Category of the error.</param>
     /// <param name="context">Optional context.</param>
+    /// <param name="code">Stable identifier the dashboard groups by. Without one the error shows as "Unknown".</param>
     void LogError(
         string message,
         ErrorCategory category,
         string? context = null,
+        string? code = null,
         [CallerFilePath] string callerFile = "",
         [CallerLineNumber] int callerLine = 0,
         [CallerMemberName] string callerMember = "");

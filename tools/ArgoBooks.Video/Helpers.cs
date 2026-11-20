@@ -131,10 +131,10 @@ internal static class AppHooks
     public static void SetProperty(object target, string property, object value) => Set(target, property, value);
 
     /// <summary>Gives the window a file picker that answers at once, since a window with no desktop has none.</summary>
-    public static void AnswerFilePickers(Window window, string saveAs)
+    public static void AnswerFilePickers(Window window, string saveAs, string? open = null)
     {
         var field = typeof(TopLevel).GetFields(Any).First(f => f.FieldType == typeof(IStorageProvider));
-        field.SetValue(window, AnsweringStorage.Over(window.StorageProvider, saveAs));
+        field.SetValue(window, AnsweringStorage.Over(window.StorageProvider, saveAs, open));
     }
 
     private static void Set(object target, string property, object value) =>
@@ -198,26 +198,30 @@ internal static class LocalFile
 }
 
 /// <summary>
-/// A file picker that picks by itself: saving always goes to the one path it was given. It is a proxy because Avalonia
-/// does not let outside code implement the interface directly.
+/// A file picker that picks by itself: saving always goes to the one path it was given, and opening picks the one file it
+/// was given. It is a proxy because Avalonia does not let outside code implement the interface directly.
 /// </summary>
 internal class AnsweringStorage : DispatchProxy
 {
     private IStorageProvider _inner = null!;
     private string _saveAs = "";
+    private string? _open;
 
-    public static IStorageProvider Over(IStorageProvider inner, string saveAs)
+    public static IStorageProvider Over(IStorageProvider inner, string saveAs, string? open = null)
     {
         var proxy = Create<IStorageProvider, AnsweringStorage>();
         var self = (AnsweringStorage)(object)proxy;
         self._inner = inner;
         self._saveAs = saveAs;
+        self._open = open;
         return proxy;
     }
 
     protected override object? Invoke(MethodInfo? method, object?[]? args)
     {
-        if (method!.Name != nameof(IStorageProvider.SaveFilePickerAsync))
+        if (method!.Name == nameof(IStorageProvider.OpenFilePickerAsync) && _open != null)
+            return Task.FromResult<IReadOnlyList<IStorageFile>>([LocalFile.Wrap(_open)]);
+        if (method.Name != nameof(IStorageProvider.SaveFilePickerAsync))
             return method.Invoke(_inner, args);
         File.WriteAllBytes(_saveAs, []);
         return Task.FromResult<IStorageFile?>(LocalFile.Wrap(_saveAs));

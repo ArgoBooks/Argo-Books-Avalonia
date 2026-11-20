@@ -69,6 +69,8 @@ $packArgs = @(
     '--channel', 'win',
     # Only whole packages carry a signature the app checks, so partial updates are never built.
     '--delta', 'None',
+    # Invoices and PDF previews are drawn by WebView2, which some Windows PCs do not have.
+    '--framework', 'webview2',
     '--outputDir', $outputDir
 )
 if (-not $SkipCodeSigning) {

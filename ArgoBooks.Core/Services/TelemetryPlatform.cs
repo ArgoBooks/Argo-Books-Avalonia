@@ -24,4 +24,19 @@ internal static class TelemetryPlatform
         : RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "macOS"
         : RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "Linux"
         : "Unknown";
+
+    /// <summary>
+    /// The operating system's version number alone, such as "10.0.26100" on Windows or "15.1.0" on macOS.
+    /// The website keeps it only if it is digits and dots, so nothing else may be added to it.
+    /// </summary>
+    public static string Version
+    {
+        get
+        {
+            var version = Environment.OSVersion.Version;
+            return version.Build >= 0
+                ? $"{version.Major}.{version.Minor}.{version.Build}"
+                : $"{version.Major}.{version.Minor}";
+        }
+    }
 }

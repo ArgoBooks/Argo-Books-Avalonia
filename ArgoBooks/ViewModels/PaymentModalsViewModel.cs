@@ -1,4 +1,4 @@
-﻿using ArgoBooks.Localization;
+using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
@@ -634,7 +634,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Payment.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Payment.OpenDeleteConfirm");
         }
     }
 

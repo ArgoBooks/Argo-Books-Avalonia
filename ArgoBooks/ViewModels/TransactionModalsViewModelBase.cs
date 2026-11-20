@@ -1229,8 +1229,12 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
             if (IsEditMode)
             {
+                var editing = BulkRecords(companyData).FirstOrDefault(r => r.Id == EditingTransactionId);
+                var before = editing == null ? null : ImportTracking.Capture(editing, CounterpartyIdOf(editing));
                 if (!SaveEditedTransaction(companyData))
                     return;
+                if (editing != null && before != null)
+                    TrackImportCorrection(editing, ImportTracking.ChangedFields(before, ImportTracking.Capture(editing, CounterpartyIdOf(editing)), CounterpartyField));
             }
             else
             {
@@ -1867,7 +1871,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to read receipt file");
+            UserFileFailure.Report(App.ErrorLogger, ex, "Failed to read receipt file", ErrorCategory.FileSystem, "ReceiptFileUnreadable");
             App.AddNotification("Warning".Translate(), "Could not attach receipt file: {0}".TranslateFormat(ex.Message), NotificationType.Warning);
             return null;
         }
@@ -2032,6 +2036,21 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     private bool IsExpenseForm => CategoryTypeFilter == CategoryType.Expense;
 
+    private string CounterpartyField => IsExpenseForm ? "supplier" : "customer";
+
+    /// <summary>Reports which fields of a recently imported record the user changed, the clearest sign of how well it was read.</summary>
+    private static void TrackImportCorrection(Transaction record, string changedFields)
+    {
+        if (changedFields.Length > 0 && ImportTracking.SourceOf(record, DateTime.UtcNow) is { } source)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportedRecordCorrected, $"{source}:{changedFields}");
+    }
+
+    private static void TrackImportedRecordDeleted(Transaction record)
+    {
+        if (ImportTracking.SourceOf(record, DateTime.UtcNow) is { } source)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportedRecordDeleted, source);
+    }
+
     /// <summary>Whether a line moves stock, so swapping its product would move stock between products.</summary>
     private static bool MovesStock(CompanyData data, LineItem line) =>
         line.IsStockPurchase || (line.ProductId != null && data.GetProduct(line.ProductId)?.TrackInventory == true);
@@ -2087,6 +2106,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }
 
         Apply(toNew: true);
+        foreach (var edit in edits)
+            TrackImportCorrection(edit.Record, "product");
         var action = new DelegateAction(
             $"Change the product of {edits.Count} {BulkNoun(edits.Count)}",
             () => { Apply(toNew: false); RaiseTransactionSaved(); },
@@ -2124,6 +2145,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }
 
         Apply(_ => counterpartyId);
+        foreach (var record in changed)
+            TrackImportCorrection(record, CounterpartyField);
         var action = new DelegateAction(
             $"Change the {CounterpartyName.ToLowerInvariant()} of {changed.Count} {BulkNoun(changed.Count)}",
             () => { Apply(i => before[i]); RaiseTransactionSaved(); },
@@ -2186,6 +2209,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }
 
         Remove();
+        foreach (var record in targets)
+            TrackImportedRecordDeleted(record);
         var action = new DelegateAction(
             $"Delete {targets.Count} {BulkNoun(targets.Count)}",
             () => { Restore(); RaiseTransactionDeleted(); },
@@ -2210,6 +2235,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     protected void DeleteTransactionWithUndo<T>(CompanyData companyData, List<T> list, T transaction, bool isExpense)
         where T : Transaction
     {
+        TrackImportedRecordDeleted(transaction);
         var receipts = companyData.Receipts.Where(r => r.TransactionId == transaction.Id).ToList();
         var reason = isExpense ? "Expense deleted" : "Revenue deleted";
         var queueKey = UsdConversion.KeyOf(transaction);

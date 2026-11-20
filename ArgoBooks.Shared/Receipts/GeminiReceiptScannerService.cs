@@ -140,9 +140,20 @@ Rules:
 
             // A scan can come back unusable without anything throwing, which is why these
             // report themselves.
-            if (!result.IsSuccess)
+            if (!result.IsSuccess && result.ErrorCode == UnreadableReplyCode)
             {
-                // Covers both "the model says this is not a receipt" and "the response would not parse". The code groups them; the message says which, since it carries the model's own words.
+                // The photo is not to blame for a reply we cannot read; a change in the prompt or the model is.
+                errorLogger?.LogError(
+                    "Receipt scan reply could not be read",
+                    ErrorCategory.Parsing,
+                    "GeminiReceiptScannerService.ScanReceiptAsync",
+                    "ReceiptScanUnreadableReply");
+                _ = telemetryManager?.TrackFeatureAsync(
+                    FeatureName.ReceiptScanFailed, "unreadable-reply", cancellationToken: cancellationToken);
+            }
+            else if (!result.IsSuccess)
+            {
+                // The model looked at the image and said it is not a receipt, in its own words.
                 errorLogger?.LogWarning(
                     $"Receipt scan returned no usable data: {result.ErrorMessage}",
                     "GeminiReceiptScannerService.ScanReceiptAsync",
@@ -168,12 +179,15 @@ Rules:
             {
                 // The verification pass is a second full-image round-trip (~15-30s),
                 // so only spend it when there is evidence the first pass missed an item.
+                var addsUpBefore = AddsUpToTotal(result);
                 if (ShouldRunVerification(result))
                 {
                     result = await VerifyAndFillMissingItemsAsync(result, base64Image, mimeType, cancellationToken);
                 }
                 success = true;
                 _ = telemetryManager?.TrackFeatureAsync(FeatureName.ReceiptScanned, cancellationToken: cancellationToken);
+                _ = telemetryManager?.TrackFeatureAsync(FeatureName.ImportChecked,
+                    $"receipt:{CheckStatus(addsUpBefore, AddsUpToTotal(result))}", cancellationToken: cancellationToken);
             }
             return result;
         }
@@ -241,20 +255,33 @@ If nothing was missed, return: {{""missingItems"": []}}";
         if (result.Confidence < 0.8)
             return true;
 
-        var total = result.TotalAmount ?? 0m;
-
         // No printed total to reconcile against: fall back to the size heuristic.
-        if (total <= 0m)
-            return result.LineItems.Count >= 15;
+        return AddsUpToTotal(result) is { } addsUp ? !addsUp : result.LineItems.Count >= 15;
+    }
 
-        // Reconcile the extracted amounts against the printed total.
+    /// <summary>Whether the items, less the discount, plus tax and shipping come to the printed total. Null when the receipt has no total to check against.</summary>
+    public static bool? AddsUpToTotal(ReceiptScanResult result)
+    {
+        var total = result.TotalAmount ?? 0m;
+        if (total <= 0m)
+            return null;
+
         var itemsSum = result.LineItems.Sum(li => li.TotalPrice);
         var computedTotal = itemsSum - (result.Discount ?? 0m) + (result.TaxAmount ?? 0m) + (result.Shipping ?? 0m);
 
         // Tolerance is kept tight and biased toward verifying: a genuinely missed item shifts the total by roughly its own price, which we want to catch.
         var tolerance = Math.Max(0.05m, total * 0.005m);
-        return Math.Abs(computedTotal - total) > tolerance;
+        return Math.Abs(computedTotal - total) <= tolerance;
     }
+
+    /// <summary>The check for telemetry: balanced, fixed by the second pass, still off, or no total to check.</summary>
+    public static string CheckStatus(bool? addsUpBefore, bool? addsUpAfter) => (addsUpBefore, addsUpAfter) switch
+    {
+        (null, _) => "no-total",
+        (true, _) => "balanced",
+        (false, true) => "fixed",
+        _ => "off"
+    };
 
     /// <summary>
     /// Sends the receipt image back with the extracted items and asks the model to find anything missed.
@@ -368,10 +395,11 @@ If nothing was missed, return: {{""missingItems"": []}}";
 
         if (!response.IsHttpSuccess)
         {
-            errorLogger?.LogError(
-                $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
-                ErrorCategory.Api,
-                "Receipt scan completion");
+            var failure = $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}";
+            if (response.IsExpectedRefusal)
+                errorLogger?.LogWarning(failure, "Receipt scan completion", ErrorCategory.Api, response.FailureCode);
+            else
+                errorLogger?.LogError(failure, ErrorCategory.Api, "Receipt scan completion", response.FailureCode);
 
             return response;
         }
@@ -387,11 +415,15 @@ If nothing was missed, return: {{""missingItems"": []}}";
             errorLogger?.LogError(
                 $"AI proxy returned success=false ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
                 ErrorCategory.Api,
-                "Receipt scan completion");
+                "Receipt scan completion",
+                response.Code ?? "AiProxyNoSuccess");
         }
 
         return response;
     }
+
+    /// <summary>A reply that could not be read, which points at the prompt or the model rather than at the photo.</summary>
+    public const string UnreadableReplyCode = "UNREADABLE_REPLY";
 
     // IMPORTANT: Make this internal so tests can call it
     public static ReceiptScanResult ParseResponse(string response)
@@ -505,11 +537,11 @@ If nothing was missed, return: {{""missingItems"": []}}";
         }
         catch (JsonException ex)
         {
-            return ReceiptScanResult.Failed($"Failed to parse AI response: {ex.Message}");
+            return ReceiptScanResult.Failed($"Failed to parse AI response: {ex.Message}", UnreadableReplyCode);
         }
         catch (Exception)
         {
-            return ReceiptScanResult.Failed("Failed to process the scan result.");
+            return ReceiptScanResult.Failed("Failed to process the scan result.", UnreadableReplyCode);
         }
     }
 

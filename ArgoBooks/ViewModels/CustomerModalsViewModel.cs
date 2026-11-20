@@ -1,4 +1,4 @@
-﻿using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Controls;
 using ArgoBooks.Services;
 using ArgoBooks.Localization;
@@ -540,7 +540,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Customer.ApplyAvatarChange");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Customer.ApplyAvatarChange");
         }
     }
 
@@ -877,7 +877,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Customer.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "Customer.OpenDeleteConfirm");
         }
     }
 

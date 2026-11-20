@@ -358,7 +358,7 @@
                                                     <Border Padding="16,8"
                                                             Background="{DynamicResource BackgroundBrush}"
                                                             IsVisible="{Binding !IsTier2}">
-                                                        <Grid ColumnDefinitions="*,30,*,70">
+                                                        <Grid ColumnDefinitions="*,30,*,90">
                                                             <TextBlock Grid.Column="0" Text="{loc:Loc 'Source Column'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
                                                             <TextBlock Grid.Column="2" Text="{loc:Loc 'Target Column'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
                                                             <TextBlock Grid.Column="3" Text="{loc:Loc 'Confidence'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Right" />
@@ -373,7 +373,7 @@
                                                                 <Border Padding="16,8"
                                                                         BorderBrush="{DynamicResource BorderBrush}"
                                                                         BorderThickness="0,1,0,0">
-                                                                    <Grid ColumnDefinitions="*,30,*,70">
+                                                                    <Grid ColumnDefinitions="*,30,*,90">
                                                                         <!-- Source column -->
                                                                         <Border Grid.Column="0"
                                                                                 Background="{DynamicResource SurfaceAltBrush}"

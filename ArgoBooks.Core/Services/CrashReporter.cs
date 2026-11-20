@@ -191,6 +191,8 @@ public static class CrashReporter
 
     private static CrashReportDto BuildReport(Exception exception, string handler)
     {
+        exception = Unwrap(exception);
+
         return new CrashReportDto
         {
             DataId = Guid.NewGuid().ToString("N")[..16],
@@ -208,6 +210,17 @@ public static class CrashReporter
             Platform = TelemetryPlatform.Name,
             Breadcrumbs = GetBreadcrumbs(),
         };
+    }
+
+    /// <summary>
+    /// The failure a task wrapper carries. The wrapper has no stack trace of its own, so reported
+    /// as it is, every failed task would group as the same "AggregateException" with nowhere to look.
+    /// </summary>
+    internal static Exception Unwrap(Exception exception)
+    {
+        return exception is AggregateException aggregate && aggregate.Flatten().InnerExceptions is [var only]
+            ? only
+            : exception;
     }
 
     /// <summary>Best-effort "file:line" (or method name) of where the exception was thrown.</summary>

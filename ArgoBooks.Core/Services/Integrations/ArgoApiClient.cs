@@ -271,9 +271,25 @@ public class ArgoApiClient
         var json = await resp.Content.ReadAsStringAsync(ct);
 
         if (!resp.IsSuccessStatusCode)
-            throw new ArgoApiException("control_plane_error", ControlErrorMessage(json, resp.StatusCode));
+            throw new ArgoApiException(ControlErrorCode(json) ?? "control_plane_error", ControlErrorMessage(json, resp.StatusCode));
 
         return JsonDocument.Parse(json);
+    }
+
+    /// <summary>The server's own code for the refusal, such as KEY_LIMIT_REACHED, which the app reports apart from real failures.</summary>
+    private static string? ControlErrorCode(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty("errorCode", out var code) && code.ValueKind == JsonValueKind.String
+                ? code.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private async Task<T?> SendV1Async<T>(
@@ -308,13 +324,14 @@ public class ArgoApiClient
         {
             return await _http.SendAsync(req, ct);
         }
-        catch (HttpRequestException)
+        // The original is kept inside so the error log can tell a dropped connection from our server failing.
+        catch (HttpRequestException ex)
         {
-            throw new ArgoApiException("network", "Could not reach argorobots.com. Check your internet connection and try again.");
+            throw new ArgoApiException("network", "Could not reach argorobots.com. Check your internet connection and try again.", ex);
         }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
         {
-            throw new ArgoApiException("timeout", "The request to argorobots.com timed out. Try again in a moment.");
+            throw new ArgoApiException("timeout", "The request to argorobots.com timed out. Try again in a moment.", ex);
         }
     }
 

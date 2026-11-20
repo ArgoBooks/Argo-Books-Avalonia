@@ -22,6 +22,26 @@ public class GeminiReceiptScannerServiceTests
 
     #region ParseResponse Tests
 
+    // "Not a receipt" is about the photo, and a reply that will not parse is about our prompt or the model, so they are reported apart.
+
+    [Fact]
+    public void ParseResponse_UnreadableReply_IsMarkedAsSuch()
+    {
+        var result = GeminiReceiptScannerService.ParseResponse("{ \"supplierName\": \"Walm");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(GeminiReceiptScannerService.UnreadableReplyCode, result.ErrorCode);
+    }
+
+    [Fact]
+    public void ParseResponse_ModelSaysNotAReceipt_IsNotMarkedUnreadable()
+    {
+        var result = GeminiReceiptScannerService.ParseResponse("{ \"error\": \"This image does not appear to be a receipt.\" }");
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(result.ErrorCode);
+    }
+
     [Fact]
     public void ParseResponse_ValidJson_ReturnsCorrectResult()
     {
@@ -369,6 +389,22 @@ public class GeminiReceiptScannerServiceTests
         var result = Result(total: 8.00m, confidence: 0.9, itemTotals: [8.06m]);
 
         Assert.True(GeminiReceiptScannerService.ShouldRunVerification(result));
+    }
+
+    [Fact]
+    public void AddsUpToTotal_NoPrintedTotal_IsUnknown()
+    {
+        Assert.Null(GeminiReceiptScannerService.AddsUpToTotal(Result(total: null, confidence: 0.9, itemTotals: [5m])));
+    }
+
+    [Theory]
+    [InlineData(null, null, "no-total")]
+    [InlineData(true, true, "balanced")]
+    [InlineData(false, true, "fixed")]
+    [InlineData(false, false, "off")]
+    public void CheckStatus_SaysWhetherTheSecondPassFixedIt(bool? before, bool? after, string expected)
+    {
+        Assert.Equal(expected, GeminiReceiptScannerService.CheckStatus(before, after));
     }
 
     #endregion

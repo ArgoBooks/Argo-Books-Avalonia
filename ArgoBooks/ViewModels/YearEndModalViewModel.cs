@@ -631,7 +631,7 @@ public partial class YearEndModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Payroll.T4Slips");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Payroll.T4Slips");
             StatusMessage = "Could not save the slips: {0}".TranslateFormat(ex.Message);
         }
     }
@@ -687,7 +687,7 @@ public partial class YearEndModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Payroll.Rl1Slips");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Payroll.Rl1Slips");
             StatusMessage = "Could not save the RL-1 slips: {0}".TranslateFormat(ex.Message);
         }
     }
@@ -755,7 +755,7 @@ public partial class YearEndModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Payroll.T4Xml");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Payroll.T4Xml");
             StatusMessage = "Could not save the XML: {0}".TranslateFormat(ex.Message);
         }
     }

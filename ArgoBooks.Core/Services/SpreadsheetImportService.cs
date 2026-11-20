@@ -39,6 +39,9 @@ public class ImportOptions
     /// </summary>
     public bool SkipExistingRecords { get; set; }
 
+    /// <summary>Marks the expenses and revenue this import creates, so later corrections to them can be counted. Null for none.</summary>
+    public string? ImportSource { get; set; }
+
     /// <summary>
     /// Tracks the number of records actually skipped during import.
     /// Reset before each sheet import. Used internally by import methods.
@@ -190,11 +193,28 @@ public class SpreadsheetImportService
 
         public static ReferenceResolutionContext Build(CompanyData data) => new()
         {
-            // A business customer is often filed under its contact, with the business the name other records use.
-            CustomerIndex = ReferenceResolver.BuildIndex(data.Customers.Select(c => (c.Id, c.Name))
-                .Concat(data.Customers.Where(c => !string.IsNullOrWhiteSpace(c.CompanyName)).Select(c => (c.Id, c.CompanyName!)))),
+            CustomerIndex = BuildCustomerIndex(data),
             SupplierIndex = ReferenceResolver.BuildIndex(data.Suppliers.Select(s => (s.Id, s.Name)))
         };
+
+        // A business customer is often filed under its contact, with the business the name other records use.
+        public static Dictionary<string, string> BuildCustomerIndex(CompanyData data) =>
+            ReferenceResolver.BuildIndex(data.Customers.Select(c => (c.Id, c.Name))
+                .Concat(data.Customers.Where(c => !string.IsNullOrWhiteSpace(c.CompanyName)).Select(c => (c.Id, c.CompanyName!))));
+    }
+
+    /// <summary>The company's customers by id and by name, built once for a sheet whose rows name customers.</summary>
+    private sealed class CustomerLookup(CompanyData data)
+    {
+        private readonly HashSet<string> _ids = data.Customers.Select(c => c.Id).ToHashSet();
+        private readonly Dictionary<string, string> _index = ReferenceResolutionContext.BuildCustomerIndex(data);
+
+        /// <summary>The id of the customer a sheet names, or the reference as it was when nobody matches it.</summary>
+        public string Find(string reference)
+        {
+            if (string.IsNullOrEmpty(reference) || _ids.Contains(reference)) return reference;
+            return ReferenceResolver.Resolve(reference, _index).MatchedId ?? reference;
+        }
     }
     /// <summary>
     /// Validates an Excel file before importing, checking for missing references.
@@ -416,7 +436,11 @@ public class SpreadsheetImportService
                         options.RowCurrencyBySheet[csvSheetName] = csvCurrency;
                     }
 
-                    ReserveIdNumbers(companyData, [new ImportSheet(csvSheetName, sheetType, headers, rows)]);
+                    var csvSheet = new ImportSheet(csvSheetName, sheetType, headers, rows);
+                    ReserveIdNumbers(companyData, [csvSheet]);
+                    if (options.AutoCreateMissingReferences || options.AutoCreateTypes.Count > 0)
+                        CreateMissingReferences(csvSheet, companyData, options);
+
                     var sheetResult = ImportBySheetTypeWithCount(sheetType, companyData, headers, rows, csvSheetName, options);
                     result.TotalImported += sheetResult.Inserted;
                     result.TotalUpdated += sheetResult.Updated;
@@ -461,6 +485,13 @@ public class SpreadsheetImportService
 
             try
             {
+                if (SpreadsheetFiles.IsDelimitedText(filePath))
+                {
+                    if (ReadMappedCsv(filePath, analysis) is { } csv)
+                        ValidateCsv(csv, companyData, result);
+                    return result;
+                }
+
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var workbook = new XLWorkbook(fileStream);
 
@@ -595,12 +626,30 @@ public class SpreadsheetImportService
         // Deduplicate entities across chunks by ID, later chunks win on conflict. The LLM processes chunks independently and may produce duplicate IDs, especially at chunk boundaries.
         var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // One fault repeats on every row it touches, so each kind is reported once rather than once per row.
+        var reportedFailures = new HashSet<string>(StringComparer.Ordinal);
+
         // Collect all (chunk, entityJson) pairs, then reverse-iterate to keep the last occurrence of each ID
         var allEntities = new List<(SpreadsheetSheetType EntityType, JsonElement Entity)>();
         foreach (var chunk in processedData)
         {
             foreach (var entityJson in chunk.Entities)
-                allEntities.Add((chunk.EntityType, entityJson));
+            {
+                if (entityJson.ValueKind != JsonValueKind.Object)
+                {
+                    var unreadableReason = $"The AI returned a row that is not a record ({chunk.EntityType})";
+                    sheetResult.Skipped++;
+                    sheetResult.SkipReasons.Add(unreadableReason);
+                    sheetResult.UnimportedRows.Add(new UnimportedRow { Sheet = sheetName, Reason = unreadableReason, RawValue = entityJson.GetRawText() });
+                    continue;
+                }
+
+                // Records are read with a text id, so a number the AI wrote for one is turned into text first.
+                var id = entityJson.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.Number
+                    ? idProp.GetRawText()
+                    : null;
+                allEntities.Add((chunk.EntityType, id != null ? WithId(entityJson, id) : entityJson));
+            }
         }
 
         // Walk backwards so the last occurrence of a duplicate ID wins
@@ -755,8 +804,9 @@ public class SpreadsheetImportService
                     Reason = errorReason,
                     RawValue = ExtractEntityId(entityJson) ?? entityJson.GetRawText()
                 });
-                _errorLogger?.LogError(ex, ErrorCategory.Import,
-                    $"Failed to import {chunkEntityType} entity from AI processing");
+                if (reportedFailures.Add($"{chunkEntityType}|{ex.GetType().FullName}"))
+                    _errorLogger?.LogError(ex, ErrorCategory.Import,
+                        $"Failed to import {chunkEntityType} entity from AI processing");
             }
         }
 
@@ -1011,23 +1061,19 @@ public class SpreadsheetImportService
     /// Collects every transaction date in the included Tier 1 financial sheets, using the SAME
     /// parser the import uses (so it cannot diverge from how dates are read) and the correct mapped
     /// date-column name per sheet type. Lets the import rate gate pre-fetch each date's exact rate.
-    /// Best-effort: CSV and unparseable dates are skipped; any row the gate misses still self-heals
+    /// Best-effort: unparseable dates are skipped; any row the gate misses still self-heals
     /// via <see cref="Transaction.IsPendingConversion"/> + <see cref="PendingConversionService"/>.
     /// </summary>
     public List<DateTime> CollectTransactionDates(string filePath, SpreadsheetAnalysisResult analysis)
     {
         var dates = new List<DateTime>();
-        if (analysis is null || SpreadsheetFiles.IsDelimitedText(filePath))
+        if (analysis is null)
             return dates;
         try
         {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var wb = new XLWorkbook(stream);
-            foreach (var sheet in analysis.Sheets)
+            foreach (var sheet in MappedTier1Sheets(filePath, analysis))
             {
-                if (!sheet.IsIncluded || sheet.Tier != ProcessingTier.Tier1_Mapping)
-                    continue;
-                var dateColumn = sheet.DetectedType switch
+                var dateColumn = sheet.Type switch
                 {
                     SpreadsheetSheetType.Revenue or SpreadsheetSheetType.Expenses
                         or SpreadsheetSheetType.Payments => "Date",
@@ -1036,15 +1082,11 @@ public class SpreadsheetImportService
                     _ => null
                 };
                 if (dateColumn is null) continue;
-                if (!wb.TryGetWorksheet(sheet.SourceSheetName, out var ws)) continue;
 
-                var headers = SpreadsheetRowReader.GetHeaders(ws);
-                ApplyColumnMapping(headers, sheet); // source -> target names, in place
-                var rows = SpreadsheetRowReader.GetDataRows(ws, headers.Count);
-                var order = SpreadsheetRowReader.DetectDateOrder(rows, headers, dateColumn);
-                foreach (var row in rows)
+                var order = SpreadsheetRowReader.DetectDateOrder(sheet.Rows, sheet.Headers, dateColumn);
+                foreach (var row in sheet.Rows)
                 {
-                    var d = SpreadsheetRowReader.GetNullableDateTime(row, headers, dateColumn, order);
+                    var d = SpreadsheetRowReader.GetNullableDateTime(row, sheet.Headers, dateColumn, order);
                     if (d.HasValue) dates.Add(d.Value.Date);
                 }
             }
@@ -1054,6 +1096,27 @@ public class SpreadsheetImportService
             _errorLogger?.LogWarning($"Could not pre-scan import dates: {ex.Message}", "Import");
         }
         return dates;
+    }
+
+    /// <summary>The sheets the import reads by their mapped columns, with the mapping applied.</summary>
+    private static List<ImportSheet> MappedTier1Sheets(string filePath, SpreadsheetAnalysisResult analysis)
+    {
+        if (SpreadsheetFiles.IsDelimitedText(filePath))
+            return ReadMappedCsv(filePath, analysis) is { } csv ? [csv] : [];
+
+        var sheets = new List<ImportSheet>();
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var wb = new XLWorkbook(stream);
+        foreach (var sheet in analysis.Sheets)
+        {
+            if (!sheet.IsIncluded || sheet.Tier != ProcessingTier.Tier1_Mapping) continue;
+            if (!wb.TryGetWorksheet(sheet.SourceSheetName, out var ws)) continue;
+
+            var headers = SpreadsheetRowReader.GetHeaders(ws);
+            ApplyColumnMapping(headers, sheet);
+            sheets.Add(new ImportSheet(sheet.SourceSheetName, sheet.DetectedType, headers, SpreadsheetRowReader.GetDataRows(ws, headers.Count)));
+        }
+        return sheets;
     }
 
     internal static void ApplyColumnMapping(List<string> headers, SheetAnalysis sheetAnalysis)
@@ -1070,7 +1133,7 @@ public class SpreadsheetImportService
     private static readonly JsonSerializerOptions ImportJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        Converters = { new LenientEnumConverterFactory() }
+        Converters = { new LenientEnumConverterFactory(), new TextFromNumberConverter() }
     };
 
     /// <summary>
@@ -1078,9 +1141,15 @@ public class SpreadsheetImportService
     /// </summary>
     private static string? ExtractEntityId(JsonElement entityJson)
     {
-        if (entityJson.TryGetProperty("id", out var idProp))
-            return idProp.GetString();
-        return null;
+        if (entityJson.ValueKind != JsonValueKind.Object || !entityJson.TryGetProperty("id", out var idProp))
+            return null;
+        // The AI writes a number for an id taken from a numeric column, which is still that row's id.
+        return idProp.ValueKind switch
+        {
+            JsonValueKind.String => idProp.GetString(),
+            JsonValueKind.Number => idProp.GetRawText(),
+            _ => null
+        };
     }
 
     /// <summary>
@@ -1719,6 +1788,7 @@ public class SpreadsheetImportService
 
                     SetImportedLines(data, expense, existing, entityJson, given, isPurchase: true);
 
+                    expense.ImportSource = existing == null ? options?.ImportSource : existing.ImportSource;
                     data.Expenses.AddOrUpdate(existing, expense);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
@@ -1752,6 +1822,7 @@ public class SpreadsheetImportService
                         SetImportedLines(data, revenue, existing, entityJson, given, isPurchase: false);
 
                     var invoiceBefore = existing?.InvoiceId;
+                    revenue.ImportSource = existing == null ? options?.ImportSource : existing.ImportSource;
                     var liveRevenue = data.Revenues.AddOrUpdate(existing, revenue);
                     NoteRevenueNamingAnInvoice(liveRevenue, existing == null, invoiceBefore, revenueAmountDerived);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
@@ -2028,45 +2099,49 @@ public class SpreadsheetImportService
 
             var rows = GetDataRows(worksheet, headers.Count);
             var sheetName = (sheetAnalysis == null ? null : CanonicalSheetName(sheetAnalysis.DetectedType)) ?? worksheet.Name;
-
-            // The Invoices sheet exports both "ID" (INV-2026-00001) and "Invoice #" (#INV-2026-00001), and the line item and payment sheets reference the ID, so that is what has to be collected.
-            bool invoices = sheetName == "Invoices";
-
-            if (!headers.Contains("ID") && !(invoices && headers.Contains("Invoice #"))) continue;
-
-            var entityType = GetEntityTypeFromSheetName(sheetName);
-            if (string.IsNullOrEmpty(entityType)) continue;
-
-            if (!ids.ContainsKey(entityType))
-                ids[entityType] = [];
-
-            foreach (var row in rows)
-            {
-                var id = GetString(row, headers, "ID");
-
-                if (string.IsNullOrEmpty(id) && invoices)
-                    id = GetString(row, headers, "Invoice #");
-
-                if (!string.IsNullOrEmpty(id))
-                    ids[entityType].Add(id);
-            }
-
-            // Also collect product names for name-based lookups
-            if (sheetName == "Products" && headers.Contains("Name"))
-            {
-                if (!ids.ContainsKey("ProductNames"))
-                    ids["ProductNames"] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var row in rows)
-                {
-                    var name = GetString(row, headers, "Name");
-                    if (!string.IsNullOrEmpty(name))
-                        ids["ProductNames"].Add(name);
-                }
-            }
+            AddImportedIds(ids, sheetName, headers, rows);
         }
 
         return ids;
+    }
+
+    private static void AddImportedIds(Dictionary<string, HashSet<string>> ids, string sheetName, List<string> headers, List<List<object?>> rows)
+    {
+        // The Invoices sheet exports both "ID" (INV-2026-00001) and "Invoice #" (#INV-2026-00001), and the line item and payment sheets reference the ID, so that is what has to be collected.
+        bool invoices = sheetName == "Invoices";
+
+        if (!headers.Contains("ID") && !(invoices && headers.Contains("Invoice #"))) return;
+
+        var entityType = GetEntityTypeFromSheetName(sheetName);
+        if (string.IsNullOrEmpty(entityType)) return;
+
+        if (!ids.ContainsKey(entityType))
+            ids[entityType] = [];
+
+        foreach (var row in rows)
+        {
+            var id = GetString(row, headers, "ID");
+
+            if (string.IsNullOrEmpty(id) && invoices)
+                id = GetString(row, headers, "Invoice #");
+
+            if (!string.IsNullOrEmpty(id))
+                ids[entityType].Add(id);
+        }
+
+        // Also collect product names for name-based lookups
+        if (sheetName == "Products" && headers.Contains("Name"))
+        {
+            if (!ids.ContainsKey("ProductNames"))
+                ids["ProductNames"] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in rows)
+            {
+                var name = GetString(row, headers, "Name");
+                if (!string.IsNullOrEmpty(name))
+                    ids["ProductNames"].Add(name);
+            }
+        }
     }
 
     private static string GetEntityTypeFromSheetName(string sheetName)
@@ -2105,6 +2180,31 @@ public class SpreadsheetImportService
         if (rows.Count == 0) return;
 
         ValidateWorksheetData(ValidationName(worksheet, sheetAnalysis), headers, rows, data, importedIds, result);
+    }
+
+    /// <summary>A CSV as the import reads it: one sheet, with its column mapping applied.</summary>
+    private static ImportSheet? ReadMappedCsv(string filePath, SpreadsheetAnalysisResult analysis)
+    {
+        var sheetAnalysis = analysis.Sheets.FirstOrDefault();
+        if (sheetAnalysis is not { IsIncluded: true, Tier: ProcessingTier.Tier1_Mapping })
+            return null;
+
+        var dataRows = CsvReader.ReadAllRows(filePath, out var headers);
+        if (headers.Count == 0 || dataRows.Count == 0)
+            return null;
+
+        ApplyColumnMapping(headers, sheetAnalysis);
+        return new ImportSheet(Path.GetFileNameWithoutExtension(filePath), sheetAnalysis.DetectedType, headers,
+            dataRows.Select(r => r.Cast<object?>().ToList()).ToList());
+    }
+
+    private void ValidateCsv(ImportSheet csv, CompanyData data, ImportValidationResult result)
+    {
+        // A CSV's name is whatever its file is called, so it is validated as the type it was recognised as.
+        var sheetName = CanonicalSheetName(csv.Type) ?? csv.Name;
+        var importedIds = new Dictionary<string, HashSet<string>>();
+        AddImportedIds(importedIds, sheetName, csv.Headers, csv.Rows);
+        ValidateWorksheetData(sheetName, csv.Headers, csv.Rows, data, importedIds, result);
     }
 
     private void ValidateWorksheetData(
@@ -2808,6 +2908,18 @@ public class SpreadsheetImportService
             ValidateWorksheet(worksheet, data, importedIds, result, analysis);
         }
 
+        CreatePlaceholders(result, data, options);
+    }
+
+    private void CreateMissingReferences(ImportSheet csv, CompanyData data, ImportOptions options)
+    {
+        var result = new ImportValidationResult();
+        ValidateCsv(csv, data, result);
+        CreatePlaceholders(result, data, options);
+    }
+
+    private void CreatePlaceholders(ImportValidationResult result, CompanyData data, ImportOptions options)
+    {
         foreach (var (refType, ids) in result.MissingReferences)
         {
             if (!options.AutoCreateMissingReferences && !options.AutoCreateTypes.Contains(refType))
@@ -2852,7 +2964,7 @@ public class SpreadsheetImportService
                 break;
 
             case "Customers":
-                if (data.Customers.All(c => c.Id != id) && FindCustomerId(data, id) == id)
+                if (data.Customers.All(c => c.Id != id) && new CustomerLookup(data).Find(id) == id)
                 {
                     data.Customers.Add(new Customer
                     {
@@ -3470,6 +3582,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     {
         // Numbers too: a row with only a number is identified by it, and line items match on either.
         var takenIds = TakenIds(data.Invoices.SelectMany(i => new[] { i.Id, i.InvoiceNumber }), headers, rows, "ID", "Invoice #");
+        var customers = new CustomerLookup(data);
 
         for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
@@ -3478,7 +3591,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // Two columns, either of which can identify the invoice. This app's own export carries both; a sheet from elsewhere usually has only the number.
             var invoiceId = GetString(row, headers, "ID");
             var invoiceNumber = GetString(row, headers, "Invoice #");
-            var customerId = FindCustomerId(data, GetString(row, headers, "Customer ID"));
+            var customerId = customers.Find(GetString(row, headers, "Customer ID"));
             var issueDate = GetDateTime(row, headers, "Issue Date");
             var total = GetDecimal(row, headers, "Total");
 
@@ -3604,7 +3717,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var existing = data.Expenses.FirstOrDefault(p => p.Id == id);
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
-            var purchase = existing ?? new Expense();
+            var purchase = existing ?? new Expense { ImportSource = options?.ImportSource };
             (DateTime Date, string Currency)? costedAt = existing == null ? null : CostedAt(existing);
 
             // Updating an expense changes only what the sheet has columns for; a new one takes every field.
@@ -4219,6 +4332,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     private void ImportSales(CompanyData data, List<string> headers, List<List<object?>> rows, ImportOptions? options = null)
     {
         var takenIds = TakenIds(data.Revenues.Select(r => r.Id), headers, rows, "ID");
+        var customers = new CustomerLookup(data);
 
         for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
@@ -4231,7 +4345,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 description = GetString(row, headers, "Description");
 
             var date = GetDateTime(row, headers, "Date");
-            var customerId = GetNullableString(row, headers, "Customer ID");
+            var customerId = GetNullableString(row, headers, "Customer ID") is { } customer ? customers.Find(customer) : null;
 
             // Skip summary/blank rows (e.g. "Subtotal", "Grand Total") that carry an amount but no
             // real revenue content, so they aren't imported as junk records.
@@ -4250,7 +4364,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var existing = data.Revenues.FirstOrDefault(s => s.Id == id);
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
-            var revenue = existing ?? new Revenue();
+            var revenue = existing ?? new Revenue { ImportSource = options?.ImportSource };
             var invoiceBefore = existing?.InvoiceId;
 
             // Updating a revenue changes only what the sheet has columns for; a new one takes every
@@ -4344,12 +4458,6 @@ Respond with ONLY a JSON array, one entry per product in the same order:
         return customerId;
     }
 
-    /// <summary>The id of the customer a sheet names, or the reference as it was when nobody matches it.</summary>
-    private static string FindCustomerId(CompanyData data, string reference)
-    {
-        if (string.IsNullOrEmpty(reference) || data.Customers.Any(c => c.Id == reference)) return reference;
-        return ReferenceResolver.Resolve(reference, ReferenceResolutionContext.Build(data).CustomerIndex).MatchedId ?? reference;
-    }
 
     /// <summary>
     /// Resolves a supplier reference. See <see cref="EnsureCustomerExists"/> for the resolution rules.
@@ -5419,6 +5527,19 @@ Respond with ONLY a JSON array, one entry per product in the same order:
         sheet.Rows.Select(row => GetString(row, sheet.Headers, column));
 
     #endregion
+}
+
+/// <summary>
+/// Reads a number where a text field is expected as that number's text, because the AI writes a reference such as a customer or invoice number from a numeric column as a number.
+/// </summary>
+internal sealed class TextFromNumberConverter : JsonConverter<string>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TokenType == JsonTokenType.Number
+            ? System.Text.Encoding.UTF8.GetString(reader.HasValueSequence ? System.Buffers.BuffersExtensions.ToArray(reader.ValueSequence) : reader.ValueSpan)
+            : reader.GetString();
+
+    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) => writer.WriteStringValue(value);
 }
 
 /// <summary>

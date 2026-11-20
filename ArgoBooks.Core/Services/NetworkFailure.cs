@@ -57,11 +57,14 @@ public static class NetworkFailure
             return;
         }
 
-        if (ReachedAServer(exception))
+        // A server that answered, a reply we could not read, or a fault in our own code is ours to fix, whatever catch block it arrived in.
+        if (EnvironmentFailure.Classify(exception) is not { Category: ErrorCategory.Network } cause)
         {
             errorLogger.LogError(exception, reachedCategory, context);
             return;
         }
+
+        ErrorLogger.MarkReported(exception);
 
         // The code, not the message, is what groups these on the dashboard, and a warning
         // is only uploaded at all when it carries one.
@@ -69,7 +72,7 @@ public static class NetworkFailure
             $"Network unreachable: {Describe(exception)}",
             context,
             ErrorCategory.Network,
-            code: TransportCode(exception));
+            code: cause.Code);
     }
 
     /// <summary>
@@ -87,21 +90,28 @@ public static class NetworkFailure
             ? await ConnectivityMessage.ResolveAsync(cancellationToken)
             : await ConnectivityMessage.ResolveAsync(connectivity, cancellationToken);
 
-        if (errorLogger is not null && exception is not OperationCanceledException)
+        if (errorLogger is not null && !IsCancellation(exception))
         {
             if (message == ConnectivityMessage.NoInternet)
             {
                 // The probe could not reach Google or Cloudflare either, so this is the
                 // user's connection rather than anything of ours.
+                ErrorLogger.MarkReported(exception);
                 errorLogger.LogWarning(
                     $"Offline: {Describe(exception)}",
                     context,
                     ErrorCategory.Network,
                     code: "Offline");
             }
+            else if (EnvironmentFailure.Classify(exception) is { Category: ErrorCategory.Network } cause)
+            {
+                // The internet works and our host still did not answer, which is our end, so it is filed directly rather than by LogError's own rule for a request that never reached a server.
+                ErrorLogger.MarkReported(exception);
+                errorLogger.LogError($"Our server did not answer: {Describe(exception)}", ErrorCategory.Network, context, cause.Code);
+            }
             else
             {
-                // The internet works and the call still failed, so it is our end: either our host is unreachable while the rest of the internet is fine, or it answered and the answer was a failure.
+                // It answered, and the answer was a failure.
                 errorLogger.LogError(exception, ErrorCategory.Network, context);
             }
         }
@@ -110,16 +120,13 @@ public static class NetworkFailure
     }
 
     /// <summary>
-    /// True when a server accepted the connection and produced a response. Anything that
-    /// failed before that is a transport problem, and from here we cannot tell the user's
-    /// dead WiFi apart from our host being down without probing.
+    /// True for a request someone called off. A request that gave up waiting arrives as the same
+    /// exception, carrying a TimeoutException inside, and that one is a failure worth filing.
     /// </summary>
-    private static bool ReachedAServer(Exception exception)
-    {
-        return exception is HttpRequestException { StatusCode: not null };
-    }
+    private static bool IsCancellation(Exception exception) =>
+        exception is OperationCanceledException && exception.InnerException is not TimeoutException;
 
-    private static string TransportCode(Exception exception)
+    internal static string TransportCode(Exception exception)
     {
         if (exception is not HttpRequestException httpException)
         {

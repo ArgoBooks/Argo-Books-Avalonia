@@ -61,7 +61,7 @@ public static class ReceiptTypeSwitchService
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Receipt.SwitchType");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "Receipt.SwitchType");
             return false;
         }
     }

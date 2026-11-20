@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -525,7 +525,7 @@ public partial class App : Application
                     try { await CompanyManager.SavePaymentSyncAsync(companyData); }
                     catch (Exception ex)
                     {
-                        ErrorLogger?.LogWarning($"Failed to persist synced payments: {ex.Message}", "PortalSync");
+                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to persist synced payments");
                     }
 
                     if (CompanyChanged()) return;
@@ -621,7 +621,7 @@ public partial class App : Application
                 }
                 catch (Exception ex)
                 {
-                    ErrorLogger?.LogWarning($"Failed to persist synced quote responses: {ex.Message}", "PortalSync");
+                    ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to persist synced quote responses");
                 }
 
                 if (CompanyChanged()) return;
@@ -696,7 +696,7 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                ErrorLogger?.LogWarning($"Failed to upload mobile-sync snapshot: {ex.Message}", "MobileSync");
+                ErrorLogger?.LogError(ex, ErrorCategory.Api, "Failed to upload mobile-sync snapshot");
             }
 
             if (CompanyChanged()) return;
@@ -742,7 +742,7 @@ public partial class App : Application
                     }
                     catch (Exception ex)
                     {
-                        ErrorLogger?.LogWarning($"Failed to persist mobile-sync captures: {ex.Message}", "MobileSync");
+                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to persist mobile-sync captures");
                     }
                 }
 
@@ -795,7 +795,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             // Mobile-sync failures are non-critical; log and continue.
-            ErrorLogger?.LogWarning($"Mobile sync failed: {ex.Message}", "MobileSync");
+            ErrorLogger?.LogError(ex, ErrorCategory.Api, "Mobile sync failed");
         }
         finally
         {
@@ -1425,10 +1425,8 @@ public partial class App : Application
                 }
                 catch (Exception ex)
                 {
-                    errorLogger.LogWarning(
-                        $"Could not create the update service: {ex.Message}",
-                        "Startup", ErrorCategory.Network,
-                        "UpdateServiceCreateFailed");
+                    // Creating the service does no network work, so a failure here is our code or a damaged install.
+                    errorLogger.LogError(ex, ErrorCategory.Unknown, "Could not create the update service");
                 }
             }
 
@@ -1643,7 +1641,7 @@ public partial class App : Application
                     catch (Exception ex)
                     {
                         _appShellViewModel.HeaderViewModel.ShowSavingIndicator = false;
-                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company on close");
+                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company");
                         await ShowErrorDialogAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
                     }
                 }
@@ -2031,7 +2029,7 @@ public partial class App : Application
                     // The check could not be completed, which is not a verdict on the licence. Allow offline use.
                     ErrorLogger?.LogWarning(
                         "Startup license validation was rate limited; keeping the stored license.",
-                        category: ErrorCategory.License);
+                        category: ErrorCategory.License, code: "LicenseRateLimited");
                     return;
 
                 case LicenseValidationStatus.InvalidKey:
@@ -2090,9 +2088,12 @@ public partial class App : Application
                     .GetAwaiter().GetResult();
             }
 
-            // Recorded only once the work is saved, since a failed save cancels the update.
-            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied,
-                UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown"));
+            // Recorded only once the work is saved, since a failed save cancels the update, and waited for, since the installer ends the process next.
+            if (TelemetryManager is { } telemetry)
+            {
+                var context = UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown");
+                Task.Run(() => telemetry.TrackFeatureAsync(FeatureName.UpdateApplied, context)).GetAwaiter().GetResult();
+            }
         }
         catch (Exception ex)
         {
@@ -2140,7 +2141,8 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            ErrorLogger?.LogWarning($"Background update check failed: {ex.Message}", "AutoUpdate");
+            // The update service reports its own failures and never throws, so whatever lands here came from showing the result.
+            ErrorLogger?.LogError(ex, ErrorCategory.UI, "Showing the update check result failed");
         }
     }
 
@@ -2697,7 +2699,7 @@ public partial class App : Application
             catch (Exception ex)
             {
                 _suppressSavedFeedback = false;
-                ErrorLogger?.LogWarning($"Could not save the sample company's moved dates: {ex.Message}", "SampleCompany");
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Could not save the sample company's moved dates");
             }
         }
 
@@ -2975,7 +2977,7 @@ public partial class App : Application
             {
                 _mainWindowViewModel?.HideLoading();
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "xls-convert");
-                ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to convert a .xls or .ods file for import");
+                UserFileFailure.Report(ErrorLogger, ex, "Failed to convert a .xls or .ods file for import", ErrorCategory.Import, "ImportFileUnreadable");
                 await ShowErrorDialogAsync(
                     "Import Failed".Translate(),
                     isOds
@@ -2985,11 +2987,25 @@ public partial class App : Application
             }
         }
 
-        // Check rate limit via server-side API
-        using var usageService = new UsageLimitService(UsageLimit.AiImports(), LicenseService, ErrorLogger);
-        var usageCheck = await usageService.CheckUsageAsync();
+        // A workbook laid out the way Argo Books exports one needs no AI to read it, so it imports straight away and doesn't count as an AI import.
+        SpreadsheetAnalysisResult? exactLayout = null;
+        if (!isCsv)
+        {
+            try
+            {
+                exactLayout = await Task.Run(() => ExportLayoutMatcher.Match(filePath, CompanyManager?.CurrentCompanySettings?.Company.Country));
+            }
+            catch (Exception)
+            {
+                // A file that will not open is reported by the AI import, which reads it next.
+            }
+        }
 
-        if (!usageCheck.Allowed)
+        // Check rate limit via server-side API
+        using var usageService = exactLayout == null ? new UsageLimitService(UsageLimit.AiImports(), LicenseService, ErrorLogger) : null;
+        var usageCheck = usageService == null ? null : await usageService.CheckUsageAsync();
+
+        if (usageCheck is { Allowed: false })
         {
             _mainWindowViewModel?.HideLoading();
 
@@ -3013,7 +3029,7 @@ public partial class App : Application
         }
 
         var geminiService = new GeminiService(ErrorLogger, TelemetryManager);
-        if (!geminiService.IsConfigured)
+        if (exactLayout == null && !geminiService.IsConfigured)
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "not-configured");
@@ -3027,7 +3043,7 @@ public partial class App : Application
         var unflattenedPath = filePath;
 
         // AI layout interpretation rewrites a messy sheet into clean single-header tables before analysis, where the local LayoutGate decides whether it is needed.
-        if (!isCsv)
+        if (!isCsv && exactLayout == null)
         {
             try
             {
@@ -3056,11 +3072,15 @@ public partial class App : Application
         try
         {
             // Step 1: AI Analysis. Run off the UI thread: the analyzer opens the workbook synchronously before its network calls, which would otherwise freeze the loading overlay.
-            analysisTicker.Start();
-            var analysis = isCsv
-                ? await Task.Run(() => analysisService.AnalyzeCsvAsync(filePath, analysisCts.Token, analysisProgress), analysisCts.Token)
-                : await Task.Run(() => analysisService.AnalyzeAsync(filePath, analysisCts.Token, analysisProgress), analysisCts.Token);
-            analysisTicker.Stop();
+            var analysis = exactLayout;
+            if (analysis == null)
+            {
+                analysisTicker.Start();
+                analysis = isCsv
+                    ? await Task.Run(() => analysisService.AnalyzeCsvAsync(filePath, analysisCts.Token, analysisProgress), analysisCts.Token)
+                    : await Task.Run(() => analysisService.AnalyzeAsync(filePath, analysisCts.Token, analysisProgress), analysisCts.Token);
+                analysisTicker.Stop();
+            }
 
             await Task.Yield();
             _mainWindowViewModel?.HideLoading();
@@ -3069,30 +3089,36 @@ public partial class App : Application
             if (analysis == null || analysis.Sheets.Count == 0 || analysis.Sheets.All(s => !s.IsIncluded))
             {
                 await TryRescueImportAsync(
-                    unflattenedPath, isCsv, companyData, analysisService, importService, originalFileName, usageService);
+                    unflattenedPath, isCsv, companyData, analysisService, importService, originalFileName, usageService!);
                 return;
             }
 
             // Show the file the user actually selected, not the temp file we may have analyzed.
             analysis.FileName = originalFileName;
 
-            // Step 2: Show mapping review dialog
-            var mappingDialog = _appShellViewModel.ImportMappingDialogViewModel;
-
-            _ = TelemetryManager?.TrackFeatureAsync(
-                FeatureName.ImportPreviewShown, $"sheets:{analysis.Sheets.Count(sh => sh.IsIncluded)}");
-
-            var dialogResult = await mappingDialog.ShowAsync(analysis, usageCheck.Remaining, usageCheck.MonthlyLimit);
-
-            if (dialogResult == ImportMappingDialogResult.Cancel)
+            // Step 2: Show mapping review dialog. An exported layout has nothing to review, and keeps the dialog's default of leaving existing records alone.
+            SpreadsheetAnalysisResult? updatedAnalysis = analysis;
+            var skipExistingRecords = true;
+            if (exactLayout == null)
             {
-                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "mapping");
-                return;
-            }
+                var mappingDialog = _appShellViewModel.ImportMappingDialogViewModel;
 
-            // Get user-updated analysis (they may have changed entity types or excluded sheets)
-            var updatedAnalysis = mappingDialog.GetUpdatedAnalysis();
-            if (updatedAnalysis == null) return;
+                _ = TelemetryManager?.TrackFeatureAsync(
+                    FeatureName.ImportPreviewShown, $"sheets:{analysis.Sheets.Count(sh => sh.IsIncluded)}");
+
+                var dialogResult = await mappingDialog.ShowAsync(analysis, usageCheck!.Remaining, usageCheck.MonthlyLimit);
+
+                if (dialogResult == ImportMappingDialogResult.Cancel)
+                {
+                    _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "mapping");
+                    return;
+                }
+
+                // Get user-updated analysis (they may have changed entity types or excluded sheets)
+                updatedAnalysis = mappingDialog.GetUpdatedAnalysis();
+                if (updatedAnalysis == null) return;
+                skipExistingRecords = mappingDialog.SkipExistingRecords;
+            }
 
             // Filter to only included sheets
             var includedSheets = updatedAnalysis.Sheets.Where(s => s.IsIncluded).ToList();
@@ -3116,7 +3142,9 @@ public partial class App : Application
 
             var importOptions = new ImportOptions
             {
-                SkipExistingRecords = mappingDialog.SkipExistingRecords
+                SkipExistingRecords = skipExistingRecords,
+                // A file in Argo Books' own export layout is the user's own data coming back, not something read.
+                ImportSource = exactLayout == null ? ImportTracking.Spreadsheet : null
             };
 
             // Detect currency written into the amount cells (symbols/codes).
@@ -3166,9 +3194,7 @@ public partial class App : Application
                 using var validationCts = new CancellationTokenSource();
                 _mainWindowViewModel?.ShowLoading("Validating mapped data...".Translate(), cts: validationCts, cancelConfirmation: ConfirmCancelAsync);
 
-                var validationResult = isCsv
-                    ? new ImportValidationResult() // CSV validation is simpler
-                    : await importService.ValidateWithMappingsAsync(filePath, companyData, updatedAnalysis);
+                var validationResult = await importService.ValidateWithMappingsAsync(filePath, companyData, updatedAnalysis);
 
                 _mainWindowViewModel?.HideLoading();
 
@@ -3222,7 +3248,7 @@ public partial class App : Application
 
                 // AI-categorize any products that ended up without a category
                 // (skip if Tier 2 sheets will handle it after their processing)
-                if (tier2Sheets.Count == 0)
+                if (tier2Sheets.Count == 0 && exactLayout == null)
                 {
                     _mainWindowViewModel?.ShowLoading("Categorizing products...".Translate(), progress: 95, cts: importCts, cancelConfirmation: ConfirmCancelAsync);
                     await importService.AiCategorizeMissingProductsAsync(companyData, importCts.Token);
@@ -3345,7 +3371,9 @@ public partial class App : Application
             // Track import duration telemetry (covers analysis, validation, all tiers, and categorization)
             importStopwatch.Stop();
             var importContext = isCsv ? "ai-csv" : "ai-xlsx";
-            if (tier2Sheets.Count > 0 && tier1Sheets.Count == 0)
+            if (exactLayout != null)
+                importContext = "exported-xlsx";
+            else if (tier2Sheets.Count > 0 && tier1Sheets.Count == 0)
                 importContext = isCsv ? "ai-csv-tier2" : "ai-xlsx-tier2";
             else if (tier2Sheets.Count > 0)
                 importContext = isCsv ? "ai-csv-mixed" : "ai-xlsx-mixed";
@@ -3399,7 +3427,8 @@ public partial class App : Application
             // Only a run that brought something in uses up an import.
             if (totalProcessed > 0 || totalBankRouted > 0)
             {
-                await usageService.IncrementUsageAsync();
+                if (usageService != null)
+                    await usageService.IncrementUsageAsync();
                 TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
             }
 
@@ -3930,12 +3959,13 @@ public partial class App : Application
         var isPicture = StatementImages.IsImage(filePath);
         progress.Begin(new FileInfo(filePath).Length);
         List<Core.Models.BankMatching.BankStatementLine> extracted;
+        StatementCheck? check;
         try
         {
             var bytes = isPicture
                 ? await Task.Run(() => StatementImages.ToPdf(filePath))
                 : await SharedFileReader.ReadAllBytesAsync(filePath);
-            extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.ChangeExtension(Path.GetFileName(filePath), ".pdf"));
+            (extracted, check) = await PdfStatementExtractor.ExtractAsync(bytes, Path.ChangeExtension(Path.GetFileName(filePath), ".pdf"));
         }
         catch (InvalidDataException) when (isPicture)
         {
@@ -3986,9 +4016,18 @@ public partial class App : Application
             return [];
         }
 
+        if (check != null)
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportChecked,
+                $"{(isPicture ? ImportTracking.BankPhoto : ImportTracking.BankPdf)}:{check.Status}");
+
         // Charged even if the user has since closed the screen, or a start-and-cancel loop could
         // read PDFs without ever using up the limit.
         await usage.IncrementUsageAsync();
+
+        if (stillWanted && check is { Status: "off", Gap: { } gap })
+            await ShowInfoDialogAsync(
+                "Import Bank Statement".Translate(),
+                "The transactions read from this statement don't add up to its closing balance. They're {0} off, so some may be missing or wrong. Check them against your statement.".TranslateFormat(CurrencyService.Format(Math.Abs(gap))));
         return extracted;
     }
 
@@ -4257,14 +4296,7 @@ public partial class App : Application
         {
             Title = "Open Company".Translate(),
             AllowMultiple = false,
-            FileTypeFilter =
-            [
-                Utilities.FilePickerTypes.CompanyFileType,
-                new FilePickerFileType("All Files")
-                {
-                    Patterns = ["*.*"]
-                }
-            ]
+            FileTypeFilter = [Utilities.FilePickerTypes.CompanyFileType]
         });
 
         if (files.Count > 0)
@@ -4431,7 +4463,7 @@ public partial class App : Application
                 CancelCompanyOpenTiming();
             }
         }
-        catch (UnauthorizedAccessException)
+        catch (CompanyPasswordException)
         {
             // Wrong password - show error and retry
             _isOpeningCompany = false;
@@ -4553,7 +4585,7 @@ public partial class App : Application
                 return false;
             }
         }
-        catch (UnauthorizedAccessException)
+        catch (CompanyPasswordException)
         {
             // Wrong password again - show error and retry
             _mainWindowViewModel.HideLoading();
@@ -4795,7 +4827,7 @@ public partial class App : Application
         return await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save Company".Translate(),
-            SuggestedFileName = CompanyManager.ToCompanyFileName(suggestedFileName) + FileFormatConstants.CompanyFileExtension,
+            SuggestedFileName = CompanyManager.ToCompanyFileNameWithExtension(suggestedFileName),
             DefaultExtension = FileFormatConstants.CompanyFileExtension.TrimStart('.'),
             FileTypeChoices =
             [
@@ -4816,6 +4848,18 @@ public partial class App : Application
         {
             var recentCompanies = await CompanyManager.GetRecentCompaniesAsync();
 
+            // Use logo thumbnail from footer (instant, no decompression needed)
+            var logos = recentCompanies.Take(10).ToDictionary(c => c.FilePath, c =>
+            {
+                byte[]? logoBytes = null;
+                if (c.LogoThumbnail != null)
+                {
+                    try { logoBytes = Convert.FromBase64String(c.LogoThumbnail); }
+                    catch { /* corrupted thumbnail, skip */ }
+                }
+                return LoadBitmapFromBytes(logoBytes);
+            });
+
             // Update file menu
             _appShellViewModel.FileMenuPanelViewModel.RecentCompanies.Clear();
             foreach (var company in recentCompanies.Take(10))
@@ -4824,19 +4868,20 @@ public partial class App : Application
                 {
                     Name = company.CompanyName,
                     FilePath = company.FilePath,
-                    LastOpened = company.ModifiedAt,
-                    Icon = company.IsEncrypted ? "Lock" : "Building"
+                    LastOpened = company.LastSavedLocal,
+                    Icon = company.IsEncrypted ? "Lock" : "Building",
+                    Logo = logos[company.FilePath]
                 });
             }
 
             // Update company switcher
-            _appShellViewModel.CompanySwitcherPanelViewModel.RecentCompanies.Clear();
-            foreach (var company in recentCompanies.Take(5))
+            _appShellViewModel.CompanySwitcherPanelViewModel.SetRecentCompanies(recentCompanies.Take(5).Select(company => new CompanyItem
             {
-                _appShellViewModel.CompanySwitcherPanelViewModel.AddRecentCompany(
-                    company.CompanyName,
-                    company.FilePath);
-            }
+                Name = company.CompanyName,
+                FilePath = company.FilePath,
+                LastOpened = company.LastSavedLocal,
+                Logo = logos[company.FilePath]
+            }));
 
             // Update welcome screen
             if (_welcomeScreenViewModel != null)
@@ -4847,21 +4892,13 @@ public partial class App : Application
 
                 foreach (var company in companiesForWelcome)
                 {
-                    // Use logo thumbnail from footer (instant, no decompression needed)
-                    byte[]? logoBytes = null;
-                    if (company.LogoThumbnail != null)
-                    {
-                        try { logoBytes = Convert.FromBase64String(company.LogoThumbnail); }
-                        catch { /* corrupted thumbnail, skip */ }
-                    }
-
                     _welcomeScreenViewModel.RecentCompanies.Add(new RecentCompanyItem
                     {
                         Name = company.CompanyName,
                         FilePath = company.FilePath,
-                        LastOpened = company.ModifiedAt,
+                        LastOpened = company.LastSavedLocal,
                         Icon = company.IsEncrypted ? "Lock" : "Building",
-                        Logo = LoadBitmapFromBytes(logoBytes)
+                        Logo = logos[company.FilePath]
                     });
                 }
                 _welcomeScreenViewModel.HasRecentCompanies = _welcomeScreenViewModel.RecentCompanies.Count > 0;
@@ -4929,32 +4966,27 @@ public partial class App : Application
     /// <summary>
     /// Handles when a recent company file is deleted from the file system.
     /// </summary>
-    private static void OnRecentCompanyFileDeleted(object sender, FileSystemEventArgs e)
-    {
-        // FileService.SaveCompanyAsync writes to <path>.tmp then File.Move(tmp, path, overwrite: true).
-        if (File.Exists(e.FullPath))
-            return;
-
-        // Run on UI thread
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            // Re-check on the UI thread in case the file came back during the post hop.
-            if (File.Exists(e.FullPath))
-                return;
-            RemoveRecentCompanyFromUi(e.FullPath);
-        });
-    }
+    private static void OnRecentCompanyFileDeleted(object sender, FileSystemEventArgs e) =>
+        _ = RemoveRecentCompanyIfGoneAsync(e.FullPath);
 
     /// <summary>
     /// Handles when a recent company file is renamed (which also removes it from our tracked list).
     /// </summary>
-    private static void OnRecentCompanyFileRenamed(object sender, RenamedEventArgs e)
+    private static void OnRecentCompanyFileRenamed(object sender, RenamedEventArgs e) =>
+        _ = RemoveRecentCompanyIfGoneAsync(e.OldFullPath);
+
+    // Every save swaps a new file onto the company's path, which the watcher reports as the file being renamed or deleted.
+    private static async Task RemoveRecentCompanyIfGoneAsync(string filePath)
     {
-        // Run on UI thread - remove the old path
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        try
         {
-            RemoveRecentCompanyFromUi(e.OldFullPath);
-        });
+            if (await AtomicFile.StaysGoneAsync(filePath))
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => RemoveRecentCompanyFromUi(filePath));
+        }
+        catch (Exception ex)
+        {
+            ErrorLogger?.LogWarning($"Failed to check a recent company file: {ex.Message}", "FileWatcher");
+        }
     }
 
     /// <summary>

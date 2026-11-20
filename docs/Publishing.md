@@ -104,7 +104,15 @@ Everything here happens once all four platforms are built and sitting in `publis
 
    Check the build times it prints are all from today's builds.
 
-2. Regenerate the translations for the new version's strings (see `tools/ArgoBooks.Translations/README.md`):
+2. Send the Windows installer to McAfee, which otherwise quarantines each new release:
+
+   ```powershell
+   Compress-Archive -Path publish\ArgoBooks-<version>-win-Setup.exe, publish\win-x64 -DestinationPath publish\ArgoBooks-<version>-mcafee.zip
+   ```
+
+   Submit the zip on McAfee's [Dispute Detection & Allowlisting](https://www.mcafee.com/en-us/consumer-support/dispute-detection-allowlisting.html) page. The page may hang after Submit. McAfee emails once the file is whitelisted, usually within two business days.
+
+3. Regenerate the translations for the new version's strings (see `tools/ArgoBooks.Translations/README.md`):
 
    ```powershell
    $env:AZURE_TRANSLATOR_REGION = "canadacentral"
@@ -113,17 +121,17 @@ Everything here happens once all four platforms are built and sitting in `publis
    dotnet run -- --translate
    ```
 
-   The JSON files land in `tools/ArgoBooks.Translations/languages/`, ready to upload in step 5.
+   The JSON files land in `tools/ArgoBooks.Translations/languages/`, ready to upload in step 6.
 
-3. In the website repo, add an entry for the new version to the What's New page (`whats-new/index.php`).
+4. In the website repo, add an entry for the new version to the What's New page (`whats-new/index.php`).
 
-4. Before going live, run the freshly built Argo Books on all operating systems and test a couple of major features such as the receipt scanner to ensure things work.
+5. Before going live, run the freshly built Argo Books on all operating systems and test a couple of major features such as the receipt scanner to ensure things work.
 
-5. Upload with FileZilla, using the list the signing script printed in step 1. Add a `languages/` subfolder holding the JSON files from step 2 to the new `resources/downloads/<version>/` folder.
+6. Upload with FileZilla, using the list the signing script printed in step 1. Add a `languages/` subfolder holding the JSON files from step 3 to the new `resources/downloads/<version>/` folder.
 
-6. Once the upload has finished, commit everything in the website repo from steps 1 and 3 together, and push to `main`. The website's download buttons switch to the new version once this deploys.
+7. Once the upload has finished, commit everything in the website repo from steps 1 and 4 together, and push to `main`. The website's download buttons switch to the new version once this deploys.
 
-7. Check the website repo's **Verify Velopack release** workflow on GitHub. The push in step 6 starts it, and it fails if any file is missing, damaged, or not signed properly.
+8. Check the website repo's **Verify Velopack release** workflow on GitHub. The push in step 7 starts it, and it fails if any file is missing, damaged, or not signed properly.
 
 The release is now live. Existing installs will show the "A new version is available" banner the next time they check for updates. Test the auto-update by opening the previous version of the app and letting it update, then confirm the new version opens. Once that works, the release is done.
 
@@ -133,7 +141,7 @@ The previous release's `.nupkg` files in `resources/updates/` on the server can 
 
 ## After the Release: The Stores
 
-Neither store builds the app. Both point at the files already uploaded in step 5, so these only work once the release is live.
+Neither store builds the app. Both point at the files already uploaded in step 6, so these only work once the release is live.
 
 ### Microsoft Store
 

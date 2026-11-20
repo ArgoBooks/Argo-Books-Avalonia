@@ -20,6 +20,22 @@ public class InstallTokenTests
         Assert.Equal(expected, InstallToken.FromPath(path));
     }
 
+    [Fact]
+    public void LinuxToken_ComesFromTheDownloadedAppImage_NotItsTemporaryMount()
+    {
+        var path = FirstRunReporter.LinuxDownloadPath(
+            "/home/me/Downloads/ArgoBooks-2.0.24-linux-x64_0a1b2c3d.AppImage",
+            "/tmp/.mount_ArgoBoXyZ12/usr/bin/Argo Books");
+
+        Assert.Equal("0a1b2c3d", InstallToken.FromPath(path!));
+    }
+
+    [Fact]
+    public void LinuxToken_FallsBackToTheProgram_WhenNotRunAsAnAppImage()
+    {
+        Assert.Equal("/opt/argo/Argo Books", FirstRunReporter.LinuxDownloadPath(null, "/opt/argo/Argo Books"));
+    }
+
     [Theory]
     [InlineData(@"C:\Users\me\Downloads\ArgoBooks-2.0.21-win-Setup.exe")]
     [InlineData(@"C:\Users\me\AppData\Local\Temp\ArgoBooks\Update\ArgoBooksApp-win-Setup.exe")]

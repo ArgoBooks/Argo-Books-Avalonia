@@ -223,7 +223,8 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         var preCounters = data.IdCounters.Clone();
 
         // linkToBankLine: false -> plain transactions, no bank-match flag.
-        var creation = new BankLineImportService().CreateFromLines(data, resolutions, linkToBankLine: false);
+        var importSource = ImportTracking.ForStatementFile(FileName);
+        var creation = new BankLineImportService().CreateFromLines(data, resolutions, linkToBankLine: false, importSource);
 
         // Learn a rule per line (merchant -> product + counterparty) so the next import is pre-filled.
         var ruleCaptures = LearnRules(data, resolutions);
@@ -240,8 +241,36 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         var skippedDuplicates = Rows.Count(r => r.AlreadyImported && !r.IsIncluded);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported,
             $"bank:{toImport.Count}:duplicates:{duplicateCount}:skipped:{skippedDuplicates}");
+        // Rows the user left out themselves, apart from the duplicates the preview left out for them, are usually rows that were read wrong.
+        var unticked = Rows.Count(r => !r.IsIncluded && !r.AlreadyImported);
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportRowsUnticked, $"{importSource}:{unticked}/{Rows.Count}");
         TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
         IsOpen = false;
+    }
+
+    /// <summary>Turns every line's money in into money out and back, for a card statement that lists purchases as positive amounts.</summary>
+    [RelayCommand]
+    private void SwapMoneyInAndOut()
+    {
+        var data = App.CompanyManager?.CompanyData;
+        foreach (var row in Rows)
+        {
+            row.Amount = -row.Amount;
+            // The product, category and supplier or customer were chosen for the other direction, so they are chosen again, from your rules and names, for this one.
+            row.ClearPicks();
+            if (data != null)
+                ApplyDeterministicPrefill(data, row);
+        }
+
+        // Whether a line is already in the books depends on whether it is money in or out, so it is checked again.
+        if (data != null)
+        {
+            foreach (var row in Rows)
+                row.AlreadyImported = false;
+            FlagAlreadyImported(data);
+        }
+
+        RefreshState();
     }
 
     [RelayCommand]
@@ -1169,6 +1198,39 @@ public partial class ImportLineRow : ObservableObject
         CounterpartySearchText = customer.Name;
         HasCounterpartyError = false;
         OnPropertyChanged(nameof(ResolvedCustomerObject));
+        OnPropertyChanged(nameof(HasCounterparty));
+    }
+
+    /// <summary>Empties the product, category and supplier or customer, for a line whose direction changed after they were chosen for the other one.</summary>
+    public void ClearPicks()
+    {
+        _settingFromCode = true;
+        try
+        {
+            _resolvedProductObject = null;
+            _resolvedCategoryObject = null;
+            _resolvedSupplierObject = null;
+            _resolvedCustomerObject = null;
+            OnPropertyChanged(nameof(ResolvedProductObject));
+            OnPropertyChanged(nameof(ResolvedCategoryObject));
+            OnPropertyChanged(nameof(ResolvedSupplierObject));
+            OnPropertyChanged(nameof(ResolvedCustomerObject));
+            ResolvedProductId = null;
+            IsNewProduct = false;
+            NewProductName = null;
+            NewProductCategoryId = null;
+            NewProductCategoryName = null;
+            ProductSearchText = null;
+            CategorySearchText = null;
+            ResolvedCounterpartyId = null;
+            NewCounterpartyName = null;
+            CounterpartySearchText = null;
+        }
+        finally
+        {
+            _settingFromCode = false;
+        }
+        RaiseProductStateChanged();
         OnPropertyChanged(nameof(HasCounterparty));
     }
 

@@ -112,7 +112,7 @@ public class OperationTimingServiceTests : IDisposable
     {
         public int ErrorCount { get; private set; }
         public void LogError(Exception exception, ErrorCategory category, string? context = null, string callerFile = "", int callerLine = 0, string callerMember = "") => ErrorCount++;
-        public void LogError(string message, ErrorCategory category, string? context = null, string callerFile = "", int callerLine = 0, string callerMember = "") => ErrorCount++;
+        public void LogError(string message, ErrorCategory category, string? context = null, string? code = null, string callerFile = "", int callerLine = 0, string callerMember = "") => ErrorCount++;
         public void LogWarning(string message, string? context = null, ErrorCategory category = ErrorCategory.Unknown, string? code = null, string callerFile = "", int callerLine = 0, string callerMember = "") { }
         public void LogInfo(string message) { }
         public void LogDebug(string message) { }

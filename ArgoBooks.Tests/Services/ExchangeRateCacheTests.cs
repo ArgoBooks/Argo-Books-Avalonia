@@ -206,6 +206,24 @@ public class ExchangeRateCacheTests
         Assert.Equal("2025-01-01_USD_EUR", key);
     }
 
+    [Theory]
+    [InlineData("th-TH")]
+    [InlineData("ar-SA")]
+    public void GetCacheKey_UsesTheSameYear_WhateverTheComputersCalendar(string culture)
+    {
+        var original = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo(culture);
+
+            Assert.Equal("2025-03-15_USD_EUR", ExchangeRateCache.GetCacheKey("usd", "eur", new DateTime(2025, 3, 15)));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = original;
+        }
+    }
+
     #endregion
 
     #region Clear and Count Tests

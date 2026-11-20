@@ -50,14 +50,22 @@ public static class CurrencyService
     /// <see cref="PendingMarker"/>: the amount can't be shown in the display currency yet because the
     /// exact-date exchange rate isn't available. Future-dated rows (the common case) get
     /// date-arrives wording; a past date whose rate simply hasn't been fetched gets rate-available
-    /// wording. Both promise an automatic conversion to the default currency, so the user never
-    /// thinks the value is lost. See docs/Calculations.md (Rule 4).
+    /// wording. Both promise the amount will count automatically, so the user never thinks it is
+    /// lost; only an amount in another currency is said to convert. See docs/Calculations.md (Rule 4).
     /// </summary>
     public static string BuildPendingConversionHint(decimal originalAmount, string originalCurrency, DateTime date)
     {
         var original = CurrencyInfo.GetByCode(originalCurrency).Format(originalAmount);
         var defaultCode = CurrentCurrencyCode;
         var dateText = date.ToString(Core.Data.DateFormats.Short);
+
+        // An amount already in the default currency is held back from totals for the same reason, but talk of converting it would only confuse.
+        if (string.Equals(originalCurrency, defaultCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return date.Date > DateTime.Today
+                ? $"This amount is dated {dateText}, which is in the future. {original} will be added to your totals once the date arrives."
+                : $"{original} will be added to your totals the next time Argo Books is online.";
+        }
 
         if (date.Date > DateTime.Today)
         {

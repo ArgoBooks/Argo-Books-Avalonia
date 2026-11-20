@@ -257,6 +257,21 @@ public class FileMenuPanelViewModelTests
         Assert.Empty(_viewModel.RecentCompanies);
     }
 
+    /// <summary>
+    /// The list on screen is only a copy of the saved one, so clearing it alone brought every
+    /// company back the next time the list was loaded.
+    /// </summary>
+    [Fact]
+    public void ClearRecentCommand_AsksForTheSavedListToBeCleared()
+    {
+        var asked = false;
+        _viewModel.ClearRecentRequested += (_, _) => asked = true;
+
+        _viewModel.ClearRecentCommand.Execute(null);
+
+        Assert.True(asked);
+    }
+
     [Fact]
     public void ClearRecentCommand_UpdatesHasFilteredRecentCompanies()
     {

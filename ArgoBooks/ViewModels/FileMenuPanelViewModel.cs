@@ -167,6 +167,7 @@ public partial class FileMenuPanelViewModel : ViewModelBase
     {
         RecentCompanies.Clear();
         RefreshFilteredRecent();
+        ClearRecentRequested?.Invoke(this, EventArgs.Empty);
         // Don't close the panel - let user see that the list is empty
     }
 
@@ -247,6 +248,7 @@ public partial class FileMenuPanelViewModel : ViewModelBase
     public event EventHandler? CreateNewCompanyRequested;
     public event EventHandler? OpenCompanyRequested;
     public event EventHandler<RecentCompanyItem>? OpenRecentCompanyRequested;
+    public event EventHandler? ClearRecentRequested;
     public event EventHandler? SaveRequested;
     public event EventHandler? SaveAsRequested;
     public event EventHandler? CloseCompanyRequested;

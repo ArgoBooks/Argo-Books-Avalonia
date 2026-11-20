@@ -78,8 +78,8 @@ public partial class SalesTaxPageViewModel : SortablePageViewModelBase
     private static async void SaveSetting()
     {
         if (App.CompanyManager == null) return;
-        try { await App.CompanyManager.SaveSettingsOnlyAsync(); }
-        catch (Exception ex) { App.ErrorLogger?.LogWarning($"Failed to save the sales tax setting: {ex.Message}", "SalesTax"); }
+        try { await App.CompanyManager.SaveSettingsNowOrLaterAsync(); }
+        catch (Exception ex) { App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.FileSystem, "Failed to save the sales tax setting"); }
     }
 
     private SalesTaxFrequency Frequency => Enum.TryParse<SalesTaxFrequency>(SelectedFrequency, out var f) ? f : SalesTaxFrequency.Quarterly;

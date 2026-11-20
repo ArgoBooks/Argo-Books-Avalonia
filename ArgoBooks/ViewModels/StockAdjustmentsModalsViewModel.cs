@@ -466,7 +466,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "StockAdjustment.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "StockAdjustment.OpenDeleteConfirm");
         }
     }
 

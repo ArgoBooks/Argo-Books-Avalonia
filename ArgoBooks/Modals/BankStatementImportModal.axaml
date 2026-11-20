@@ -274,7 +274,7 @@
 
                     <!-- Footer -->
                     <Border Classes="modal-footer" Grid.Row="2">
-                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
                             <TextBlock Grid.Column="0"
                                        Text="{loc:Loc 'Please enter all required fields'}"
                                        Foreground="{DynamicResource ErrorBrush}"
@@ -302,10 +302,16 @@
                                        TextTrimming="CharacterEllipsis"
                                        IsVisible="{Binding AiUnavailable}" />
                             <Button Grid.Column="2" Margin="0,0,12,0"
+                                    Content="{loc:Loc 'Swap money in and out'}"
+                                    ToolTip.Tip="{loc:Loc 'For a card statement that lists purchases as positive amounts'}"
+                                    Classes="secondary-button"
+                                    IsVisible="{Binding !IsLoading}"
+                                    Command="{Binding SwapMoneyInAndOutCommand}" />
+                            <Button Grid.Column="3" Margin="0,0,12,0"
                                     Content="{loc:Loc Cancel}"
                                     Classes="secondary-button"
                                     Command="{Binding CancelCommand}" />
-                            <Button Grid.Column="3"
+                            <Button Grid.Column="4"
                                     Content="{loc:Loc Import}"
                                     Classes="primary-button"
                                     IsVisible="{Binding !IsLoading}"

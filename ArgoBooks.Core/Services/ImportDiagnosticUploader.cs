@@ -74,11 +74,13 @@ public static class ImportDiagnosticUploader
             using var response = await http.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                errorLogger?.LogWarning(
-                    $"Import diagnostic upload refused: {(int)response.StatusCode}",
-                    "ImportDiagnostic",
-                    ErrorCategory.Network,
-                    ((int)response.StatusCode).ToString());
+                // Too large or too frequent is the server's limit doing its job; anything else from it is ours to fix.
+                var refused = $"Import diagnostic upload refused: {(int)response.StatusCode}";
+                var code = $"Http{(int)response.StatusCode}";
+                if (response.StatusCode is System.Net.HttpStatusCode.RequestEntityTooLarge or System.Net.HttpStatusCode.TooManyRequests)
+                    errorLogger?.LogWarning(refused, "ImportDiagnostic", ErrorCategory.Api, code);
+                else
+                    errorLogger?.LogError(refused, ErrorCategory.Api, "ImportDiagnostic", code);
                 return false;
             }
 
@@ -90,11 +92,7 @@ public static class ImportDiagnosticUploader
         }
         catch (Exception ex)
         {
-            errorLogger?.LogWarning(
-                $"Import diagnostic upload failed: {ex.GetType().Name}",
-                "ImportDiagnostic",
-                ErrorCategory.Network,
-                ex.GetType().Name);
+            NetworkFailure.Report(errorLogger, ex, "Import diagnostic upload failed", ErrorCategory.Api);
             return false;
         }
     }

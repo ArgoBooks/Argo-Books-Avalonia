@@ -297,7 +297,7 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Viewer.ShowDocument");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "Viewer.ShowDocument");
         }
         finally
         {
@@ -407,7 +407,7 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "ReceiptViewer.Delete");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "ReceiptViewer.Delete");
         }
     }
 
@@ -438,7 +438,7 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "ReceiptViewer.DownloadDocument");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "ReceiptViewer.DownloadDocument");
         }
     }
 

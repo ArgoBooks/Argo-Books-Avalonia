@@ -301,9 +301,15 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
         try
         {
             _updateService.ApplyUpdateAndRestart();
+            // Still running means the update was called off before it started, for example because the company could not be saved first.
+            if (App.TelemetryManager != null)
+                await App.TelemetryManager.ResumeSessionAsync();
         }
         catch (Exception failure)
         {
+            if (App.TelemetryManager != null)
+                await App.TelemetryManager.ResumeSessionAsync();
+
             // Telemetry drops an error's message, and the Windows code is what says whether permission was refused or antivirus blocked the installer.
             App.ErrorLogger?.LogError(failure, ErrorCategory.FileSystem, failure is Win32Exception windows
                 ? $"Update did not start, Windows code {windows.NativeErrorCode}"

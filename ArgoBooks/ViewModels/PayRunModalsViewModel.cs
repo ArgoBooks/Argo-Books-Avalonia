@@ -299,7 +299,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Payroll.FetchRates");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Api, "Payroll.FetchRates");
         }
         finally
         {
@@ -435,7 +435,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
         {
             // A backstop for anything the check above did not anticipate. Refusing to start the
             // run and saying so beats taking the window down with the draft half built.
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Payroll.BuildDraft");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "Payroll.BuildDraft");
             _draft = null;
             BlockingError = $"This pay run could not be calculated: {ex.Message}";
             return false;

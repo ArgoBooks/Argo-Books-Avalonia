@@ -15,7 +15,7 @@ Done once, for 2.0.21. Copies of Argo Books up to 2.0.20 update through the old 
 
    [Advanced Installer project setup](AdvancedInstallerProjectSetup.md) has the details if anything looks different.
 
-3. Follow steps 1 to 4 of **Going Live** in Publishing.
+3. Follow steps 1 to 5 of **Going Live** in Publishing.
 
 4. Sign the old update list. Put `Argo Books Installer V.2.0.21.exe`, the AppImage and both Mac `.zip` files into one folder, then run:
 
@@ -23,9 +23,9 @@ Done once, for 2.0.21. Copies of Argo Books up to 2.0.20 update through the old 
    powershell -File packaging\sign-bridge-appcast.ps1 "<that folder>" "C:\laragon\www\argo-books-website\avalonia-update.xml"
    ```
 
-5. Follow step 5 of Going Live, and also upload `Argo Books Installer V.2.0.21.exe` into `resources/downloads/2.0.21/`.
+5. Follow step 6 of Going Live, and also upload `Argo Books Installer V.2.0.21.exe` into `resources/downloads/2.0.21/`.
 
-6. Follow steps 6 and 7 of Going Live. The push includes the `avalonia-update.xml` change, and also starts the **Verify release signatures** workflow, which should pass too.
+6. Follow steps 7 and 8 of Going Live. The push includes the `avalonia-update.xml` change, and also starts the **Verify release signatures** workflow, which should pass too.
 
 7. In the Homebrew pull request for 2.0.21, change the cask's `livecheck` to read the new release file, since `avalonia-update.xml` stops changing after this release:
 

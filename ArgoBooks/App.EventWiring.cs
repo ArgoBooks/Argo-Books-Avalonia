@@ -145,7 +145,7 @@ public partial class App
                 catch (Exception ex)
                 {
                     samplePrepareError = ex;
-                    ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open sample company");
+                    ErrorLogger?.LogError(ex, ErrorCategory.Unknown, "Failed to prepare sample company");
                 }
             }
 
@@ -250,6 +250,9 @@ public partial class App
                     await AutoSyncPortalPaymentsAsync();
 
                     ApplyPortalSyncInterval();
+
+                    // Here as well as on the Revenue page, so data a connected app sent while the app was closed is announced without visiting it.
+                    await ArgoApiPendingNotice.CheckAsync(CompanyManager.CompanyData, SharedHttpClient);
                 }
                 catch (Exception ex)
                 {
@@ -341,6 +344,9 @@ public partial class App
         // A save that renames the file strips the old path from the recent-companies caches but adds the new one only to settings.json, so the caches refresh from disk.
         CompanyManager.CompanyRenamed += async (_, _) =>
         {
+            // The menus leave the open company out of their recent lists by its path, which the rename has just changed.
+            _appShellViewModel.FileMenuPanelViewModel.SetCurrentCompany(CompanyManager.CurrentFilePath);
+            _appShellViewModel.CompanySwitcherPanelViewModel.CurrentCompanyPath = CompanyManager.CurrentFilePath;
             await LoadRecentCompaniesAsync();
         };
 
@@ -502,7 +508,10 @@ public partial class App
                 _appShellViewModel.HeaderViewModel.ShowSavingIndicator = true;
                 try
                 {
-                    await CompanyManager.SaveCompanyAsync(kind: "manual");
+                    // The same path as the header's Save button, so a save blocked by antivirus offers Retry or another folder here too.
+                    var saved = await SaveCompanyWithSecurityGuidanceAsync();
+                    if (!saved)
+                        _appShellViewModel.HeaderViewModel.ShowSavingIndicator = false;
                 }
                 catch (Exception ex)
                 {
@@ -546,6 +555,17 @@ public partial class App
             if (string.IsNullOrEmpty(company.FilePath)) return;
             await OpenCompanyWithRetryAsync(company.FilePath, "menu-recent");
         };
+
+        fileMenu.ClearRecentRequested += async (_, _) => await ClearRecentCompaniesAsync();
+    }
+
+    // The File menu, the company switcher and the welcome screen each show a copy of the saved list, so all three load it again.
+    private static async Task ClearRecentCompaniesAsync()
+    {
+        if (SettingsService == null) return;
+        SettingsService.GlobalSettings.RecentCompanies.Clear();
+        await SettingsService.SaveGlobalSettingsAsync();
+        await LoadRecentCompaniesAsync();
     }
 
     /// <summary>
@@ -711,14 +731,7 @@ public partial class App
         };
 
         // Clear all recent companies
-        _welcomeScreenViewModel.ClearRecentRequested += async (_, _) =>
-        {
-            if (SettingsService != null)
-            {
-                SettingsService.GlobalSettings.RecentCompanies.Clear();
-                await SettingsService.SaveGlobalSettingsAsync();
-            }
-        };
+        _welcomeScreenViewModel.ClearRecentRequested += async (_, _) => await ClearRecentCompaniesAsync();
 
         _welcomeScreenViewModel.OpenSampleCompanyRequested += async (_, _) =>
         {
@@ -785,7 +798,7 @@ public partial class App
                         {
                             // Don't close on a failed save: CloseCompanyAsync discards unsaved edits.
                             // Abort the restart and keep the company open to protect the user's data.
-                            ErrorLogger?.LogWarning($"Save before tutorial restart failed: {ex.Message}", "AutoSave");
+                            ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save before tutorial restart failed");
                             if (_welcomeScreenViewModel != null)
                                 _welcomeScreenViewModel.IsTutorialMode = false;
                             _appShellViewModel.AddNotification(
@@ -892,7 +905,7 @@ public partial class App
                     {
                         var currentPath = CompanyManager.CurrentFilePath;
                         var directory = Path.GetDirectoryName(currentPath);
-                        var newFileName = CompanyManager.ToCompanyFileName(args.CompanyName) + FileFormatConstants.CompanyFileExtension;
+                        var newFileName = CompanyManager.ToCompanyFileNameWithExtension(args.CompanyName);
                         var newPath = Path.Combine(directory!, newFileName);
 
                         if (CompanyManager.CanRenameTo(newPath))
@@ -910,9 +923,10 @@ public partial class App
                     // toggles themselves should follow the new industry's starting point.
                     _appShellViewModel.ApplyFeatureVisibility(settings);
                     _appShellViewModel.InvoiceModalsViewModel.RefreshCompanyDetailsPrompt();
+                    // The file keeps its old name until the next save, which may still fail to rename it.
                     _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
                         args.CompanyName,
-                        CompanyManager.PendingRenamePath ?? CompanyManager.CurrentFilePath,
+                        CompanyManager.CurrentFilePath,
                         logo);
                     _reportsPageViewModel?.RefreshCanvas();
 
@@ -1099,7 +1113,7 @@ public partial class App
             catch (Exception ex)
             {
                 settings.HasPassword = false;
-                ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to set password");
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to set password");
                 await ShowErrorDialogAsync("Error".Translate(), "Failed to set password: {0}".TranslateFormat(ex.Message));
             }
         };
@@ -1130,7 +1144,7 @@ public partial class App
             catch (Exception ex)
             {
                 settings.OnPasswordVerificationFailed();
-                ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to change password");
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to change password");
                 await ShowErrorDialogAsync("Error".Translate(), "Failed to change password: {0}".TranslateFormat(ex.Message));
             }
         };
@@ -1162,7 +1176,7 @@ public partial class App
             catch (Exception ex)
             {
                 settings.OnPasswordVerificationFailed();
-                ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to remove password");
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to remove password");
                 await ShowErrorDialogAsync("Error".Translate(), "Failed to remove password: {0}".TranslateFormat(ex.Message));
             }
         };
@@ -1471,7 +1485,7 @@ public partial class App
             var file = await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
                 Title = "Export Data".Translate(),
-                SuggestedFileName = $"{CompanyManager.CurrentCompanyName ?? "Export"}-{DateTime.Now:yyyy-MM-dd}.{extension}",
+                SuggestedFileName = $"{CompanyManager.ToCompanyFileName(CompanyManager.CurrentCompanyName ?? "Export")}-{DateTime.Now:yyyy-MM-dd}.{extension}",
                 DefaultExtension = extension,
                 FileTypeChoices =
                 [
@@ -1743,7 +1757,7 @@ public partial class App
                     catch (Exception ex)
                     {
                         _mainWindowViewModel?.HideLoading();
-                        ErrorLogger?.LogWarning($"Auto-save before lock failed: {ex.Message}", "AutoSave");
+                        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Auto-save before lock failed");
                         // Do NOT close on a failed save: CloseCompanyAsync discards the working copy and every unsaved edit.
                         _appShellViewModel.AddNotification(
                             "Auto-lock postponed",

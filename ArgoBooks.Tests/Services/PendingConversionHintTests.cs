@@ -32,6 +32,28 @@ public class PendingConversionHintTests
     }
 
     [Fact]
+    public void FutureDate_InTheDefaultCurrency_SaysNothingAboutConverting()
+    {
+        var hint = CurrencyService.BuildPendingConversionHint(31.69m, "USD", new DateTime(2099, 12, 15));
+
+        Assert.Contains("Dec 15, 2099", hint);
+        Assert.Contains("31.69", hint);
+        Assert.Contains("totals", hint);
+        Assert.DoesNotContain("convert", hint);
+        Assert.DoesNotContain("exchange rate", hint);
+    }
+
+    [Fact]
+    public void PastDate_InTheDefaultCurrency_SaysNothingAboutConverting()
+    {
+        var hint = CurrencyService.BuildPendingConversionHint(31.69m, "usd", new DateTime(2000, 1, 5));
+
+        Assert.Contains("totals", hint);
+        Assert.DoesNotContain("convert", hint);
+        Assert.DoesNotContain("exchange rate", hint);
+    }
+
+    [Fact]
     public void IncludesTheOriginalCurrencySymbol()
     {
         var hint = CurrencyService.BuildPendingConversionHint(750m, "EUR", new DateTime(2099, 12, 15));

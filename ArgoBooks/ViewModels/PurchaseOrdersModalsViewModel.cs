@@ -953,7 +953,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "PurchaseOrder.OpenDeleteConfirm");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "PurchaseOrder.OpenDeleteConfirm");
         }
     }
 
@@ -1180,7 +1180,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "PurchaseOrder.DownloadPdf");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.Export, "PurchaseOrder.DownloadPdf");
             SendError = "Could not save the PDF: {0}".TranslateFormat(ex.Message);
         }
     }
@@ -1247,7 +1247,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "PurchaseOrder.RenderPdf");
+                App.ErrorLogger?.LogError(ex, ErrorCategory.Export, "PurchaseOrder.RenderPdf");
                 SendError = "Could not generate the PDF: {0}".TranslateFormat(ex.Message);
                 return;
             }
@@ -1280,6 +1280,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
             if (!response.Success)
             {
+                SendFailure.Report(App.ErrorLogger, response.ErrorCode, response.Message, "PurchaseOrder.Send");
                 SendError = response.Message.Translate();
                 return;
             }
@@ -1333,7 +1334,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "PurchaseOrder.Send");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "PurchaseOrder.Send");
             SendError = "Failed to send: {0}".TranslateFormat(ex.Message);
         }
         finally
@@ -1362,13 +1363,13 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 }
                 catch (Exception ex)
                 {
-                    App.ErrorLogger?.LogWarning($"Send PDF preview decode failed: {ex.Message}", "PurchaseOrder.SendPreview");
+                    App.ErrorLogger?.LogError(ex, ErrorCategory.UI, "PurchaseOrder.SendPreview");
                 }
             });
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "PurchaseOrder.GenerateSendPreview");
+            App.ErrorLogger?.LogError(ex, ErrorCategory.Export, "PurchaseOrder.GenerateSendPreview");
         }
     }
 
