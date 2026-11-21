@@ -1,7 +1,7 @@
 // Records argorobots.com's free invoice or estimate generator as a take, the way Takes.cs records the app: a hand moves,
 // clicks and types through the page while every change is saved. The take keeps its own clock, so it plays at an even
 // speed however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
-// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle OUT_FOLDER   (run "npm install" in this folder first)
+// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair OUT_FOLDER   (run "npm install" in this folder first)
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
@@ -20,11 +20,12 @@ const PAGES = {
   cake: "https://argorobots.com/cake-pricing-calculator/",
   freelancetax: "https://argorobots.com/self-employed-tax-calculator/",
   candle: "https://argorobots.com/candle-pricing-calculator/",
+  craftfair: "https://argorobots.com/craft-fair-calculator/",
 };
 const SCALE = 2;
 // Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short. The tax calculator
 // goes into a 16:9 video beside the app's takes, so it is recorded at the app's own window size.
-const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 }, etsy: { width: 1600, height: 1000 }, cake: { width: 1600, height: 1000 }, freelancetax: { width: 1600, height: 1000 }, candle: { width: 1600, height: 1000 } };
+const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 }, etsy: { width: 1600, height: 1000 }, cake: { width: 1600, height: 1000 }, freelancetax: { width: 1600, height: 1000 }, candle: { width: 1600, height: 1000 }, craftfair: { width: 1600, height: 1000 } };
 
 class Take {
   constructor(page, folder) {
@@ -595,6 +596,37 @@ const RECORDINGS = {
     take.hold(3.5);
     take.mark("end");
   },
+  // The craft fair Short's example, the page's own worked one: $185 of costs on the day, a $28 average sale and 14 sales.
+  async craftfair(page, take) {
+    await take.scrollTo(300, 0.01);
+    await take.snap();
+    take.mark("top");
+    take.hold(0.6);
+    const costs = [["#cf-booth", "120"], ["#cf-travel", "45"], ["#cf-other", "20"]];
+    for (let i = 0; i < costs.length; i++) {
+      await take.moveInto(`cost_${i}`, costs[i][0], 0, i ? 0.45 : 0.8, 120);
+      if (!i) take.mark("click_booth");
+      await take.click();
+      await take.type(costs[i][1], 0.12);
+    }
+    take.mark("costs_done");
+    take.hold(0.3);
+    await take.moveInto("avg", "#cf-avg", 0, 0.7, 120);
+    await take.click();
+    await take.type("28", 0.12);
+    await take.moveInto("sales", "#cf-sales", 0, 0.6, 120);
+    take.mark("click_sales");
+    await take.click();
+    await take.type("14", 0.15);
+    take.mark("sold");
+    take.hold(0.3);
+    await take.place("breakeven", '[data-cf="breakEven"]');
+    const hourly = await take.place("hourly", '[data-cf="hourly"]');
+    await take.moveTo(hourly.x + hourly.width - 40, hourly.y + hourly.height + 30, 0.8);
+    take.mark("look_hourly");
+    take.hold(3.5);
+    take.mark("end");
+  },
   async estimate(page, take) {
     await opening(take, 3.0);
     await parties(take, "Northline Decks", "Northline Decks\n214 Harbor Road\nPortland, ME 04102", "Linda Park\n88 Maple Avenue\nPortland, ME 04103");
@@ -609,7 +641,7 @@ const RECORDINGS = {
 
 (async () => {
   const [kind, folder] = process.argv.slice(2);
-  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle OUT_FOLDER");
+  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair OUT_FOLDER");
   const viewport = VIEWPORTS[kind];
   fs.rmSync(path.join(folder, "frames"), { recursive: true, force: true });
   fs.mkdirSync(path.join(folder, "frames"), { recursive: true });
