@@ -146,6 +146,9 @@ public class TelemetryManager : ITelemetryManager
     private readonly Lock _profileGate = new();
     private readonly HashSet<string> _reportedCompanyScales = [];
 
+    /// <summary>Reads the app's display language for each session start, since the settings that hold it live in the app project.</summary>
+    public Func<string?>? LanguageProvider { get; set; }
+
     /// <summary>
     /// Initializes a new instance of the TelemetryManager.
     /// </summary>
@@ -215,6 +218,7 @@ public class TelemetryManager : ITelemetryManager
                 // Record session start
                 var sessionEvent = await CreateEventAsync<SessionEvent>(cancellationToken);
                 sessionEvent.Action = SessionAction.SessionStart;
+                sessionEvent.Language = LanguageProvider?.Invoke();
                 await _storageService.RecordEventAsync(sessionEvent, cancellationToken);
 
                 StartHeartbeat();
@@ -316,6 +320,7 @@ public class TelemetryManager : ITelemetryManager
             _sentinel = SessionSentinel.Begin(_platformService, _sessionStartTime, _appVersion, _errorLogger);
             var sessionEvent = await CreateEventAsync<SessionEvent>(cancellationToken);
             sessionEvent.Action = SessionAction.SessionStart;
+            sessionEvent.Language = LanguageProvider?.Invoke();
             await _storageService.RecordEventAsync(sessionEvent, cancellationToken);
             StartHeartbeat();
         }

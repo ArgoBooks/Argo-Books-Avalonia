@@ -1451,7 +1451,10 @@ public partial class App : Application
                 telemetryUploadService,
                 geoLocationService,
                 errorLogger,
-                appVersion);
+                appVersion)
+            {
+                LanguageProvider = () => SettingsService?.GlobalSettings.Ui.Language is { Length: > 0 } language ? language : "English"
+            };
 
             // Initialize payment portal service
             PaymentPortalService = new PaymentPortalService();

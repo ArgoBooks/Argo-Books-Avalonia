@@ -64,6 +64,12 @@ public class SessionEvent : TelemetryEvent
     /// bitmaps, Skia surfaces and the web view's own processes. Null in the same cases.
     /// </summary>
     public int? PeakWorkingSetMb { get; set; }
+
+    /// <summary>
+    /// The language the app is displayed in, as its English name (only for SessionStart events).
+    /// Sent at every launch so a device that never opens a company still reports one.
+    /// </summary>
+    public string? Language { get; set; }
 }
 
 /// <summary>

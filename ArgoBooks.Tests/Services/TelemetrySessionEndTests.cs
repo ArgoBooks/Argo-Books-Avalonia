@@ -156,6 +156,22 @@ public class TelemetrySessionEndTests : IDisposable
     }
 
     [Fact]
+    public async Task EverySessionStart_CarriesTheDisplayLanguage()
+    {
+        var (manager, storage) = Build();
+        var language = "Spanish";
+        manager.LanguageProvider = () => language;
+        await manager.InitializeAsync();
+        await manager.EndSessionAsync();
+        language = "French";
+        await manager.ResumeSessionAsync();
+
+        var starts = storage.Events.OfType<SessionEvent>().Where(e => e.Action == SessionAction.SessionStart).ToList();
+        Assert.Equal(["Spanish", "French"], starts.Select(e => e.Language));
+        Assert.All(storage.Events.OfType<SessionEvent>().Where(e => e.Action == SessionAction.SessionEnd), e => Assert.Null(e.Language));
+    }
+
+    [Fact]
     public async Task ResumedSession_GoesOnTimingThePageOnScreen()
     {
         var (manager, storage) = Build();
