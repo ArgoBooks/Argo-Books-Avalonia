@@ -42,7 +42,7 @@ if [ -f "$ROOT_DIR/ArgoBooks.Desktop/ArgoBooks.Desktop.csproj" ] && command -v d
     dotnet publish "$ROOT_DIR/ArgoBooks.Desktop" \
         -c Release \
         -p:Version="$VERSION" \
-        -f net10.0 \
+        -f net11.0 \
         -r linux-x64 \
         --self-contained \
         -o "$PUBLISH_DIR"

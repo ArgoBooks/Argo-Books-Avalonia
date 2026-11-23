@@ -56,12 +56,12 @@ echo "Packaging $APP_NAME v${VERSION} for ${RID}..."
 
 if [ -f "$ROOT_DIR/ArgoBooks.Desktop/ArgoBooks.Desktop.csproj" ] && command -v dotnet &> /dev/null; then
     echo "Building .NET application..."
-    # net10.0, not the net10.0-windows TFM. PublishReadyToRun applies here too,
+    # net11.0, not the net11.0-windows TFM. PublishReadyToRun applies here too,
     # which is why this is a publish and not a build (see docs/Publishing.md).
     dotnet publish "$ROOT_DIR/ArgoBooks.Desktop" \
         -c "$CONFIGURATION" \
         -p:Version="$VERSION" \
-        -f net10.0 \
+        -f net11.0 \
         -r "$RID" \
         --self-contained \
         -o "$PUBLISH_DIR"

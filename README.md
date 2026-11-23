@@ -20,13 +20,13 @@ Version 2.0 is a complete rewrite on [Avalonia UI](https://avaloniaui.net/). Ver
 
 ## Technologies Used
 
-- **[C# .NET 10](https://dotnet.microsoft.com/en-us/)**: Core framework for the application's logic and UI.
+- **[C# .NET 11](https://dotnet.microsoft.com/en-us/)**: Core framework for the application's logic and UI.
 - **[Avalonia UI](https://avaloniaui.net/)**: Cross-platform UI framework for building native applications on Windows, macOS, and Linux.
 - **[LiveCharts2](https://livecharts.dev/)**: Used to visualize data through beautiful and interactive charts.
 
 ## Prerequisites
 
-- **[.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)**: Make sure you have the latest .NET 10 SDK installed on your machine.
+- **[.NET 11 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/11.0)**: Make sure you have the latest .NET 11 SDK installed on your machine.
 - **[JetBrains Rider](https://www.jetbrains.com/rider/)**: This is the IDE used for Avalonia UI.
 
 ## Installation

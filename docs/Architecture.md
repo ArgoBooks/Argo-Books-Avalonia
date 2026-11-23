@@ -8,7 +8,7 @@ Argo Books is a desktop accounting app for Windows, macOS and Linux, built with 
 
 | Layer | Technology | Description |
 |-------|------------|-------------|
-| **Platform** | [.NET 10](https://dotnet.microsoft.com/en-us/) | Core runtime and framework |
+| **Platform** | [.NET 11](https://dotnet.microsoft.com/en-us/) | Core runtime and framework |
 | **UI Framework** | [Avalonia](https://avaloniaui.net/) | Cross-platform XAML-based UI |
 | **Charts** | [LiveCharts2](https://livecharts.dev/) | Interactive data visualization |
 | **Rendering** | [SkiaSharp](https://github.com/mono/SkiaSharp) | 2D graphics engine |

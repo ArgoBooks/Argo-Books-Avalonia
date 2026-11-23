@@ -1,5 +1,6 @@
 using ArgoBooks.Core.Services;
 using Xunit;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Tests.Services;
 
@@ -23,7 +24,7 @@ public class CurrencyCellDetectorTests
 
         Assert.Equal(expectedCode, d.Code);
         Assert.Null(d.AmbiguousSymbol);
-        Assert.Equal((decimal)amount, d.Amount);
+        Assert.Equal(DecimalFromDouble.Convert(amount), d.Amount);
     }
 
     // ─── Unambiguous symbols ─────────────────────────────────────────────────
@@ -38,7 +39,7 @@ public class CurrencyCellDetectorTests
 
         Assert.Equal(expectedCode, d.Code);
         Assert.Null(d.AmbiguousSymbol);
-        Assert.Equal((decimal)amount, d.Amount);
+        Assert.Equal(DecimalFromDouble.Convert(amount), d.Amount);
     }
 
     // ─── Ambiguous symbols ───────────────────────────────────────────────────
@@ -102,7 +103,7 @@ public class CurrencyCellDetectorTests
 
         Assert.Null(d.Code);
         Assert.Null(d.AmbiguousSymbol);
-        Assert.Equal((decimal)amount, d.Amount);
+        Assert.Equal(DecimalFromDouble.Convert(amount), d.Amount);
     }
 
     [Fact]
@@ -132,7 +133,7 @@ public class CurrencyCellDetectorTests
     [InlineData("abc", 0)]
     public void ParseAmount_MatchesExpected(string cell, double expected)
     {
-        Assert.Equal((decimal)expected, CurrencyCellDetector.ParseAmount(cell));
+        Assert.Equal(DecimalFromDouble.Convert(expected), CurrencyCellDetector.ParseAmount(cell));
     }
 
     // A sign written before the currency symbol came in as 0, so the expense or refund imported
@@ -146,6 +147,6 @@ public class CurrencyCellDetectorTests
     [InlineData("($45.00)", -45.00)]
     public void ParseAmount_ReadsASignBeforeTheSymbol(string text, double expected)
     {
-        Assert.Equal((decimal)expected, CurrencyCellDetector.ParseAmount(text));
+        Assert.Equal(DecimalFromDouble.Convert(expected), CurrencyCellDetector.ParseAmount(text));
     }
 }

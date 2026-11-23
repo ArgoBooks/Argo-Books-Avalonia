@@ -5,6 +5,7 @@ using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using Xunit;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Tests.Services;
 
@@ -53,9 +54,9 @@ public class PurchaseTaxTests
     [InlineData("Canada", "BC", 0.05)]
     [InlineData("Canada", "Saskatchewan", 0.05)]
     [InlineData("Canada", "mb", 0.05)]
-    public void RuleFor_ClaimsAtMostARate_WhereSomeTaxIsACost(string country, string? province, decimal rate)
+    public void RuleFor_ClaimsAtMostARate_WhereSomeTaxIsACost(string country, string? province, double rate)
     {
-        Assert.Equal(new PurchaseTaxRule(rate), PurchaseTax.RuleFor(country, province));
+        Assert.Equal(new PurchaseTaxRule(DecimalFromDouble.Convert(rate)), PurchaseTax.RuleFor(country, province));
     }
 
     // Ontario's HST, Alberta's GST, Quebec's QST and VAT are all claimed back. A Canadian company with no

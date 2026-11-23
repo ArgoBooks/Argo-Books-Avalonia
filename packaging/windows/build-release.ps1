@@ -52,7 +52,7 @@ Write-Host "Building Argo Books $version for Windows ($configuration)..."
 
 if (Test-Path $publishDir) { Remove-Item -Recurse -Force $publishDir }
 # Publish rather than build: PublishReadyToRun only applies to a publish, and it saves about three seconds on every cold start.
-& dotnet publish (Join-Path $root 'ArgoBooks.Desktop') -c $configuration -f net10.0-windows10.0.17763.0 -r win-x64 --self-contained -o $publishDir
+& dotnet publish (Join-Path $root 'ArgoBooks.Desktop') -c $configuration -f net11.0-windows10.0.17763.0 -r win-x64 --self-contained -o $publishDir
 if ($LASTEXITCODE -ne 0) { Fail 'dotnet publish failed.' }
 
 if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }

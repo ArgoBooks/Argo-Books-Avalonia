@@ -1,5 +1,6 @@
 using ArgoBooks.ViewModels;
 using Xunit;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Tests.ViewModels;
 
@@ -24,13 +25,13 @@ public class InvoicePaperQuantityTests : ModalViewModelTestBase
     [InlineData("0.125", 0.125)]
     [InlineData("17500.50", 17500.50)]
     [InlineData("2", 2)]
-    public void TypingAQuantity_StoresItToThreeDecimalPlaces(string typed, decimal stored)
+    public void TypingAQuantity_StoresItToThreeDecimalPlaces(string typed, double stored)
     {
         var vm = EditorWithOneLine();
 
         vm.ApplyPaperEdit("quantity", 0, typed);
 
-        Assert.Equal(stored, vm.LineItems[0].Quantity);
+        Assert.Equal(DecimalFromDouble.Convert(stored), vm.LineItems[0].Quantity);
     }
 
     /// <summary>Half of a thousandth rounds away from zero, the way an invoice is expected to.</summary>
@@ -53,13 +54,13 @@ public class InvoicePaperQuantityTests : ModalViewModelTestBase
     [InlineData("1.004", 1.00)]
     [InlineData("1.23456789", 1.23)]
     [InlineData("12.50", 12.50)]
-    public void TypingAPrice_StoresItToTheCurrencysPlaces(string typed, decimal stored)
+    public void TypingAPrice_StoresItToTheCurrencysPlaces(string typed, double stored)
     {
         var vm = EditorWithOneLine();
 
         vm.ApplyPaperEdit("rate", 0, typed);
 
-        Assert.Equal(stored, vm.LineItems[0].UnitPrice);
+        Assert.Equal(DecimalFromDouble.Convert(stored), vm.LineItems[0].UnitPrice);
     }
 
     [Fact]

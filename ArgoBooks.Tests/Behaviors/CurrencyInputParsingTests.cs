@@ -1,6 +1,7 @@
 using System.Globalization;
 using ArgoBooks.Behaviors;
 using Xunit;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Tests.Behaviors;
 
@@ -43,7 +44,7 @@ public class CurrencyInputParsingTests
     [InlineData("1,23", 1.23)]
     [InlineData("92000,50", 92000.50)]
     public void CommaDecimalIsNotReadAsGrouping(string text, double expected) =>
-        Assert.Equal((decimal)expected, ParseUnder("fr-CA", text));
+        Assert.Equal(DecimalFromDouble.Convert(expected), ParseUnder("fr-CA", text));
 
     /// <summary>
     /// And an invariant string still reads correctly on that same machine. Two decimals is the
@@ -81,14 +82,14 @@ public class CurrencyInputParsingTests
     [InlineData("1.234,56", 1234.56)]
     [InlineData("1,234,567.89", 1234567.89)]
     public void BothSeparatorsPresentMeansTheLastOneIsTheDecimalPoint(string text, double expected) =>
-        Assert.Equal((decimal)expected, ParseUnder("en-CA", text));
+        Assert.Equal(DecimalFromDouble.Convert(expected), ParseUnder("en-CA", text));
 
     [Theory]
     [InlineData("$1,234.56", 1234.56)]
     [InlineData("-45.20", -45.20)]
     [InlineData("78000", 78000)]
     public void SymbolsAndSignsSurvive(string text, double expected) =>
-        Assert.Equal((decimal)expected, ParseUnder("en-CA", text));
+        Assert.Equal(DecimalFromDouble.Convert(expected), ParseUnder("en-CA", text));
 
     [Theory]
     [InlineData("")]

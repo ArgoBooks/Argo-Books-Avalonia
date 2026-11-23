@@ -6,6 +6,7 @@ using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using Xunit;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Tests.Services;
 
@@ -89,9 +90,9 @@ public class CcaRateTests : IDisposable
     [InlineData("2024-04-16", 1.8182)]
     [InlineData("2026-12-31", 1.8182)]
     [InlineData("2027-01-01", 1.5)]
-    public void BuiltInFile_ComputersBoughtFromApril2024To2026AreWrittenOffInTheFirstYear(string date, decimal expected)
+    public void BuiltInFile_ComputersBoughtFromApril2024To2026AreWrittenOffInTheFirstYear(string date, double expected)
     {
-        Assert.Equal(expected, Rates().Current!.FirstYearFactorOn("50", DateTime.Parse(date)));
+        Assert.Equal(DecimalFromDouble.Convert(expected), Rates().Current!.FirstYearFactorOn("50", DateTime.Parse(date)));
     }
 
     [Fact]

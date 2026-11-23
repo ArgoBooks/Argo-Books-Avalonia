@@ -7,7 +7,7 @@ The release build runs in GitHub Actions and needs no Linux machine, which is wh
 .NET cross-compiles, so this produces Linux binaries without needing a Linux machine:
 
 ```bash
-dotnet publish ArgoBooks.Desktop -c Release -f net10.0 -r linux-x64 --self-contained -o publish/linux-x64
+dotnet publish ArgoBooks.Desktop -c Release -f net11.0 -r linux-x64 --self-contained -o publish/linux-x64
 ```
 
 ## Step 2: Copy to Linux VM

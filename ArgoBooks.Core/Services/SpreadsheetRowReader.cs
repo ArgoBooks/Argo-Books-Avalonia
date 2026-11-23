@@ -1,4 +1,5 @@
 using System.Globalization;
+using ArgoBooks.Core.Utilities;
 using ClosedXML.Excel;
 
 namespace ArgoBooks.Core.Services;
@@ -131,7 +132,7 @@ internal static class SpreadsheetRowReader
         return value switch
         {
             // A formula-error cell can surface as NaN/Infinity; (decimal)NaN throws, so coerce to 0.
-            double d => double.IsFinite(d) ? (decimal)d : 0m,
+            double d => double.IsFinite(d) ? DecimalFromDouble.Convert(d) : 0m,
             decimal dec => dec,
             int i => i,
             long l => l,
@@ -154,7 +155,7 @@ internal static class SpreadsheetRowReader
         {
             null => null,
             // A formula-error cell can surface as NaN/Infinity; (decimal)NaN throws, so coerce to 0.
-            double d => double.IsFinite(d) ? (decimal)d : 0m,
+            double d => double.IsFinite(d) ? DecimalFromDouble.Convert(d) : 0m,
             decimal dec => dec,
             int i => i,
             long l => l,

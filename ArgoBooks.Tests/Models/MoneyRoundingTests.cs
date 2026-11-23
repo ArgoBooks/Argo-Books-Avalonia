@@ -1,5 +1,6 @@
 using ArgoBooks.Core.Models.Common;
 using Xunit;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Tests.Models;
 
@@ -16,9 +17,9 @@ public class MoneyRoundingTests
     [InlineData(3, 0.875, 0, 2.63)]   // 2.625, the even neighbour is 2.62
     [InlineData(1, 6.305, 0, 6.31)]   // 6.305, the even neighbour is 6.30
     [InlineData(1, 10.00, 7.875, 2.13)] // 2.125, the even neighbour is 2.12
-    public void ALineSubtotalRoundsAHalfUp(decimal quantity, decimal unitPrice, decimal discount, decimal expected)
+    public void ALineSubtotalRoundsAHalfUp(double quantity, double unitPrice, double discount, double expected)
     {
-        Assert.Equal(expected, LineItem.SubtotalOf(quantity, unitPrice, discount));
+        Assert.Equal(DecimalFromDouble.Convert(expected), LineItem.SubtotalOf(DecimalFromDouble.Convert(quantity), DecimalFromDouble.Convert(unitPrice), DecimalFromDouble.Convert(discount)));
     }
 
     /// <summary>

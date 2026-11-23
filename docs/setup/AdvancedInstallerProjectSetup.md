@@ -32,7 +32,7 @@ Pricing on https://www.advancedinstaller.com/purchase.html is **$399 USD/user/ye
 ### Windows SDK (provides `signtool.exe`)
 Download from https://developer.microsoft.com/windows/downloads/windows-sdk/. During setup you only need the **Windows SDK Signing Tools for Desktop Apps** component. Advanced Installer auto-resolves `<AI_SIGNTOOL_FOLDER>signtool.exe` to whatever SDK version is installed.
 
-### .NET 10 SDK (for `dotnet publish`)
+### .NET 11 SDK (for `dotnet publish`)
 Download from https://dotnet.microsoft.com/download. Verify in a new terminal with `dotnet --version`.
 
 ### Microsoft Trusted Signing CLI tools
@@ -48,7 +48,7 @@ It should already exist at `Argo-Books-Avalonia/packaging/windows/trusted-signin
 Run `dotnet publish`, do not use a Rider build:
 
 ```bash
-dotnet publish ArgoBooks.Desktop -c Release -f net10.0-windows10.0.17763.0 -r win-x64 --self-contained -o publish/win-x64
+dotnet publish ArgoBooks.Desktop -c Release -f net11.0-windows10.0.17763.0 -r win-x64 --self-contained -o publish/win-x64
 ```
 
 The project sets `PublishReadyToRun`, which precompiles the app to native code and cuts cold start from roughly 6.5 seconds to 3.7 seconds. That setting only takes effect during `publish`. A Rider Release build silently ignores it and produces a working but noticeably slower installer. See `Argo-Books-Avalonia/docs/Publishing.md` for the full publishing flow.
@@ -100,7 +100,7 @@ The wizard has nine screens. Click **Next** between each.
 
 **Screen 6 - Configure Launch Conditions:**
 - Keep **Add launch conditions** checked.
-- **Minimum .NET version**: `.NET Framework 4.0` (this is for the installer UI itself; Argo Books's own .NET 10 runtime is bundled separately by `dotnet publish`).
+- **Minimum .NET version**: `.NET Framework 4.0` (this is for the installer UI itself; Argo Books's own .NET 11 runtime is bundled separately by `dotnet publish`).
 - **Supported Operating Systems**: leave all **64-bit Windows versions** checked (Win 7 x64 through Win 11 x64).
 
 **Screen 7 - Configure Prerequisites:**

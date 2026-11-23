@@ -1,6 +1,7 @@
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services;
 using Xunit;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Tests.Services;
 
@@ -91,26 +92,26 @@ public class QuebecPayrollCalculatorTests
     [InlineData(2400, 142.72, 10.32, 234.55)]
     [InlineData(5000, 306.52, 21.50, 759.39)]
     public void MatchesWebRasOnTheEmployeeDeductions(
-        decimal gross, decimal qpp, decimal qpip, decimal quebecTax)
+        double gross, double qpp, double qpip, double quebecTax)
     {
-        PayrollDeductions d = Calc(gross);
+        PayrollDeductions d = Calc(DecimalFromDouble.Convert(gross));
 
-        Assert.Equal(qpp, d.CppEmployee);
+        Assert.Equal(DecimalFromDouble.Convert(qpp), d.CppEmployee);
         Assert.Equal(0m, d.Cpp2Employee);
-        Assert.Equal(qpip, d.QpipEmployee);
-        Assert.Equal(quebecTax, d.ProvincialTax);
+        Assert.Equal(DecimalFromDouble.Convert(qpip), d.QpipEmployee);
+        Assert.Equal(DecimalFromDouble.Convert(quebecTax), d.ProvincialTax);
     }
 
     [Theory]
     [InlineData(2400, 142.72, 14.45)]
     [InlineData(5000, 306.52, 30.10)]
-    public void MatchesWebRasOnTheEmployerContributions(decimal gross, decimal qpp, decimal qpip)
+    public void MatchesWebRasOnTheEmployerContributions(double gross, double qpp, double qpip)
     {
         // The employer QPIP rate is its own published figure rather than a multiple of the employee's, and WebRAS prints both, so this is where that would show up if it were ever quietly derived.
-        PayrollDeductions d = Calc(gross);
+        PayrollDeductions d = Calc(DecimalFromDouble.Convert(gross));
 
-        Assert.Equal(qpp, d.CppEmployer);
-        Assert.Equal(qpip, d.QpipEmployer);
+        Assert.Equal(DecimalFromDouble.Convert(qpp), d.CppEmployer);
+        Assert.Equal(DecimalFromDouble.Convert(qpip), d.QpipEmployer);
     }
 
     [Fact]

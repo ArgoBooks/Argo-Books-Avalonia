@@ -3,6 +3,7 @@ using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Services.Payroll;
 using Xunit;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Tests.Services;
 
@@ -77,7 +78,7 @@ public class PayrollGuardTests
     [InlineData(PayFrequency.Monthly, 173.33)]
     [InlineData((PayFrequency)99, 80)]
     public void ASalariedEmployeesInsurableHours_ComeFromTheirContractWeek(
-        PayFrequency frequency, decimal expected)
+        PayFrequency frequency, double expected)
     {
         // Block 15A wants insurable hours and a salaried pay run records none, so Service Canada's answer is to convert the contract week.
         CompanyData data = Company(Person());
@@ -96,7 +97,7 @@ public class PayrollGuardTests
 
         RoeWorksheet worksheet = new RoeService().Build(data, "EMP-001");
 
-        Assert.Equal(expected, worksheet.TotalInsurableHours);
+        Assert.Equal(DecimalFromDouble.Convert(expected), worksheet.TotalInsurableHours);
     }
 
     #endregion

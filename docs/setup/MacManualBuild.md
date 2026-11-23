@@ -4,7 +4,7 @@ The release build runs in GitHub Actions and needs no Mac, which is what [Publis
 
 ## One-time setup on the Mac
 
-1. Install the .NET 10 SDK (arm64), the Xcode Command Line Tools, and `vpk` at the version in `Directory.Packages.props`:
+1. Install the .NET 11 SDK (arm64), the Xcode Command Line Tools, and `vpk` at the version in `Directory.Packages.props`:
 
    ```bash
    xcode-select --install
