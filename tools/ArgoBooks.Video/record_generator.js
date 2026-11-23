@@ -1,7 +1,7 @@
 // Records argorobots.com's free invoice or estimate generator as a take, the way Takes.cs records the app: a hand moves,
 // clicks and types through the page while every change is saved. The take keeps its own clock, so it plays at an even
 // speed however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
-// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee OUT_FOLDER   (run "npm install" in this folder first)
+// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler OUT_FOLDER   (run "npm install" in this folder first)
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
@@ -22,11 +22,13 @@ const PAGES = {
   candle: "https://argorobots.com/candle-pricing-calculator/",
   craftfair: "https://argorobots.com/craft-fair-calculator/",
   latefee: "https://argorobots.com/late-fee-calculator/",
+  soap: "https://argorobots.com/soap-pricing-calculator/",
+  tumbler: "https://argorobots.com/tumbler-pricing-calculator/",
 };
 const SCALE = 2;
 // Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short. The tax calculator
 // goes into a 16:9 video beside the app's takes, so it is recorded at the app's own window size.
-const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 }, etsy: { width: 1600, height: 1000 }, cake: { width: 1600, height: 1000 }, freelancetax: { width: 1600, height: 1000 }, candle: { width: 1600, height: 1000 }, craftfair: { width: 1600, height: 1000 }, latefee: { width: 1600, height: 1000 } };
+const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 }, etsy: { width: 1600, height: 1000 }, cake: { width: 1600, height: 1000 }, freelancetax: { width: 1600, height: 1000 }, candle: { width: 1600, height: 1000 }, craftfair: { width: 1600, height: 1000 }, latefee: { width: 1600, height: 1000 }, soap: { width: 1600, height: 1000 }, tumbler: { width: 1600, height: 1000 } };
 
 class Take {
   constructor(page, folder) {
@@ -650,6 +652,72 @@ const RECORDINGS = {
     take.hold(3.5);
     take.mark("end");
   },
+  // The soap Short's example, the page's own worked one: a batch of 10 bars, 80 minutes at $20 and $0.60 of selling costs a
+  // bar, priced with no markup so the price shown is the real cost of one bar.
+  async soap(page, take) {
+    await take.scrollTo(300, 0.01);
+    await take.snap();
+    take.mark("top");
+    take.hold(0.6);
+    const amounts = ["9.40", "1.60", "8", "2.10", "3.50"];
+    for (let i = 0; i < amounts.length; i++) {
+      await take.moveInto(`mat_${i}`, `#cc-mat-${i}`, 0, i ? 0.4 : 0.8, 120);
+      if (!i) take.mark("click_mat");
+      await take.click();
+      await take.type(amounts[i], 0.08);
+    }
+    take.mark("mats_done");
+    take.hold(0.3);
+    await take.scrollTo(1000, 0.9);
+    take.mark("scrolled");
+    await take.moveInto("overhead", "#cc-overhead", 0, 0.6, 120);
+    await take.click();
+    await take.type("0.60", 0.12);
+    await take.moveInto("markup", "#cc-markup", 0, 0.6, 120);
+    take.mark("click_markup");
+    await take.click();
+    await take.retype("0", 0.2);
+    take.mark("priced");
+    take.hold(0.3);
+    const price = await take.place("price", '[data-cc="price"]');
+    await take.moveTo(price.x + price.width - 40, price.y + price.height + 30, 0.8);
+    take.mark("look_price");
+    take.hold(3.5);
+    take.mark("end");
+  },
+  // The tumbler Short's example, the page's own worked one: one custom tumbler, 45 minutes at $22 and $8.40 of fees and
+  // postage, priced with no markup so the price shown is the real cost of one tumbler.
+  async tumbler(page, take) {
+    await take.scrollTo(300, 0.01);
+    await take.snap();
+    take.mark("top");
+    take.hold(0.6);
+    const amounts = ["6.50", "1.80", "0.60", "2.10"];
+    for (let i = 0; i < amounts.length; i++) {
+      await take.moveInto(`mat_${i}`, `#cc-mat-${i}`, 0, i ? 0.4 : 0.8, 120);
+      if (!i) take.mark("click_mat");
+      await take.click();
+      await take.type(amounts[i], 0.08);
+    }
+    take.mark("mats_done");
+    take.hold(0.3);
+    await take.scrollTo(1000, 0.9);
+    take.mark("scrolled");
+    await take.moveInto("overhead", "#cc-overhead", 0, 0.6, 120);
+    await take.click();
+    await take.type("8.40", 0.12);
+    await take.moveInto("markup", "#cc-markup", 0, 0.6, 120);
+    take.mark("click_markup");
+    await take.click();
+    await take.retype("0", 0.2);
+    take.mark("priced");
+    take.hold(0.3);
+    const price = await take.place("price", '[data-cc="price"]');
+    await take.moveTo(price.x + price.width - 40, price.y + price.height + 30, 0.8);
+    take.mark("look_price");
+    take.hold(3.5);
+    take.mark("end");
+  },
   async estimate(page, take) {
     await opening(take, 3.0);
     await parties(take, "Northline Decks", "Northline Decks\n214 Harbor Road\nPortland, ME 04102", "Linda Park\n88 Maple Avenue\nPortland, ME 04103");
@@ -664,7 +732,7 @@ const RECORDINGS = {
 
 (async () => {
   const [kind, folder] = process.argv.slice(2);
-  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee OUT_FOLDER");
+  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler OUT_FOLDER");
   const viewport = VIEWPORTS[kind];
   fs.rmSync(path.join(folder, "frames"), { recursive: true, force: true });
   fs.mkdirSync(path.join(folder, "frames"), { recursive: true });
