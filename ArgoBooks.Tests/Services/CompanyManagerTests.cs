@@ -417,6 +417,42 @@ public class CompanyManagerTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// A save that stops part way, as on a full disk, leaves some working files with unsaved records
+    /// in them. A settings-only save must not pack those into the company file.
+    /// </summary>
+    [Fact]
+    public async Task SaveSettingsOnlyAsync_AfterASaveStoppedPartWay_LeavesTheFileAsSaved()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(filePath, "Acme");
+            await _manager.SaveCompanyAsync();
+
+            var tempField = typeof(CompanyManager).GetField("_currentTempDirectory", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var products = Directory.GetFiles((string)tempField.GetValue(_manager)!, "products.json", SearchOption.AllDirectories).Single();
+            File.Delete(products);
+            Directory.CreateDirectory(products);
+
+            _manager.CompanyData!.Customers.Add(new Customer { Id = "CUS-001", Name = "Unsaved" });
+            _manager.MarkAsChanged();
+            await Assert.ThrowsAnyAsync<Exception>(() => _manager.SaveCompanyAsync());
+            Directory.Delete(products);
+
+            Assert.False(await _manager.SaveSettingsOnlyAsync());
+            await _manager.CloseCompanyAsync();
+
+            await _manager.OpenCompanyAsync(filePath);
+            Assert.DoesNotContain(_manager.CompanyData!.Customers, c => c.Name == "Unsaved");
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
     [Fact]
     public async Task Save_ImmediatelyAfterOpen_DoesNotDropDeferredReceipts()
     {

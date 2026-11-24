@@ -1276,10 +1276,10 @@ public class CompanyManager : IDisposable
             // An edit made during the awaits below may miss the file, so it must stay unsaved.
             var changeCount = CompanyData!.ChangeCount;
 
-            // Save data to temp directory
+            // Save data to temp directory. The flag goes up first, because a write that stops part way, on a full disk say, leaves files the company's file does not match.
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
-            await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
             _workingFolderAheadOfFile = true;
+            await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
 
             // Apply pending rename before saving so the file is saved at the new path.
             var wasRenamed = false;
@@ -1405,8 +1405,8 @@ public class CompanyManager : IDisposable
             {
                 // Save data to temp directory
                 var companyDir = GetCompanyDirectory(_currentTempDirectory);
-                await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
                 _workingFolderAheadOfFile = true;
+                await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
 
                 // The file lock is let go while the new file is written, and taken again in the finally below.
                 ReleaseFileLock();
@@ -2118,9 +2118,10 @@ public class CompanyManager : IDisposable
 
             // Save current data to temp directory
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
+            var wasAhead = _workingFolderAheadOfFile;
+            _workingFolderAheadOfFile = true;
             await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
-            if (HasUnsavedChanges)
-                _workingFolderAheadOfFile = true;
+            _workingFolderAheadOfFile = wasAhead || HasUnsavedChanges;
 
             // Export the entire temp directory as-is (includes receipts/).
             await PackTempDirectoryAsync(backupPath, _currentPassword, cancellationToken);
@@ -2163,8 +2164,8 @@ public class CompanyManager : IDisposable
                 return false;
 
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
-            await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
             _workingFolderAheadOfFile = true;
+            await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
 
             // Repackage the .argo file so changes persist across restarts
             ReleaseFileLock();

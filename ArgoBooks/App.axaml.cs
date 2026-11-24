@@ -4724,6 +4724,13 @@ public partial class App : Application
                 + "(such as your main drive). Your work is still open, so nothing has been lost yet.").Translate();
         }
 
+        if (EnvironmentFailure.Classify(ex) is { Code: "DiskFull" })
+        {
+            return ("Your computer's drive is full, so the company file couldn't be saved. "
+                + "Your work is still open. Free up some space, then save again, "
+                + "or use \"Save As\" to save the file to another drive.").Translate();
+        }
+
         if (ex is UnauthorizedAccessException)
         {
             return ("Argo Books does not have permission to save to this location. "
