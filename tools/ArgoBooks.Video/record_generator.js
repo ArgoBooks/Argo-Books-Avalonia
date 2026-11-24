@@ -1,7 +1,7 @@
 // Records argorobots.com's free invoice or estimate generator as a take, the way Takes.cs records the app: a hand moves,
 // clicks and types through the page while every change is saved. The take keeps its own clock, so it plays at an even
 // speed however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
-// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler|crochet OUT_FOLDER   (run "npm install" in this folder first)
+// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler|crochet|sticker OUT_FOLDER   (run "npm install" in this folder first)
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
@@ -25,11 +25,12 @@ const PAGES = {
   soap: "https://argorobots.com/soap-pricing-calculator/",
   tumbler: "https://argorobots.com/tumbler-pricing-calculator/",
   crochet: "https://argorobots.com/craft-pricing-calculator/",
+  sticker: "https://argorobots.com/break-even-calculator/",
 };
 const SCALE = 2;
 // Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short. The tax calculator
 // goes into a 16:9 video beside the app's takes, so it is recorded at the app's own window size.
-const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 }, etsy: { width: 1600, height: 1000 }, cake: { width: 1600, height: 1000 }, freelancetax: { width: 1600, height: 1000 }, candle: { width: 1600, height: 1000 }, craftfair: { width: 1600, height: 1000 }, latefee: { width: 1600, height: 1000 }, soap: { width: 1600, height: 1000 }, tumbler: { width: 1600, height: 1000 }, crochet: { width: 1600, height: 1000 } };
+const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 }, etsy: { width: 1600, height: 1000 }, cake: { width: 1600, height: 1000 }, freelancetax: { width: 1600, height: 1000 }, candle: { width: 1600, height: 1000 }, craftfair: { width: 1600, height: 1000 }, latefee: { width: 1600, height: 1000 }, soap: { width: 1600, height: 1000 }, tumbler: { width: 1600, height: 1000 }, crochet: { width: 1600, height: 1000 }, sticker: { width: 1600, height: 1000 } };
 
 class Take {
   constructor(page, folder) {
@@ -745,6 +746,35 @@ const RECORDINGS = {
     take.hold(3.5);
     take.mark("end");
   },
+  // The sticker Short's example: a $400 cutting machine and printer paid off by $4 stickers, each with $2.18 of Etsy fees,
+  // postage and sticker paper.
+  async sticker(page, take) {
+    await take.scrollTo(120, 0.01);
+    await take.snap();
+    take.mark("top");
+    await take.place("form", ".calc-form");
+    await take.place("results", "[data-be-results], .calc-results");
+    take.hold(0.6);
+    await take.moveInto("fixed", "#be-fixed", 0, 0.8, 120);
+    take.mark("click_fixed");
+    await take.click();
+    await take.type("400", 0.12);
+    take.hold(0.2);
+    await take.moveInto("price", "#be-price", 0, 0.5, 120);
+    await take.click();
+    await take.type("4", 0.12);
+    take.hold(0.2);
+    await take.moveInto("variable", "#be-variable", 0, 0.5, 120);
+    await take.click();
+    await take.type("2.18", 0.12);
+    take.mark("typed");
+    take.hold(0.3);
+    const units = await take.place("units", '[data-be="units"]');
+    await take.moveTo(units.x + units.width + 60, units.y + units.height / 2 + 20, 0.8);
+    take.mark("look_units");
+    take.hold(4.0);
+    take.mark("end");
+  },
   async estimate(page, take) {
     await opening(take, 3.0);
     await parties(take, "Northline Decks", "Northline Decks\n214 Harbor Road\nPortland, ME 04102", "Linda Park\n88 Maple Avenue\nPortland, ME 04103");
@@ -759,7 +789,7 @@ const RECORDINGS = {
 
 (async () => {
   const [kind, folder] = process.argv.slice(2);
-  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler|crochet OUT_FOLDER");
+  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler|crochet|sticker OUT_FOLDER");
   const viewport = VIEWPORTS[kind];
   fs.rmSync(path.join(folder, "frames"), { recursive: true, force: true });
   fs.mkdirSync(path.join(folder, "frames"), { recursive: true });
