@@ -1,7 +1,7 @@
 // Records argorobots.com's free invoice or estimate generator as a take, the way Takes.cs records the app: a hand moves,
 // clicks and types through the page while every change is saved. The take keeps its own clock, so it plays at an even
 // speed however long the browser takes to draw each change. invoice_short.py turns it into the take format the edit reads.
-// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler|crochet|sticker|cleaner OUT_FOLDER   (run "npm install" in this folder first)
+// Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler|crochet|sticker|cleaner|driver OUT_FOLDER   (run "npm install" in this folder first)
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
@@ -27,11 +27,12 @@ const PAGES = {
   crochet: "https://argorobots.com/craft-pricing-calculator/",
   sticker: "https://argorobots.com/break-even-calculator/",
   cleaner: "https://argorobots.com/hourly-rate-calculator/",
+  driver: "https://argorobots.com/mileage-deduction-calculator/",
 };
 const SCALE = 2;
 // Taller than the app's window, so the whole width of the invoice fits across the tall frame of a Short. The tax calculator
 // goes into a 16:9 video beside the app's takes, so it is recorded at the app's own window size.
-const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 }, etsy: { width: 1600, height: 1000 }, cake: { width: 1600, height: 1000 }, freelancetax: { width: 1600, height: 1000 }, candle: { width: 1600, height: 1000 }, craftfair: { width: 1600, height: 1000 }, latefee: { width: 1600, height: 1000 }, soap: { width: 1600, height: 1000 }, tumbler: { width: 1600, height: 1000 }, crochet: { width: 1600, height: 1000 }, sticker: { width: 1600, height: 1000 }, cleaner: { width: 1600, height: 1000 } };
+const VIEWPORTS = { invoice: { width: 1600, height: 1000 }, estimate: { width: 1600, height: 1000 }, taxcalc: { width: 1600, height: 900 }, mileage: { width: 1600, height: 900 }, hourly: { width: 1600, height: 1000 }, margin: { width: 1600, height: 1000 }, breakeven: { width: 1600, height: 1000 }, etsy: { width: 1600, height: 1000 }, cake: { width: 1600, height: 1000 }, freelancetax: { width: 1600, height: 1000 }, candle: { width: 1600, height: 1000 }, craftfair: { width: 1600, height: 1000 }, latefee: { width: 1600, height: 1000 }, soap: { width: 1600, height: 1000 }, tumbler: { width: 1600, height: 1000 }, crochet: { width: 1600, height: 1000 }, sticker: { width: 1600, height: 1000 }, cleaner: { width: 1600, height: 1000 }, driver: { width: 1600, height: 1000 } };
 
 class Take {
   constructor(page, folder) {
@@ -812,6 +813,36 @@ const RECORDINGS = {
     take.hold(4.0);
     take.mark("end");
   },
+  // The delivery driver Short's example: 20,000 miles in 2026, half before the IRS raised its rate on 1 July and half after,
+  // and a quarter of each extra dollar going to tax.
+  async driver(page, take) {
+    await take.scrollTo(250, 0.01);
+    await take.snap();
+    take.mark("top");
+    await take.place("form", ".calc-form");
+    await take.place("results", "[data-mc-results]");
+    take.hold(0.6);
+    await take.moveInto("first_half", "#mc-d0", 0, 0.8, 120);
+    take.mark("click_first");
+    await take.click();
+    await take.type("10000", 0.11);
+    take.hold(0.2);
+    await take.moveInto("second_half", "#mc-d1", 0, 0.5, 120);
+    await take.click();
+    await take.type("10000", 0.11);
+    take.mark("second_done");
+    await take.moveInto("taxrate", "#mc-taxrate", 0, 0.6, 120);
+    await take.click();
+    await take.type("25", 0.14);
+    take.mark("rate_done");
+    await take.place("worth", "[data-mc-worth]");
+    take.hold(0.3);
+    const saved = await take.place("saved", '[data-mc="taxSaved"]');
+    await take.moveTo(saved.x + saved.width + 30, saved.y + saved.height / 2 + 20, 0.8);
+    take.mark("look_saved");
+    take.hold(4.0);
+    take.mark("end");
+  },
   async estimate(page, take) {
     await opening(take, 3.0);
     await parties(take, "Northline Decks", "Northline Decks\n214 Harbor Road\nPortland, ME 04102", "Linda Park\n88 Maple Avenue\nPortland, ME 04103");
@@ -826,7 +857,7 @@ const RECORDINGS = {
 
 (async () => {
   const [kind, folder] = process.argv.slice(2);
-  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler|crochet|sticker|cleaner OUT_FOLDER");
+  if (!RECORDINGS[kind] || !folder) throw new Error("Usage: node record_generator.js invoice|estimate|taxcalc|mileage|hourly|margin|breakeven|etsy|cake|freelancetax|candle|craftfair|latefee|soap|tumbler|crochet|sticker|cleaner|driver OUT_FOLDER");
   const viewport = VIEWPORTS[kind];
   fs.rmSync(path.join(folder, "frames"), { recursive: true, force: true });
   fs.mkdirSync(path.join(folder, "frames"), { recursive: true });
